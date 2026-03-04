@@ -32,6 +32,7 @@ export default {
   'task-proxy': 'پیشکار',
   'task-error-info': 'خطا',
   'file-missing': 'File missing',
+  'duplicate-task': 'This task already exists and cannot be added again.',
   'task-piece': 'قطعه',
   'task-piece-length': 'اندازه قطعه',
   'task-num-pieces': 'قطعات',

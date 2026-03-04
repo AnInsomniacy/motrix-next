@@ -160,8 +160,9 @@ export const useTaskStore = defineStore('task', () => {
     }
 
     async function addTorrent(data: { torrent: string; options: Record<string, unknown> }) {
-        await api.addTorrent(data)
+        const gid = await api.addTorrent(data)
         await fetchList()
+        return gid
     }
 
     async function addMetalink(data: { metalink: string; options: Record<string, unknown> }) {

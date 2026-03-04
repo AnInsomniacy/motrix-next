@@ -32,6 +32,7 @@ export default {
   'task-proxy': 'Proxy',
   'task-error-info': 'Erro',
   'file-missing': 'File missing',
+  'duplicate-task': 'This task already exists and cannot be added again.',
   'task-piece': 'Artigo',
   'task-piece-length': 'Tamanho da peça',
   'task-num-pieces': 'Peças',

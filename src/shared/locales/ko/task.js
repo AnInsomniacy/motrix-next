@@ -32,6 +32,7 @@ export default {
   'task-proxy': '프록시',
   'task-error-info': '오류',
   'file-missing': 'File missing',
+  'duplicate-task': 'This task already exists and cannot be added again.',
   'task-piece': '조각',
   'task-piece-length': '조각 크기',
   'task-num-pieces': '조각',

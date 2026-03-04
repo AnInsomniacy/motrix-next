@@ -32,6 +32,7 @@ export default {
   'task-proxy': 'Proxy',
   'task-error-info': 'Lỗi',
   'file-missing': 'File missing',
+  'duplicate-task': 'This task already exists and cannot be added again.',
   'task-piece': 'Mảnh',
   'task-piece-length': 'Kích thước mảnh',
   'task-num-pieces': 'Các mảnh',

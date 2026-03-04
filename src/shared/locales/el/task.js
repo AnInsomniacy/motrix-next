@@ -32,6 +32,7 @@ export default {
   'task-proxy': 'Proxy',
   'task-error-info': 'Λάθος',
   'file-missing': 'File missing',
+  'duplicate-task': 'This task already exists and cannot be added again.',
   'task-piece': 'Κομμάτι',
   'task-piece-length': 'Μέγεθος κομματιού',
   'task-num-pieces': 'Κομμάτια',

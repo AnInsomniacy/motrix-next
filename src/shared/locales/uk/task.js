@@ -32,6 +32,7 @@ export default {
   'task-proxy': 'Proxy',
   'task-error-info': 'Помилка',
   'file-missing': 'File missing',
+  'duplicate-task': 'This task already exists and cannot be added again.',
   'task-piece': 'Шматок',
   'task-piece-length': 'Розмір шматка',
   'task-num-pieces': 'Шматочки',

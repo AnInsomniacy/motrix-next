@@ -23,6 +23,11 @@ pub fn start_engine(app: &tauri::AppHandle, config: &serde_json::Value) -> Resul
         return Ok(());
     }
 
+    // Ensure the download directory exists
+    if let Some(dir) = config.get("dir").and_then(|v| v.as_str()) {
+        let _ = std::fs::create_dir_all(dir);
+    }
+
     // Kill any leftover aria2c process on the RPC port before starting
     let port = config
         .get("rpc-listen-port")

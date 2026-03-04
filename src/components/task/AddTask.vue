@@ -212,7 +212,20 @@ async function handleSubmit() {
       if (selectedFileIndices.value.length > 0 && selectedFileIndices.value.length < torrentFiles.value.length) {
         options['select-file'] = selectedFileIndices.value.join(',')
       }
-      await taskStore.addTorrent({ torrent: torrentBase64.value, options })
+      const gid = await taskStore.addTorrent({ torrent: torrentBase64.value, options })
+      // aria2c may accept the task but immediately fail (e.g. duplicate info_hash)
+      // Wait briefly then check the task status
+      if (gid) {
+        await new Promise(r => setTimeout(r, 500))
+        try {
+          const { getClient } = await import('@/api/aria2')
+          const status = await getClient().call('tellStatus', [gid as string, ['status', 'errorMessage']]) as Record<string, string>
+          if (status?.status === 'error' && status.errorMessage) {
+            message.warning(status.errorMessage, { duration: 5000, closable: true })
+            return
+          }
+        } catch { /* task may have been removed, ignore */ }
+      }
     } else {
       return
     }
@@ -225,6 +238,8 @@ async function handleSubmit() {
     console.error('[AddTask] submit error:', e)
     if (errMsg.includes('not initialized') || !isEngineReady()) {
       message.error(t('app.engine-not-ready'), { duration: 5000, closable: true })
+    } else if (/duplicate|already/i.test(errMsg)) {
+      message.warning(t('task.duplicate-task') || 'This task already exists and cannot be added again.', { duration: 5000, closable: true })
     } else {
       message.error(errMsg, { duration: 5000, closable: true })
     }

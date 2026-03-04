@@ -31,6 +31,7 @@ export default {
   'task-proxy': 'プロキシ',
   'task-error-info': 'エラー',
   'file-missing': 'File missing',
+  'duplicate-task': 'This task already exists and cannot be added again.',
   'task-piece': 'ピース',
   'task-piece-length': 'ピースサイズ',
   'task-num-pieces': 'ピース',

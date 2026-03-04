@@ -32,6 +32,7 @@ export default {
   'task-proxy': 'Proxy',
   'task-error-info': 'Kesalahan',
   'file-missing': 'File missing',
+  'duplicate-task': 'This task already exists and cannot be added again.',
   'task-piece': 'Bagian',
   'task-piece-length': 'Ukuran Potongan',
   'task-num-pieces': 'Potongan',

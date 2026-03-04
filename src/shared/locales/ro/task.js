@@ -32,6 +32,7 @@ export default {
   'task-proxy': 'Proxy',
   'task-error-info': 'Eroare',
   'file-missing': 'File missing',
+  'duplicate-task': 'This task already exists and cannot be added again.',
   'task-piece': 'Bucată',
   'task-piece-length': 'Dimensiunea piesei',
   'task-num-pieces': 'Piese',

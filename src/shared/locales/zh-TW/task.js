@@ -31,6 +31,7 @@ export default {
   'task-proxy': 'Proxy',
   'task-error-info': '錯誤訊息',
   'file-missing': '檔案遺失',
+  'duplicate-task': '任務已存在，無法重複添加',
   'task-piece': '分片',
   'task-piece-length': '分片大小',
   'task-num-pieces': '分片數量',
