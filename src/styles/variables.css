@@ -1,0 +1,257 @@
+:root {
+    --color-primary: #E0A422;
+    --color-primary-hover: #c89319;
+    --color-primary-light-5: #f0d291;
+    --color-primary-light-9: #faf3e0;
+    --color-success: #67C23A;
+    --color-warning: #E6A23C;
+    --color-danger: #F56C6C;
+    --color-info: #909399;
+
+    --color-text-primary: #303133;
+    --color-text-regular: #606266;
+    --color-text-secondary: #909399;
+    --color-text-placeholder: #C0C4CC;
+
+    --border-color-base: #DCDFE6;
+    --border-color-light: #E4E7ED;
+    --border-color-lighter: #EBEEF5;
+
+    --aside-bg: rgb(28, 28, 30);
+    --aside-text: #fff;
+
+    --subnav-bg: #F4F5F7;
+    --subnav-title: #303133;
+    --subnav-text: #4D515A;
+    --subnav-active-text: #E0A422;
+    --subnav-active-bg: #EAECF0;
+    --subnav-action: #4D515A;
+
+    --main-bg: #FFFFFF;
+    --panel-bg: #FFFFFF;
+    --panel-title: #303133;
+    --panel-border: rgba(0, 0, 0, 0.1);
+
+    --task-item-bg: #fff;
+    --task-item-border: #ccc;
+    --task-item-hover-border: #E0A422;
+    --task-item-text: #505753;
+    --task-action-bg: #fff;
+    --task-action-border: #F5F5F5;
+    --task-action-color: #9B9B9B;
+    --task-action-hover-bg: #f0f0f0;
+    --task-action-hover-border: #d0d0d0;
+    --task-action-hover-color: #555;
+
+    --speedometer-bg: #fff;
+    --speedometer-border: #ccc;
+    --speedometer-hover-border: #9b9b9b;
+    --speedometer-primary: #E0A422;
+    --speedometer-stopped: #9b9b9b;
+    --speedometer-text: #9b9b9b;
+
+    --add-task-footer-bg: #eeeeee;
+    --dialog-bg: #fff;
+    --preference-text: #4c4c4c;
+
+    --aside-width: 78px;
+    --subnav-width: 200px;
+    --titlebar-height: 0px;
+
+    --font-family: "Monospaced Number", "Chinese Quote", -apple-system,
+        BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB",
+        "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --font-size-base: 14px;
+    --font-size-sm: 13px;
+    --font-size-xs: 12px;
+    --font-size-lg: 16px;
+    --border-radius: 4px;
+    --transition-all: all .25s cubic-bezier(.645, .045, .355, 1);
+    --transition-fast: .2s ease;
+    --transition-border: border-color .25s cubic-bezier(.645, .045, .355, 1);
+}
+
+.dark {
+    --color-text-primary: #eee;
+    --color-text-regular: #ddd;
+    --color-text-secondary: #aaa;
+    --color-text-placeholder: #666;
+
+    --border-color-base: #555;
+    --border-color-light: #555;
+    --border-color-lighter: #444;
+
+    --aside-bg: rgb(20, 20, 22);
+
+    --subnav-bg: #2D2D2D;
+    --subnav-title: #fff;
+    --subnav-text: #aaa;
+    --subnav-active-text: #fff;
+    --subnav-active-bg: #444;
+
+    --main-bg: #343434;
+    --panel-bg: #343434;
+    --panel-title: #fff;
+    --panel-border: #555;
+
+    --task-item-bg: #2d2d2d;
+    --task-item-border: #555;
+    --task-item-hover-border: #E0A422;
+    --task-item-text: #eee;
+    --task-action-bg: #4a4a4a;
+    --task-action-border: #5f5f5f;
+    --task-action-color: #eee;
+    --task-action-hover-bg: #5a5a5a;
+    --task-action-hover-border: #777;
+    --task-action-hover-color: #fff;
+
+    --speedometer-bg: #333;
+    --speedometer-border: #5f5f5f;
+    --speedometer-hover-border: #9b9b9b;
+
+    --add-task-footer-bg: #3a3a3a;
+    --dialog-bg: #343434;
+    --preference-text: #dfdfdf;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+    height: 100%;
+    font-family: var(--font-family);
+    font-variant: tabular-nums;
+    font-size: var(--font-size-base);
+    color: var(--color-text-primary);
+    background: transparent;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+    border-radius: 8px;
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+::-webkit-scrollbar-thumb:window-inactive {
+    background-color: rgba(0, 0, 0, 0.25);
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+button {
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-family: inherit;
+    font-size: inherit;
+}
+
+input,
+select,
+textarea {
+    font-family: inherit;
+    font-size: inherit;
+}
+
+.draggable {
+    -webkit-app-region: drag;
+    user-select: none;
+}
+
+.non-draggable {
+    -webkit-app-region: no-drag;
+}
+
+@keyframes mo-progress-active {
+    0% {
+        opacity: 0.1;
+        width: 0;
+    }
+
+    20% {
+        opacity: 0.5;
+        width: 0;
+    }
+
+    100% {
+        opacity: 0;
+        width: 100%;
+    }
+}
+
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.25s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+}
+
+.fade-scale-enter-active,
+.fade-scale-leave-active {
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.fade-scale-enter-from {
+    opacity: 0;
+    transform: scale(0.94);
+}
+
+.fade-scale-leave-to {
+    opacity: 0;
+    transform: scale(0.94);
+}
+
+.n-tabs-pane-wrapper {
+    transition: opacity 0.2s ease !important;
+}
+
+.n-tab-pane-enter-active,
+.n-tab-pane-leave-active {
+    transition: opacity 0.2s ease !important;
+    transform: none !important;
+}
+
+.n-tab-pane-enter-from,
+.n-tab-pane-leave-to {
+    opacity: 0 !important;
+    transform: none !important;
+}
+
+.n-modal-mask-enter-active,
+.n-modal-mask-leave-active,
+.n-modal-body-wrapper--enter-active,
+.n-modal-body-wrapper--leave-active {
+    transition: opacity 0.2s ease, transform 0.2s ease !important;
+}
+
+.n-modal-body-wrapper--enter-from,
+.n-modal-body-wrapper--leave-to {
+    opacity: 0 !important;
+    transform: scale(0.94) !important;
+}
+
+.n-dialog {
+    transform-origin: center center !important;
+}

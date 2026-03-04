@@ -1,0 +1,7 @@
+export { Aria2 } from './lib/Aria2'
+export type { Aria2Options } from './lib/Aria2'
+export { JSONRPCClient } from './lib/JSONRPCClient'
+export type { JSONRPCClientOptions } from './lib/JSONRPCClient'
+export { JSONRPCError } from './lib/JSONRPCError'
+export { Deferred } from './lib/Deferred'
+export { EventEmitter } from './lib/EventEmitter'

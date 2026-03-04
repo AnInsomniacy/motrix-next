@@ -1,0 +1,47 @@
+{
+  "name": "motrix-next",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@bany/curl-to-json": "^1.2.10",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-autostart": "^2.5.1",
+    "@tauri-apps/plugin-deep-link": "^2.4.7",
+    "@tauri-apps/plugin-dialog": "^2.6.0",
+    "@tauri-apps/plugin-fs": "^2.4.5",
+    "@tauri-apps/plugin-notification": "^2.3.3",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-os": "^2.3.2",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-shell": "^2.3.5",
+    "@tauri-apps/plugin-store": "^2.4.2",
+    "@tauri-apps/plugin-updater": "^2.10.0",
+    "@vicons/ionicons5": "^0.13.0",
+    "@vueuse/core": "^14.2.1",
+    "axios": "^1.13.6",
+    "bencode": "^4.0.0",
+    "lodash-es": "^4.17.23",
+    "naive-ui": "^2.43.2",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.13",
+    "vue-i18n": "^10.0.8",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/lodash-es": "^4.17.12",
+    "@unocss/preset-uno": "^66.6.3",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "typescript": "~5.6.2",
+    "unocss": "^66.6.2",
+    "vite": "^6.0.3",
+    "vue-tsc": "^2.1.10"
+  }
+}

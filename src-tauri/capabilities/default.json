@@ -1,0 +1,27 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-close",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "opener:default",
+    "store:default",
+    "shell:default",
+    "shell:allow-open",
+    "shell:allow-execute",
+    "dialog:default",
+    "notification:default",
+    "process:default",
+    "os:default",
+    "fs:default",
+    "fs:allow-read-file",
+    "autostart:default"
+  ]
+}
