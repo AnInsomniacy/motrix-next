@@ -6,7 +6,7 @@
   [![GitHub release](https://img.shields.io/github/v/release/AnInsomniacy/motrix-next?style=flat-square)](https://github.com/AnInsomniacy/motrix-next/releases)
   ![Build](https://img.shields.io/github/actions/workflow/status/AnInsomniacy/motrix-next/release.yml?style=flat-square)
   ![Platform](https://img.shields.io/badge/macOS%20·%20Windows%20·%20Linux-2b2b2b?style=flat-square)
-  ![License](https://img.shields.io/github/license/AnInsomniacy/motrix-next?style=flat-square)
+  ![Bundle](https://img.shields.io/badge/bundle-~10_MB-00D4AA?style=flat-square)
 
   [![Website](https://img.shields.io/badge/Website-E0A422?style=for-the-badge&logo=safari&logoColor=white)](https://motrix-next.pages.dev)
   [![Download](https://img.shields.io/badge/Download-2b2b2b?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTIxIDE1djRhMiAyIDAgMCAxLTIgMkg1YTIgMiAwIDAgMS0yLTJ2LTQiLz48cG9seWxpbmUgcG9pbnRzPSI3IDEwIDEyIDE1IDE3IDEwIi8+PGxpbmUgeDE9IjEyIiB5MT0iMTUiIHgyPSIxMiIgeTI9IjMiLz48L3N2Zz4=&logoColor=white)](https://github.com/AnInsomniacy/motrix-next/releases)
