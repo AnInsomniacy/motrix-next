@@ -11,7 +11,7 @@
   ![Platform](https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux-informational?style=flat-square&logo=apple&logoColor=white)
   ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
 
-  ![Bundle Size](https://img.shields.io/badge/bundle%20size-~10MB%20(down%20from%20~80MB)-brightgreen?style=flat-square)
+  ![Bundle Size](https://img.shields.io/badge/bundle%20size-~10MB-brightgreen?style=flat-square)
 </div>
 
 ---
@@ -47,7 +47,7 @@ We owe a great deal to the original [Motrix](https://github.com/agalwood/Motrix)
 | **Styling** | SCSS + Element theme | **Vanilla CSS + custom properties** |
 | **Engine Mgmt** | Node.js `child_process` | **Tauri sidecar** |
 | **Build System** | electron-builder | **Vite + Cargo** |
-| **Bundle Size** | ~80 MB | **~10 MB** |
+| **Bundle Size** | — | **~10 MB** |
 | **Auto-Update** | electron-updater | **Tauri updater plugin** |
 
 Version numbering starts at `1.0.0` to reflect this clean break.

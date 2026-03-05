@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Motrix Next</title>
+  <meta name="description"
+    content="A full-featured download manager rebuilt with Tauri 2, Vue 3, and Rust. ~10MB bundle. HTTP, FTP, BitTorrent, Magnet. macOS, Windows, Linux.">
+  <meta name="theme-color" content="#0c0c0e">
+  <link rel="icon" type="image/png" href="assets/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <nav id="nav">
+    <a href="#" class="nav-logo">
+      <img src="assets/logo.png" alt="" width="28" height="28" class="nav-icon">
+      MOTRIX NEXT
+    </a>
+    <div class="nav-right">
+      <a href="https://github.com/AnInsomniacy/motrix-next" class="nav-gh" target="_blank" rel="noopener"
+        aria-label="GitHub">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+          <path
+            d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
+        </svg>
+      </a>
+      <a href="https://github.com/AnInsomniacy/motrix-next/releases" class="nav-cta" id="nav-download">Download</a>
+    </div>
+  </nav>
+
+  <main>
+
+    <section id="hero">
+      <div class="hero-watermark" aria-hidden="true">
+        <img src="assets/brand-watermark-light.png" alt="" width="800" height="800">
+      </div>
+      <img src="assets/logo.png" alt="Motrix Next" class="hero-logo" width="128" height="128">
+      <h1>Motrix Next</h1>
+      <p class="tagline">A full-featured download manager — rebuilt from the ground up.</p>
+      <div class="pills">
+        <span class="pill"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2" />
+            <path d="M7 7h10M7 12h10M7 17h10" />
+          </svg> Tauri 2</span>
+        <span class="pill"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2" />
+            <line x1="12" y1="22" x2="12" y2="15.5" />
+            <polyline points="22 8.5 12 15.5 2 8.5" />
+          </svg> Vue 3</span>
+        <span class="pill"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
+          </svg> Rust</span>
+        <span class="pill"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 17 10 11 4 5" />
+            <line x1="12" y1="19" x2="20" y2="19" />
+          </svg> TypeScript</span>
+      </div>
+      <a href="https://github.com/AnInsomniacy/motrix-next/releases" class="cta" id="hero-download">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        Download
+      </a>
+      <p class="hero-meta">macOS · Windows · Linux</p>
+      <p class="hero-bundle">~10 MB lightweight bundle</p>
+    </section>
+
+    <section id="showcase">
+      <div class="showcase-frame reveal">
+        <img src="assets/screenshot-downloading.png" alt="Motrix Next downloading interface" width="1440" height="900"
+          loading="lazy">
+      </div>
+    </section>
+
+    <section id="story" class="section">
+      <h2 class="reveal">Why Motrix Next?</h2>
+      <div class="prose reveal">
+        <p><a href="https://github.com/agalwood/Motrix" target="_blank" rel="noopener">Motrix</a> by <a
+            href="https://github.com/agalwood" target="_blank" rel="noopener">agalwood</a> was one of the best
+          open-source download managers available — clean UI, aria2-powered, cross-platform. It inspired thousands of
+          users and developers alike.</p>
+        <p>The original project has been largely inactive since 2023. The Electron + Vue 2 + Vuex + Element UI stack
+          accumulated technical debt, making it increasingly difficult to maintain, extend, or package for modern
+          platforms.</p>
+      </div>
+    </section>
+
+    <section id="heritage" class="section">
+      <h2 class="reveal">What we kept</h2>
+      <p class="lead reveal">We owe a great deal to the original Motrix and its community.</p>
+      <div class="card-grid col-3 reveal">
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg></div>
+          <h3>RPC client</h3>
+          <p>The aria2 error code system and JSON-RPC communication layer for the download engine.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg></div>
+          <h3>Internationalization</h3>
+          <p>25+ community-contributed locale files covering Chinese, Japanese, Korean, Arabic, French, German, and
+            more.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path
+                d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+            </svg></div>
+          <h3>Download utilities</h3>
+          <p>Tracker list management, cURL command parsing, and other protocol-level helpers.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="rewrite" class="section section-wide">
+      <div class="rewrite-watermark" aria-hidden="true">
+        <img src="assets/brand-watermark-dark.png" alt="" width="500" height="500" loading="lazy">
+      </div>
+      <h2 class="reveal">Not a fork. A complete rewrite.</h2>
+      <p class="lead reveal">Every layer of the application has been redesigned and reimplemented from scratch.</p>
+      <div class="table-wrap reveal">
+        <table class="compare">
+          <thead>
+            <tr>
+              <th>Layer</th>
+              <th>Motrix (Legacy)</th>
+              <th>Motrix Next</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Runtime</td>
+              <td>Electron</td>
+              <td>Tauri 2 (Rust)</td>
+            </tr>
+            <tr>
+              <td>Frontend</td>
+              <td>Vue 2 + Vuex</td>
+              <td>Vue 3 Composition API + Pinia</td>
+            </tr>
+            <tr>
+              <td>UI Framework</td>
+              <td>Element UI</td>
+              <td>Naive UI</td>
+            </tr>
+            <tr>
+              <td>Language</td>
+              <td>JavaScript</td>
+              <td>TypeScript + Rust</td>
+            </tr>
+            <tr>
+              <td>Styling</td>
+              <td>SCSS + Element theme</td>
+              <td>Vanilla CSS + custom properties</td>
+            </tr>
+            <tr>
+              <td>Engine Management</td>
+              <td>Node.js child_process</td>
+              <td>Tauri sidecar</td>
+            </tr>
+            <tr>
+              <td>Build System</td>
+              <td>electron-builder</td>
+              <td>Vite + Cargo</td>
+            </tr>
+            <tr>
+              <td>Bundle Size</td>
+              <td>—</td>
+              <td>~10 MB</td>
+            </tr>
+            <tr>
+              <td>Auto-Update</td>
+              <td>electron-updater</td>
+              <td>Tauri updater plugin</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="motion" class="section">
+      <h2 class="reveal">Design &amp; Motion</h2>
+      <div class="prose reveal">
+        <p>The UI layout stays true to Motrix's original design — the sidebar navigation, task list, and preference
+          panels follow the familiar structure.</p>
+        <p>Everything underneath changed. Every transition and micro-interaction follows <a
+            href="https://m3.material.io/styles/motion/overview" target="_blank" rel="noopener">Material Design 3</a>
+          motion guidelines.</p>
+      </div>
+      <div class="card-grid col-2 reveal">
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg></div>
+          <h3>Asymmetric timing</h3>
+          <p>Enter animations are slightly longer than exits. New content takes time to land; dismissed content leaves
+            quickly.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            </svg></div>
+          <h3>Emphasized easing</h3>
+          <p>Decelerate on enter, accelerate on exit. No generic ease curves.</p>
+          <div class="curves"><code>cubic-bezier(0.2, 0, 0, 1)</code><code>cubic-bezier(0.3, 0, 0.8, 0.15)</code></div>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="18" height="18" x="3" y="3" rx="2" />
+              <path d="M8 12h8" />
+            </svg></div>
+          <h3>Spring-based modals</h3>
+          <p>Dialogs use physically-modeled spring animations for a natural, responsive feel.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path
+                d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+            </svg></div>
+          <h3>Motion tokens</h3>
+          <p>All durations and curves are CSS custom properties, ensuring a unified rhythm across 12+ components.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="section section-wide">
+      <h2 class="reveal">Features</h2>
+      <div class="card-grid col-3 reveal">
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg></div>
+          <h3>Multi-protocol</h3>
+          <p>HTTP, FTP, BitTorrent, Magnet links.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 2v14a2 2 0 0 0 2 2h14" />
+              <path d="M18 22V8a2 2 0 0 0-2-2H2" />
+            </svg></div>
+          <h3>BitTorrent</h3>
+          <p>Selective file download, DHT, peer exchange, encryption.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.5 2v6s-6-1-6 5c0 4 6 5 6 5v6" />
+              <path d="M2.5 2v6s6-1 6 5c0 4-6 5-6 5v6" />
+            </svg></div>
+          <h3>Tracker management</h3>
+          <p>Auto-sync from community tracker lists.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="6" height="16" x="4" y="6" rx="2" />
+              <rect width="6" height="9" x="14" y="6" rx="2" />
+            </svg></div>
+          <h3>Concurrent downloads</h3>
+          <p>Up to 10 tasks with configurable thread count.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m12 14 4-4" />
+              <path d="M3.34 19a10 10 0 1 1 17.32 0" />
+              <circle cx="12" cy="14" r="2" />
+            </svg></div>
+          <h3>Speed control</h3>
+          <p>Global and per-task upload/download limits.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="20" height="16" x="2" y="4" rx="2" />
+              <path d="M6 8h.001M10 8h.001" />
+              <rect width="8" height="4" x="8" y="12" rx="1" />
+            </svg></div>
+          <h3>System tray</h3>
+          <p>Real-time speed display in the menu bar (macOS).</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+            </svg></div>
+          <h3>Dark mode</h3>
+          <p>Native dark theme with system preference detection.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg></div>
+          <h3>Internationalization</h3>
+          <p>Auto-detects system language on first launch.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg></div>
+          <h3>Task management</h3>
+          <p>Pause, resume, delete with file cleanup, batch operations.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg></div>
+          <h3>Protocol handler</h3>
+          <p>Register as default handler for magnet and thunder links.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+            </svg></div>
+          <h3>Notifications</h3>
+          <p>System notifications on task completion.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+              stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
+              <line x1="16" y1="8" x2="2" y2="22" />
+              <line x1="17.5" y1="15" x2="9" y2="15" />
+            </svg></div>
+          <h3>Lightweight</h3>
+          <p>Tauri-powered, minimal resource footprint.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="download" class="section">
+      <h2 class="reveal">Download</h2>
+      <a href="https://github.com/AnInsomniacy/motrix-next/releases" class="cta cta-lg" id="download-btn">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        Download latest release
+      </a>
+      <div class="table-wrap table-sm reveal">
+        <table>
+          <thead>
+            <tr>
+              <th>Platform</th>
+              <th>Architecture</th>
+              <th>Format</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path
+                    d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z" />
+                  <path d="M10 2c1 .5 2 2 2 5" />
+                </svg> macOS</td>
+              <td>ARM64</td>
+              <td>.dmg</td>
+            </tr>
+            <tr>
+              <td><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <rect width="20" height="16" x="2" y="4" rx="2" />
+                  <path d="M6 8h.001M10 8h.001" />
+                  <rect width="8" height="4" x="8" y="12" rx="1" />
+                </svg> Windows</td>
+              <td>x64</td>
+              <td>.exe (NSIS)</td>
+            </tr>
+            <tr>
+              <td><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="4 17 10 11 4 5" />
+                  <line x1="12" y1="19" x2="20" y2="19" />
+                </svg> Linux</td>
+              <td>x64</td>
+              <td>.AppImage · .deb</td>
+            </tr>
+            <tr>
+              <td><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="4 17 10 11 4 5" />
+                  <line x1="12" y1="19" x2="20" y2="19" />
+                </svg> Linux</td>
+              <td>ARM64</td>
+              <td>.AppImage · .deb</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <footer id="footer">
+    <div class="footer-built">
+      <span>Built with</span>
+      <a href="https://tauri.app" target="_blank" rel="noopener" class="footer-tech-link"><img src="assets/tauri.svg"
+          alt="Tauri" width="20" height="20"> Tauri</a>
+      <span class="footer-sep">·</span>
+      <a href="https://vite.dev" target="_blank" rel="noopener" class="footer-tech-link"><img src="assets/vite.svg"
+          alt="Vite" width="18" height="18"> Vite</a>
+      <span class="footer-sep">·</span>
+      <a href="https://aria2.github.io/" target="_blank" rel="noopener" class="footer-tech">Aria2</a>
+    </div>
+    <p class="footer-ack">Grateful to <a href="https://github.com/agalwood/Motrix" target="_blank"
+        rel="noopener">Motrix</a> for laying the groundwork</p>
+    <div class="footer-links">
+      <a href="https://github.com/AnInsomniacy/motrix-next" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/AnInsomniacy/motrix-next/blob/master/docs/CONTRIBUTING.md" target="_blank"
+        rel="noopener">Contributing</a>
+      <a href="https://github.com/AnInsomniacy/motrix-next/blob/master/docs/CODE_OF_CONDUCT.md" target="_blank"
+        rel="noopener">Code of Conduct</a>
+    </div>
+    <p class="footer-license">MIT — Copyright &copy; 2025-present AnInsomniacy</p>
+  </footer>
+
+  <script>
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          obs.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+  </script>
+
+</body>
+
+</html>
