@@ -57,7 +57,7 @@ export function usePreferenceForm<T extends Record<string, unknown>>(options: Us
   // ── Reactive State ──────────────────────────────────────────────────
 
   const form: Ref<T> = ref(options.buildForm()) as Ref<T>
-  const savedSnapshot: Ref<T> = ref(structuredClone(options.buildForm())) as Ref<T>
+  const savedSnapshot: Ref<T> = ref(JSON.parse(JSON.stringify(options.buildForm()))) as Ref<T>
 
   const isDirty = computed(() => !isEqual(JSON.parse(JSON.stringify(form.value)), savedSnapshot.value))
 

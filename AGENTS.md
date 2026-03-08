@@ -4,7 +4,7 @@
 > For human contributors, see [README.md](README.md) and [CONTRIBUTING.md](docs/CONTRIBUTING.md).
 
 > [!IMPORTANT]
-> **All code changes to this project must meet industrial-grade standards.** This means: no code duplication (extract composables/utilities), strict type safety (no `any`, no `as` escape hatches without justification), comprehensive error handling, adherence to existing patterns, and changes that are tested and verified before completion.
+> **All changes must meet industrial-grade quality.** Enforce DRY (extract composables/utilities over duplication), strict TypeScript (no `any`, justify every `as` cast), structured error handling, and full verification (`vue-tsc` + tests pass) before completion.
 
 ---
 
