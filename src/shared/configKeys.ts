@@ -27,7 +27,8 @@ const userKeys = [
   'task-notification',
   'theme',
   'tracker-source',
-  'tray-speedometer'
+  'tray-speedometer',
+  'update-channel',
 ]
 
 const systemKeys = [
@@ -151,19 +152,9 @@ const systemKeys = [
   'timeout',
   'uri-selector',
   'use-head',
-  'user-agent'
+  'user-agent',
 ]
 
-const needRestartKeys = [
-  'dht-listen-port',
-  'hide-app-menu',
-  'listen-port',
-  'rpc-listen-port',
-  'rpc-secret'
-]
+const needRestartKeys = ['dht-listen-port', 'hide-app-menu', 'listen-port', 'rpc-listen-port', 'rpc-secret']
 
-export {
-  userKeys,
-  systemKeys,
-  needRestartKeys
-}
+export { userKeys, systemKeys, needRestartKeys }

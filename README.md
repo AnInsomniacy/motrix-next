@@ -51,7 +51,7 @@ We owe a great deal to the original [Motrix](https://github.com/agalwood/Motrix)
 | **Bundle Size** | ~80 MB | **~10 MB** |
 | **Auto-Update** | electron-updater | **Tauri updater plugin** |
 
-Version numbering starts at `1.0.0` to reflect this clean break.
+
 
 ### Design & Motion
 
@@ -124,33 +124,9 @@ motrix-next/
 └── package.json
 ```
 
-### Versioning
+### Versioning & Release
 
-`Cargo.toml` is the single source of truth for the application version. `tauri.conf.json` omits the `version` field intentionally — Tauri reads it from `Cargo.toml` at build time, and the About panel reads it via `getVersion()` at runtime.
-
-To bump the version, edit only `src-tauri/Cargo.toml`:
-
-```toml
-version = "1.1.0"
-```
-
-### Release
-
-Pushing a version tag triggers the CI pipeline which builds for all supported platforms:
-
-```bash
-git tag v1.0.3
-git push origin v1.0.3
-```
-
-| Platform | Runner | Artifacts |
-|----------|--------|-----------|
-| macOS ARM64 | `macos-latest` | `.dmg` |
-| Windows x64 | `windows-latest` | `.exe` (NSIS) |
-| Linux x64 | `ubuntu-latest` | `.AppImage` + `.deb` |
-| Linux ARM64 | `ubuntu-24.04-arm` | `.AppImage` + `.deb` |
-
-The workflow creates a draft release with all artifacts and a `latest.json` manifest for in-app auto-updates.
+See [AGENTS.md](AGENTS.md) for detailed version management, release workflow, and CI/CD documentation.
 
 
 ## Acknowledgements
