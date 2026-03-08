@@ -99,7 +99,9 @@ onMounted(async () => {
 
   router.beforeEach((to, from) => {
     const leavingPrefs = from.path.startsWith('/preference') && !to.path.startsWith('/preference')
-    if (leavingPrefs && preferenceStore.pendingChanges) {
+    const switchingPrefsTab =
+      from.path.startsWith('/preference') && to.path.startsWith('/preference') && from.path !== to.path
+    if ((leavingPrefs || switchingPrefsTab) && preferenceStore.pendingChanges) {
       return new Promise<boolean>((resolve) => {
         navDialog.warning({
           title: t('preferences.not-saved'),

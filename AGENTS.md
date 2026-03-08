@@ -3,6 +3,9 @@
 > This file provides context and instructions for AI coding agents.
 > For human contributors, see [README.md](README.md) and [CONTRIBUTING.md](docs/CONTRIBUTING.md).
 
+> [!IMPORTANT]
+> **All code changes to this project must meet industrial-grade standards.** This means: no code duplication (extract composables/utilities), strict type safety (no `any`, no `as` escape hatches without justification), comprehensive error handling, adherence to existing patterns, and changes that are tested and verified before completion.
+
 ---
 
 ## A. Project Architecture

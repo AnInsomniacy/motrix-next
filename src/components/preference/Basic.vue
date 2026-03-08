@@ -1,13 +1,12 @@
 <script setup lang="ts">
 /** @fileoverview Basic preference form: theme, locale, download dir, speed limits. */
-import { ref, computed, onMounted, watchSyncEffect, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { isEqual } from 'lodash-es'
 import { usePreferenceStore } from '@/stores/preference'
+import { usePreferenceForm } from '@/composables/usePreferenceForm'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { platform } from '@tauri-apps/plugin-os'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { invoke } from '@tauri-apps/api/core'
 import { downloadDir } from '@tauri-apps/api/path'
 import { extractSpeedUnit } from '@shared/utils'
 import { logger } from '@shared/logger'
@@ -34,13 +33,10 @@ import {
 import PreferenceActionBar from './PreferenceActionBar.vue'
 import { FolderOpenOutline, CloudDownloadOutline } from '@vicons/ionicons5'
 import { NIcon } from 'naive-ui'
-import { useAppMessage } from '@/composables/useAppMessage'
 import UpdateDialog from '@/components/preference/UpdateDialog.vue'
 
 const { t } = useI18n()
 const preferenceStore = usePreferenceStore()
-
-const message = useAppMessage()
 const dialog = useDialog()
 const defaultDownloadDir = ref('')
 const currentPlatform = ref('')
@@ -98,20 +94,52 @@ function buildForm() {
   }
 }
 
-const form = ref(buildForm())
-const savedSnapshot = ref(JSON.parse(JSON.stringify(buildForm())))
-
-const isDirty = computed(() => !isEqual(JSON.parse(JSON.stringify(form.value)), savedSnapshot.value))
-
-watchSyncEffect(() => {
-  preferenceStore.pendingChanges = isDirty.value
-})
-onMounted(() => {
-  preferenceStore.saveBeforeLeave = handleSave
-})
-onUnmounted(() => {
-  preferenceStore.saveBeforeLeave = null
-  preferenceStore.pendingChanges = false
+const { form, isDirty, handleSave, handleReset } = usePreferenceForm({
+  buildForm,
+  buildSystemConfig: (f) => ({
+    dir: f.dir,
+    'max-concurrent-downloads': String(f.maxConcurrentDownloads),
+    'max-connection-per-server': String(f.maxConnectionPerServer),
+    'max-overall-download-limit': f.maxOverallDownloadLimit,
+    'max-overall-upload-limit': f.maxOverallUploadLimit,
+    'bt-save-metadata': String(!!f.btSaveMetadata),
+    'bt-force-encryption': String(!!f.btForceEncryption),
+    'seed-ratio': String(f.seedRatio),
+    'seed-time': String(f.seedTime),
+    'keep-seeding': String(!!f.keepSeeding),
+    'follow-torrent': String(!(f as Record<string, unknown>).btAutoDownloadContent ? false : true),
+    'follow-metalink': String(!(f as Record<string, unknown>).btAutoDownloadContent ? false : true),
+    'pause-metadata': String(!(f as Record<string, unknown>).btAutoDownloadContent ? true : false),
+    continue: String(f.continue !== false),
+  }),
+  transformForStore: (f) => {
+    const data: Partial<AppConfig> = { ...f }
+    if (f.btAutoDownloadContent) {
+      data.followTorrent = true
+      data.followMetalink = true
+      data.pauseMetadata = false
+    } else {
+      data.followTorrent = false
+      data.followMetalink = false
+      data.pauseMetadata = true
+    }
+    delete (data as Record<string, unknown>).btAutoDownloadContent
+    return data
+  },
+  afterSave: (f) => {
+    const prevLocale = preferenceStore.locale || 'en-US'
+    if (f.locale !== prevLocale) {
+      dialog.info({
+        title: 'Language Changed',
+        content: 'Restart the application to apply the new language.',
+        positiveText: 'Restart Now',
+        negativeText: 'Later',
+        onPositiveClick: () => {
+          relaunch()
+        },
+      })
+    }
+  },
 })
 
 const uploadSpeedValue = ref(0)
@@ -208,8 +236,7 @@ async function handleSelectDir() {
 }
 
 function loadForm() {
-  form.value = buildForm()
-  savedSnapshot.value = JSON.parse(JSON.stringify(form.value))
+  Object.assign(form.value, buildForm())
 
   const ul = parseSpeedLimit(form.value.maxOverallUploadLimit)
   uploadSpeedValue.value = ul.num
@@ -218,63 +245,6 @@ function loadForm() {
   const dl = parseSpeedLimit(form.value.maxOverallDownloadLimit)
   downloadSpeedValue.value = dl.num
   downloadUnit.value = dl.unit
-}
-
-function handleSave() {
-  const prevLocale = preferenceStore.locale || 'en-US'
-  const newLocale = form.value.locale
-  savedSnapshot.value = JSON.parse(JSON.stringify(form.value))
-
-  const data: Partial<AppConfig> = { ...form.value }
-
-  if (form.value.btAutoDownloadContent) {
-    data.followTorrent = true
-    data.followMetalink = true
-    data.pauseMetadata = false
-  } else {
-    data.followTorrent = false
-    data.followMetalink = false
-    data.pauseMetadata = true
-  }
-  delete data.btAutoDownloadContent
-
-  preferenceStore.updateAndSave(data)
-  invoke('save_system_config', {
-    config: {
-      dir: form.value.dir,
-      'max-concurrent-downloads': String(form.value.maxConcurrentDownloads),
-      'max-connection-per-server': String(form.value.maxConnectionPerServer),
-      'max-overall-download-limit': form.value.maxOverallDownloadLimit,
-      'max-overall-upload-limit': form.value.maxOverallUploadLimit,
-      'bt-save-metadata': String(!!form.value.btSaveMetadata),
-      'bt-force-encryption': String(!!form.value.btForceEncryption),
-      'seed-ratio': String(form.value.seedRatio),
-      'seed-time': String(form.value.seedTime),
-      'keep-seeding': String(!!form.value.keepSeeding),
-      'follow-torrent': String(data.followTorrent ?? true),
-      'follow-metalink': String(data.followMetalink ?? true),
-      'pause-metadata': String(data.pauseMetadata ?? false),
-      continue: String(form.value.continue !== false),
-    },
-  }).catch(console.error)
-  message.success(t('preferences.save-success-message'))
-
-  if (newLocale !== prevLocale) {
-    dialog.info({
-      title: 'Language Changed',
-      content: 'Restart the application to apply the new language.',
-      positiveText: 'Restart Now',
-      negativeText: 'Later',
-      onPositiveClick: () => {
-        relaunch()
-      },
-    })
-  }
-}
-
-function handleReset() {
-  loadForm()
-  savedSnapshot.value = JSON.parse(JSON.stringify(form.value))
 }
 
 function handleCheckUpdate() {

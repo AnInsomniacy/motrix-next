@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /** @fileoverview Advanced preference form: proxy, tracker, RPC, port, and protocol settings. */
-import { ref, computed, h, onMounted, watchSyncEffect, onUnmounted } from 'vue'
-import { isEqual } from 'lodash-es'
+import { ref, h, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useI18n } from 'vue-i18n'
 import { usePreferenceStore } from '@/stores/preference'
+import { usePreferenceForm } from '@/composables/usePreferenceForm'
 import { useTaskStore } from '@/stores/task'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { appDataDir, resolveResource } from '@tauri-apps/api/path'
@@ -37,6 +37,7 @@ import {
 import { useAppMessage } from '@/composables/useAppMessage'
 import { SyncOutline, DiceOutline } from '@vicons/ionicons5'
 import { logger } from '@shared/logger'
+import type { AppConfig } from '@shared/types'
 import PreferenceActionBar from './PreferenceActionBar.vue'
 
 const { t } = useI18n()
@@ -158,20 +159,33 @@ function generateSecret(): string {
   return Array.from(values, (v) => chars[v % chars.length]).join('')
 }
 
-const form = ref(buildForm())
-const savedSnapshot = ref(JSON.parse(JSON.stringify(buildForm())))
-
-const isDirty = computed(() => !isEqual(JSON.parse(JSON.stringify(form.value)), savedSnapshot.value))
-
-watchSyncEffect(() => {
-  preferenceStore.pendingChanges = isDirty.value
-})
-onMounted(() => {
-  preferenceStore.saveBeforeLeave = handleSave
-})
-onUnmounted(() => {
-  preferenceStore.saveBeforeLeave = null
-  preferenceStore.pendingChanges = false
+const { form, isDirty, handleSave, handleReset } = usePreferenceForm({
+  buildForm,
+  buildSystemConfig: (f) => ({
+    'rpc-listen-port': String(f.rpcListenPort),
+    'rpc-secret': f.rpcSecret,
+    'enable-dht': 'true',
+    'enable-peer-exchange': 'true',
+    'enable-upnp': String(f.enableUpnp),
+    'listen-port': String(f.listenPort),
+    'dht-listen-port': String(f.dhtListenPort),
+    'user-agent': f.userAgent || '',
+    'log-level': f.logLevel || 'warn',
+    'bt-tracker': convertLineToComma(f.btTracker),
+  }),
+  transformForStore: (f) =>
+    ({
+      ...f,
+      btTracker: convertLineToComma(f.btTracker),
+      proxy: { ...f.proxy, scope: f.proxy.scope as unknown as string },
+    }) as unknown as Partial<AppConfig>,
+  beforeSave: (f) => {
+    if (!f.rpcSecret) {
+      message.error(t('preferences.rpc-secret-empty-warning'))
+      return false
+    }
+    return true
+  },
 })
 
 function buildForm() {
@@ -209,8 +223,7 @@ function buildForm() {
 }
 
 function loadForm() {
-  form.value = buildForm()
-  savedSnapshot.value = JSON.parse(JSON.stringify(form.value))
+  Object.assign(form.value, buildForm())
 }
 
 async function loadPaths() {
@@ -307,39 +320,6 @@ function handleFactoryReset() {
       }
     },
   })
-}
-
-function handleSave() {
-  if (!form.value.rpcSecret) {
-    message.error(t('preferences.rpc-secret-empty-warning'))
-    return
-  }
-  savedSnapshot.value = JSON.parse(JSON.stringify(form.value))
-  const data: Record<string, unknown> = {
-    ...form.value,
-    btTracker: convertLineToComma(form.value.btTracker),
-  }
-  preferenceStore.updateAndSave(data)
-  invoke('save_system_config', {
-    config: {
-      'rpc-listen-port': String(form.value.rpcListenPort),
-      'rpc-secret': form.value.rpcSecret,
-      'enable-dht': 'true',
-      'enable-peer-exchange': 'true',
-      'enable-upnp': String(form.value.enableUpnp),
-      'listen-port': String(form.value.listenPort),
-      'dht-listen-port': String(form.value.dhtListenPort),
-      'user-agent': form.value.userAgent || '',
-      'log-level': form.value.logLevel || 'warn',
-      'bt-tracker': convertLineToComma(form.value.btTracker),
-    },
-  }).catch(console.error)
-  message.success(t('preferences.save-success-message'))
-}
-
-function handleReset() {
-  loadForm()
-  savedSnapshot.value = JSON.parse(JSON.stringify(form.value))
 }
 
 onMounted(() => {
