@@ -66,7 +66,7 @@ const actionLabel = computed(() => {
 })
 const actionType = computed(() => {
   if (phase.value === 'downloading') return 'default' as const
-  if (phase.value === 'error') return 'warning' as const
+  if (phase.value === 'error') return 'info' as const
   if (actionDisabled.value) return 'default' as const
   return 'primary' as const
 })
@@ -330,7 +330,7 @@ defineExpose({ open })
 .update-dialog-body {
   position: relative;
   padding: 14px 30px 12px;
-  height: 420px;
+  height: 380px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -342,7 +342,7 @@ defineExpose({ open })
   justify-content: center;
   gap: 12px;
   padding: 16px 30px 22px;
-  border-top: 1px solid var(--n-border-color, rgba(255, 255, 255, 0.08));
+  border-top: 1px solid var(--m3-outline-variant);
 }
 .action-btn {
   transition: all 0.4s ease;
@@ -426,8 +426,9 @@ defineExpose({ open })
   font-family: 'SF Mono', 'Fira Code', monospace;
 }
 .version-old {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.4);
+  background: color-mix(in srgb, var(--n-text-color, #666) 12%, transparent);
+  color: var(--n-text-color, #999);
+  opacity: 0.7;
 }
 .version-new {
   background: rgba(224, 164, 34, 0.15);
@@ -445,7 +446,7 @@ defineExpose({ open })
 
 .update-notes {
   width: 100%;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--m3-on-surface) 6%, transparent);
   border-radius: 8px;
   padding: 10px 14px;
   max-height: 200px;
@@ -491,7 +492,6 @@ defineExpose({ open })
 .update-error-msg {
   font-size: 12.5px;
   word-break: break-all;
-  opacity: 0.55;
   line-height: 1.5;
 }
 

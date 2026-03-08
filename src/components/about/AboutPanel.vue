@@ -152,7 +152,7 @@ function openUrl(url: string) {
   letter-spacing: 1.5px;
   padding: 3px 14px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid var(--m3-outline-variant);
 }
 .about-desc {
   margin-top: 12px;
@@ -165,7 +165,7 @@ function openUrl(url: string) {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1.5px;
-  opacity: 0.35;
+  opacity: 0.5;
   margin-bottom: 10px;
 }
 .about-tags {
@@ -186,7 +186,7 @@ function openUrl(url: string) {
   flex-direction: column;
   gap: 2px;
   font-size: 11px;
-  opacity: 0.35;
+  opacity: 0.5;
 }
 .about-link {
   color: var(--color-primary);
