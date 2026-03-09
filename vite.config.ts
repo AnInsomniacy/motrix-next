@@ -22,7 +22,11 @@ export default defineConfig(async () => ({
     },
   },
   clearScreen: false,
+  esbuild: {
+    logOverride: { 'js-comment-in-css': 'silent' },
+  },
   build: {
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks: {

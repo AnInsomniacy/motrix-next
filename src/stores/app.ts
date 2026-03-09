@@ -6,6 +6,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { decodeThunderLink } from '@shared/utils'
 import { logger } from '@shared/logger'
 import { STAT_BASE_INTERVAL, STAT_PER_TASK_INTERVAL, STAT_MIN_INTERVAL, STAT_MAX_INTERVAL } from '@shared/timing'
+import { usePreferenceStore } from '@/stores/preference'
 import { detectKind, createBatchItem } from '@shared/utils/batchHelpers'
 import type {
   Aria2RawGlobalStat,
@@ -128,7 +129,7 @@ export const useAppStore = defineStore('app', () => {
       stat.value = parsed as typeof stat.value
 
       try {
-        const prefStore = (await import('@/stores/preference')).usePreferenceStore()
+        const prefStore = usePreferenceStore()
 
         // Tray speed display (macOS menu bar)
         if (prefStore.config?.traySpeedometer && (parsed.downloadSpeed > 0 || parsed.uploadSpeed > 0)) {
