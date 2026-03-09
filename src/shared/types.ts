@@ -105,7 +105,7 @@ export interface ProxyConfig {
   enable: boolean
   server: string
   bypass?: string
-  scope?: string
+  scope?: string[]
 }
 
 /** Protocol handler registration settings (system-level). */

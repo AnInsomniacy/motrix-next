@@ -31,7 +31,6 @@ import {
 import { useAppMessage } from '@/composables/useAppMessage'
 import { SyncOutline, DiceOutline } from '@vicons/ionicons5'
 import { logger } from '@shared/logger'
-import type { AppConfig } from '@shared/types'
 import PreferenceActionBar from './PreferenceActionBar.vue'
 
 const { t } = useI18n()
@@ -173,12 +172,12 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot } = usePreferenceF
       'no-proxy': proxyForDownloads ? f.proxy.bypass || '' : '',
     }
   },
-  transformForStore: (f) =>
-    ({
-      ...f,
-      btTracker: convertLineToComma(f.btTracker),
-      proxy: { ...f.proxy, scope: f.proxy.scope as unknown as string },
-    }) as unknown as Partial<AppConfig>,
+  transformForStore: (f) => ({
+    ...f,
+    btTracker: convertLineToComma(f.btTracker),
+    listenPort: String(f.listenPort),
+    dhtListenPort: String(f.dhtListenPort),
+  }),
   beforeSave: (f) => {
     if (!f.rpcSecret) {
       message.error(t('preferences.rpc-secret-empty-warning'))

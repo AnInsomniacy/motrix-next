@@ -93,7 +93,7 @@ function handleActionClick() {
 function getUpdateProxy(): string | null {
   const proxy = preferenceStore.config.proxy
   if (!proxy?.enable || !proxy.server) return null
-  const scope = (proxy.scope || []) as string[]
+  const scope = proxy.scope || []
   if (!scope.includes('update-app')) return null
   return proxy.server
 }

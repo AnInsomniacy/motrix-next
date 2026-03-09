@@ -121,10 +121,15 @@ pub fn run() {
                 ..
             } => {
                 let should_hide = app
-                    .store("user.json")
+                    .store("config.json")
                     .ok()
-                    .and_then(|s| s.get("minimize-to-tray-on-close"))
-                    .and_then(|v| v.as_bool())
+                    .and_then(|s| s.get("preferences"))
+                    .map(|prefs| {
+                        prefs
+                            .get("minimizeToTrayOnClose")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false)
+                    })
                     .unwrap_or(false);
 
                 if should_hide {

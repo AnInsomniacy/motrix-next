@@ -63,9 +63,7 @@ async function autoCheckForUpdate() {
     const channel = config.updateChannel || 'stable'
     const proxy = config.proxy
     const proxyServer =
-      proxy?.enable && proxy.server && ((proxy.scope as unknown as string[]) || []).includes('update-app')
-        ? proxy.server
-        : null
+      proxy?.enable && proxy.server && (proxy.scope || []).includes('update-app') ? proxy.server : null
     const update = await invoke<{ version: string; body: string | null; date: string | null } | null>(
       'check_for_update',
       { channel, proxy: proxyServer },
