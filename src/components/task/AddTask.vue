@@ -277,17 +277,21 @@ const M3_ACCELERATE = 'cubic-bezier(0.3, 0, 0.8, 0.15)'
 function onBatchItemBeforeEnter(el: Element) {
   const htmlEl = el as HTMLElement
   htmlEl.style.opacity = '0'
+  htmlEl.style.transform = 'translateX(-12px)'
 }
 
 function onBatchItemEnter(el: Element, done: () => void) {
   const htmlEl = el as HTMLElement
-  const anim = htmlEl.animate([{ opacity: 0 }, { opacity: 1 }], {
-    duration: 220,
-    easing: M3_DECELERATE,
-    fill: 'forwards',
-  })
+  const anim = htmlEl.animate(
+    [
+      { opacity: 0, transform: 'translateX(-12px)' },
+      { opacity: 1, transform: 'translateX(0)' },
+    ],
+    { duration: 220, easing: M3_DECELERATE, fill: 'forwards' },
+  )
   anim.onfinish = () => {
     htmlEl.style.opacity = ''
+    htmlEl.style.transform = ''
     done()
   }
 }
