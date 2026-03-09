@@ -1,0 +1,18 @@
+{
+  "app": {
+    "windows": [
+      {
+        "title": "Motrix Next",
+        "width": 1120,
+        "height": 700,
+        "minWidth": 800,
+        "minHeight": 540,
+        "transparent": false,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "visible": false
+      }
+    ]
+  }
+}
