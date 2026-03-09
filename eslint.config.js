@@ -55,4 +55,11 @@ export default [
             'vue/html-closing-bracket-newline': 'off',
         },
     },
+    {
+        files: ['src/**/__tests__/**/*.ts'],
+        rules: {
+            'vue/one-component-per-file': 'off',
+            'no-console': 'off',
+        },
+    },
 ]

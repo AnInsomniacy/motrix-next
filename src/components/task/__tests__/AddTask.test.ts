@@ -154,6 +154,12 @@ vi.mock('naive-ui', async () => {
     NEllipsis: passthrough,
     NCheckbox: passthrough,
     NCollapseTransition: passthrough,
+    useNotification: () => ({
+      error: vi.fn(() => ({ destroy: vi.fn() })),
+      warning: vi.fn(),
+      info: vi.fn(),
+      success: vi.fn(),
+    }),
   }
 })
 
