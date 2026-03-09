@@ -7,7 +7,7 @@ import { getLangDirection, pushItemToFixedLengthArray, removeArrayItem } from '@
 import { fetchBtTrackerFromSource } from '@shared/utils/tracker'
 import { DEFAULT_APP_CONFIG, MAX_NUM_OF_DIRECTORIES } from '@shared/constants'
 import { logger } from '@shared/logger'
-import type { AppConfig, ProxyConfig } from '@shared/types'
+import type { AppConfig, CloseAction, ProxyConfig } from '@shared/types'
 
 const STORE_KEY = 'preferences'
 
@@ -31,7 +31,17 @@ export const usePreferenceStore = defineStore('preference', () => {
       const store = await getStore()
       const saved = await store.get<Partial<AppConfig>>(STORE_KEY)
       if (saved && !isEmpty(saved)) {
-        config.value = { ...config.value, ...saved }
+        // Migrate legacy minimizeToTrayOnClose → closeAction
+        const raw = saved as Record<string, unknown>
+        if (!raw.closeAction && 'minimizeToTrayOnClose' in raw) {
+          const legacy = raw.minimizeToTrayOnClose as boolean
+          raw.closeAction = (legacy ? 'minimize' : 'ask') as CloseAction
+          delete raw.minimizeToTrayOnClose
+          // Persist migration so Rust reads the new key
+          await store.set(STORE_KEY, raw)
+          await store.save()
+        }
+        config.value = { ...config.value, ...(raw as Partial<AppConfig>) }
       }
     } catch (e) {
       logger.error('PreferenceStore.loadPreference', e)

@@ -8,6 +8,7 @@ import { useAppStore } from '@/stores/app'
 import { detectKind, createBatchItem } from '@shared/utils/batchHelpers'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { logger } from '@shared/logger'
 import { platform } from '@tauri-apps/plugin-os'
@@ -26,7 +27,7 @@ import { useAppNotification } from '@/composables/useAppNotification'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import aria2Api, { isEngineReady } from '@/api/aria2'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { NModal, NButton, NSpace, NIcon, useDialog } from 'naive-ui'
+import { NModal, NButton, NSpace, NIcon, NCheckbox, useDialog } from 'naive-ui'
 import { WarningOutline } from '@vicons/ionicons5'
 
 const { t } = useI18n()
@@ -47,6 +48,7 @@ const showAbout = ref(false)
 const appReady = ref(false)
 const showExitDialog = ref(false)
 const isExiting = ref(false)
+const dontAskAgain = ref(false)
 
 const updateDialogRef = ref<InstanceType<typeof UpdateDialog> | null>(null)
 
@@ -100,6 +102,26 @@ async function handleExitConfirm() {
 
 function handleExitCancel() {
   showExitDialog.value = false
+}
+
+async function handleMinimizeToTray() {
+  if (dontAskAgain.value) {
+    await preferenceStore.updateAndSave({ closeAction: 'minimize' })
+  }
+  const appWindow = getCurrentWindow()
+  // Hide window and Dock icon first, then dismiss dialog while invisible
+  // to avoid the user seeing the dismiss animation on re-show.
+  await invoke('set_dock_icon_visible', { visible: false })
+  await appWindow.hide()
+  showExitDialog.value = false
+}
+
+async function handleQuitApp() {
+  if (dontAskAgain.value) {
+    await preferenceStore.updateAndSave({ closeAction: 'quit' })
+  }
+  showExitDialog.value = false
+  await handleExitConfirm()
 }
 
 onMounted(async () => {
@@ -226,22 +248,25 @@ onMounted(async () => {
   unlistenCloseRequested = await appWindow.onCloseRequested(async (event) => {
     event.preventDefault()
 
-    // When minimize-to-tray is enabled, hide the window instead of prompting
-    // to exit. This covers all native close paths: taskbar close, Alt+F4,
-    // GNOME Activities overview ×, and WM-level close signals on Wayland.
-    if (preferenceStore.config.minimizeToTrayOnClose) {
+    const action = preferenceStore.config.closeAction ?? 'ask'
+    if (action === 'minimize') {
+      await invoke('set_dock_icon_visible', { visible: false })
       await appWindow.hide()
       return
     }
-
+    if (action === 'quit') {
+      await handleExitConfirm()
+      return
+    }
+    // 'ask' — show dialog
     if (!isExiting.value) {
+      dontAskAgain.value = false
       showExitDialog.value = true
     }
   })
 
   // Sync native menu labels with current locale
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
     await invoke('update_tray_menu_labels', {
       labels: {
         show: t('app.show'),
@@ -297,7 +322,7 @@ onUnmounted(() => {
     <AddTask :show="appStore.addTaskVisible" @close="appStore.hideAddTaskDialog()" />
     <UpdateDialog ref="updateDialogRef" />
 
-    <!-- Exit confirmation dialog with synchronized fade animation -->
+    <!-- Close action dialog: minimize to tray or quit -->
     <NModal
       :show="showExitDialog"
       preset="card"
@@ -318,15 +343,18 @@ onUnmounted(() => {
         <NIcon :size="22" color="var(--color-primary)" style="margin-right: 8px; flex-shrink: 0">
           <WarningOutline />
         </NIcon>
-        <span>{{ t('app.confirm-exit-message') }}</span>
+        <span>{{ t('app.close-action-message') }}</span>
+      </div>
+      <div class="exit-dialog-remember">
+        <NCheckbox v-model:checked="dontAskAgain">{{ t('app.close-action-remember') }}</NCheckbox>
       </div>
       <template #footer>
         <NSpace justify="end">
-          <NButton class="exit-btn" @click="handleExitCancel">
-            {{ t('app.no') }}
+          <NButton class="exit-btn" @click="handleMinimizeToTray">
+            {{ t('app.close-action-minimize') }}
           </NButton>
-          <NButton class="exit-btn" type="warning" @click="handleExitConfirm">
-            {{ t('app.yes') }}
+          <NButton class="exit-btn" type="warning" @click="handleQuitApp">
+            {{ t('app.close-action-quit') }}
           </NButton>
         </NSpace>
       </template>
@@ -380,6 +408,9 @@ onUnmounted(() => {
   font-size: 14px;
   line-height: 1.6;
   padding: 4px 0;
+}
+.exit-dialog-remember {
+  padding: 8px 0 0 30px;
 }
 .exit-btn {
   min-width: 80px;

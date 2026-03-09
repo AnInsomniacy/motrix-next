@@ -45,5 +45,9 @@ export default {
   'menu-open-torrent': 'Torrent dosyası aç...',
   'menu-preferences': 'Tercihler...',
   'menu-release-notes': 'Sürüm notları',
-  'menu-report-issue': 'Sorun bildir'
+  'menu-report-issue': 'Sorun bildir',
+  'close-action-message': 'Pencereyi kapatırken ne yapmak istersiniz?',
+  'close-action-minimize': 'Tepsi alanına küçült',
+  'close-action-quit': 'Çıkış',
+  'close-action-remember': 'Bir daha sorma'
 }

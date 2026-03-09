@@ -21,6 +21,7 @@ describe('buildBasicForm', () => {
     expect(form.updateChannel).toBe('stable')
     expect(form.locale).toBe('en-US')
     expect(form.theme).toBe('auto')
+    expect(form.closeAction).toBe('ask')
     expect(form.maxConcurrentDownloads).toBe(5)
     expect(form.maxConnectionPerServer).toBe(16)
     expect(form.keepSeeding).toBe(false)
@@ -101,7 +102,7 @@ describe('buildBasicSystemConfig', () => {
     keepWindowState: false,
     resumeAllWhenAppLaunched: false,
     autoHideWindow: false,
-    minimizeToTrayOnClose: false,
+    closeAction: 'ask',
     showProgressBar: false,
     traySpeedometer: false,
     dockBadgeSpeed: true,
@@ -161,7 +162,7 @@ describe('transformBasicForStore', () => {
     keepWindowState: false,
     resumeAllWhenAppLaunched: false,
     autoHideWindow: false,
-    minimizeToTrayOnClose: false,
+    closeAction: 'ask',
     showProgressBar: false,
     traySpeedometer: false,
     dockBadgeSpeed: true,

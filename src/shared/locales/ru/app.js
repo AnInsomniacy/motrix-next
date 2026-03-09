@@ -45,5 +45,9 @@ export default {
   'menu-open-torrent': 'Открыть торрент-файл...',
   'menu-preferences': 'Настройки...',
   'menu-release-notes': 'Примечания к выпуску',
-  'menu-report-issue': 'Сообщить о проблеме'
+  'menu-report-issue': 'Сообщить о проблеме',
+  'close-action-message': 'Что вы хотите сделать при закрытии окна?',
+  'close-action-minimize': 'Свернуть в трей',
+  'close-action-quit': 'Выход',
+  'close-action-remember': 'Больше не спрашивать'
 }

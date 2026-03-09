@@ -45,5 +45,9 @@ export default {
   'menu-open-torrent': 'Abrir archivo Torrent...',
   'menu-preferences': 'Preferencias...',
   'menu-release-notes': 'Notas de la versión',
-  'menu-report-issue': 'Reportar problema'
+  'menu-report-issue': 'Reportar problema',
+  'close-action-message': '¿Qué desea hacer al cerrar la ventana?',
+  'close-action-minimize': 'Minimizar a la bandeja',
+  'close-action-quit': 'Salir',
+  'close-action-remember': 'No volver a preguntar'
 }

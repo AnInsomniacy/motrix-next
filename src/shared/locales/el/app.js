@@ -45,5 +45,9 @@ export default {
   'menu-open-torrent': 'Άνοιγμα αρχείου Torrent...',
   'menu-preferences': 'Προτιμήσεις...',
   'menu-release-notes': 'Σημειώσεις έκδοσης',
-  'menu-report-issue': 'Αναφορά προβλήματος'
+  'menu-report-issue': 'Αναφορά προβλήματος',
+  'close-action-message': 'Τι θέλετε να κάνετε κατά το κλείσιμο του παραθύρου;',
+  'close-action-minimize': 'Ελαχιστοποίηση στο δίσκο',
+  'close-action-quit': 'Έξοδος',
+  'close-action-remember': 'Να μην ερωτηθώ ξανά'
 }

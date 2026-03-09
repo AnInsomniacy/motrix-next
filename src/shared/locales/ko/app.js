@@ -45,5 +45,9 @@ export default {
   'menu-open-torrent': '토렌트 파일 열기...',
   'menu-preferences': '설정...',
   'menu-release-notes': '릴리스 노트',
-  'menu-report-issue': '문제 보고'
+  'menu-report-issue': '문제 보고',
+  'close-action-message': '창을 닫을 때 어떻게 하시겠습니까?',
+  'close-action-minimize': '트레이로 최소화',
+  'close-action-quit': '종료',
+  'close-action-remember': '다시 묻지 않기'
 }

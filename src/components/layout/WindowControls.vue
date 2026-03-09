@@ -3,10 +3,8 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { NIcon } from 'naive-ui'
 import { RemoveOutline, CopyOutline, CloseOutline } from '@vicons/ionicons5'
-import { usePreferenceStore } from '@/stores/preference'
 
 const appWindow = getCurrentWindow()
-const preferenceStore = usePreferenceStore()
 
 function minimize() {
   appWindow.minimize()
@@ -17,11 +15,7 @@ function toggleMaximize() {
 }
 
 function close() {
-  if (preferenceStore.config.minimizeToTrayOnClose) {
-    appWindow.hide()
-  } else {
-    appWindow.close()
-  }
+  appWindow.close()
 }
 </script>
 

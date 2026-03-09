@@ -45,5 +45,9 @@ export default {
   'menu-open-torrent': 'Obrir fitxer Torrent...',
   'menu-preferences': 'Preferències...',
   'menu-release-notes': 'Notes de la versió',
-  'menu-report-issue': 'Informar d\'un problema'
+  'menu-report-issue': 'Informar d\'un problema',
+  'close-action-message': 'Què voleu fer en tancar la finestra?',
+  'close-action-minimize': 'Minimitza a la safata del sistema',
+  'close-action-quit': 'Surt',
+  'close-action-remember': 'No tornis a preguntar'
 }

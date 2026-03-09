@@ -45,5 +45,9 @@ export default {
   'menu-open-torrent': 'Buka file Torrent...',
   'menu-preferences': 'Preferensi...',
   'menu-release-notes': 'Catatan rilis',
-  'menu-report-issue': 'Laporkan masalah'
+  'menu-report-issue': 'Laporkan masalah',
+  'close-action-message': 'Apa yang ingin Anda lakukan saat menutup jendela?',
+  'close-action-minimize': 'Perkecil ke Baki',
+  'close-action-quit': 'Keluar',
+  'close-action-remember': 'Jangan tanya lagi'
 }

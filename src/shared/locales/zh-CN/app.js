@@ -63,5 +63,9 @@ export default {
   'error-factory-reset-failed': '恢复出厂设置失败，请重试。',
   'error-task-pause-all-failed': '暂停所有任务失败。',
   'error-task-resume-all-failed': '恢复所有任务失败。',
-  'error-stop-seeding-failed': '停止做种失败。'
+  'error-stop-seeding-failed': '停止做种失败。',
+  'close-action-message': '关闭窗口时你想要执行什么操作？',
+  'close-action-minimize': '最小化到托盘',
+  'close-action-quit': '退出',
+  'close-action-remember': '不再询问'
 }

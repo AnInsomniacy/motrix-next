@@ -16,7 +16,7 @@ const userKeys = [
   'last-sync-tracker-time',
   'locale',
   'log-level',
-  'minimize-to-tray-on-close',
+  'close-action',
   'new-task-show-downloading',
   'no-confirm-before-delete-task',
   'open-at-login',
