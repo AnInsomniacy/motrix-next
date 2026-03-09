@@ -271,9 +271,16 @@ body,
 }
 
 /* ── Scrollbar (M3-aware) ──────────────────────────────────────────── */
+/* Width is 6px instead of 8px to avoid overlapping the ~8px CSD       */
+/* (Client-Side Decoration) resize margin that Tauri creates on all    */
+/* window edges under Wayland (decorations: false). An 8px scrollbar   */
+/* flush against the window edge falls entirely inside the resize       */
+/* hitbox, making it un-draggable and "sticky" after a window resize.   */
+/* 6px breaks the full overlap. macOS/Windows are unaffected — their    */
+/* WMs handle resize outside the webview. Ref: tao#892, wry#1167.      */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-thumb {

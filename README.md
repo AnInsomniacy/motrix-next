@@ -85,39 +85,6 @@ What changed is everything underneath. Every transition and micro-interaction ha
 - **Notifications** — System notifications on task completion
 - **Lightweight** — Tauri-powered, minimal resource footprint
 
-## Internationalization
-
-Translations into other languages are welcome! Please read the [Translation Guide](docs/CONTRIBUTING.md#-translation-guide) before getting started.
-
-| Key   | Name                | Status |
-|-------|:--------------------|:-------|
-| ar    | Arabic              | ✔️ [@hadialqattan](https://github.com/hadialqattan), [@AhmedElTabarani](https://github.com/AhmedElTabarani) |
-| bg    | Българският език    | ✔️ [@null-none](https://github.com/null-none) |
-| ca    | Català              | ✔️ [@marcizhu](https://github.com/marcizhu) |
-| de    | Deutsch             | ✔️ [@Schloemicher](https://github.com/Schloemicher) |
-| el    | Ελληνικά            | ✔️ [@Likecinema](https://github.com/Likecinema) |
-| en-US | English             | ✔️ |
-| es    | Español             | ✔️ [@Chofito](https://github.com/Chofito) |
-| fa    | فارسی               | ✔️ [@Nima-Ra](https://github.com/Nima-Ra) |
-| fr    | Français            | ✔️ [@gpatarin](https://github.com/gpatarin) |
-| hu    | Hungarian           | ✔️ [@zalnaRs](https://github.com/zalnaRs) |
-| id    | Indonesia           | ✔️ [@aarestu](https://github.com/aarestu) |
-| it    | Italiano            | ✔️ [@blackcat-917](https://github.com/blackcat-917) |
-| ja    | 日本語               | ✔️ [@hbkrkzk](https://github.com/hbkrkzk) |
-| ko    | 한국어               | ✔️ [@KOZ39](https://github.com/KOZ39) |
-| nb    | Norsk Bokmål        | ✔️ [@rubjo](https://github.com/rubjo) |
-| nl    | Nederlands          | ✔️ [@nickbouwhuis](https://github.com/nickbouwhuis) |
-| pl    | Polski              | ✔️ [@KanarekLife](https://github.com/KanarekLife) |
-| pt-BR | Portuguese (Brazil) | ✔️ [@andrenoberto](https://github.com/andrenoberto) |
-| ro    | Română              | ✔️ [@alyn3d](https://github.com/alyn3d) |
-| ru    | Русский             | ✔️ [@bladeaweb](https://github.com/bladeaweb) |
-| th    | แบบไทย              | ✔️ [@nxanywhere](https://github.com/nxanywhere) |
-| tr    | Türkçe              | ✔️ [@abdullah](https://github.com/abdullah) |
-| uk    | Українська          | ✔️ [@bladeaweb](https://github.com/bladeaweb) |
-| vi    | Tiếng Việt          | ✔️ [@duythanhvn](https://github.com/duythanhvn) |
-| zh-CN | 简体中文             | ✔️ |
-| zh-TW | 繁體中文             | ✔️ [@Yukaii](https://github.com/Yukaii), [@5idereal](https://github.com/5idereal) |
-
 ## Installation
 
 Download the latest release from [GitHub Releases](https://github.com/AnInsomniacy/motrix-next/releases).
