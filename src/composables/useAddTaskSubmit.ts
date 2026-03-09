@@ -15,6 +15,7 @@ import { useAppStore } from '@/stores/app'
 import { useTaskStore } from '@/stores/task'
 import { usePreferenceStore } from '@/stores/preference'
 import { useAppMessage } from '@/composables/useAppMessage'
+import { useAppNotification } from '@/composables/useAppNotification'
 import { isEngineReady } from '@/api/aria2'
 import { normalizeUriLines } from '@shared/utils/batchHelpers'
 import { buildOuts } from '@shared/utils/rename'
@@ -145,6 +146,7 @@ export function useAddTaskSubmit({ form, onClose }: UseAddTaskSubmitOptions) {
   const taskStore = useTaskStore()
   const preferenceStore = usePreferenceStore()
   const message = useAppMessage()
+  const { notifyError } = useAppNotification()
   const submitting = ref(false)
 
   async function handleSubmit() {
@@ -177,11 +179,11 @@ export function useAddTaskSubmit({ form, onClose }: UseAddTaskSubmitOptions) {
       const errMsg = e instanceof Error ? e.message : String(e)
       logger.error('AddTask.submit', e)
       if (category === 'engine-not-ready') {
-        message.error(t('app.engine-not-ready'), { duration: 5000, closable: true })
+        notifyError(e, 'engine')
       } else if (category === 'duplicate') {
         message.warning(errMsg, { duration: 5000, closable: true })
       } else {
-        message.error(errMsg, { duration: 5000, closable: true })
+        notifyError(e, 'task')
       }
     } finally {
       submitting.value = false

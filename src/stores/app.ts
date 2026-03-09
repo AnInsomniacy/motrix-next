@@ -15,6 +15,7 @@ import type {
   AppConfig,
   BatchItem,
 } from '@shared/types'
+import type { NormalizedError } from '@shared/errorNormalizer'
 
 export const useAppStore = defineStore('app', () => {
   const systemTheme = ref('light')
@@ -38,6 +39,7 @@ export const useAppStore = defineStore('app', () => {
   const addTaskOptions = ref<Aria2EngineOptions>({})
   const progress = ref(0)
   const pendingUpdate = ref<TauriUpdate | null>(null)
+  const startupErrors = ref<NormalizedError[]>([])
 
   function updateInterval(millisecond: number) {
     let val = millisecond
@@ -240,6 +242,7 @@ export const useAppStore = defineStore('app', () => {
     addTaskOptions,
     progress,
     pendingUpdate,
+    startupErrors,
     updateInterval,
     increaseInterval,
     decreaseInterval,

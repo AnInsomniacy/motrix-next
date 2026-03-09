@@ -38,6 +38,7 @@ import {
   useDialog,
 } from 'naive-ui'
 import { useAppMessage } from '@/composables/useAppMessage'
+import { useAppNotification } from '@/composables/useAppNotification'
 import { SyncOutline, DiceOutline } from '@vicons/ionicons5'
 import { logger } from '@shared/logger'
 import PreferenceActionBar from './PreferenceActionBar.vue'
@@ -46,6 +47,7 @@ const { t } = useI18n()
 const preferenceStore = usePreferenceStore()
 const taskStore = useTaskStore()
 const message = useAppMessage()
+const { notifyError } = useAppNotification()
 const dialog = useDialog()
 
 import { DEFAULT_TRACKER_SOURCE } from '@shared/constants'
@@ -340,7 +342,7 @@ function handleFactoryReset() {
         await invoke('factory_reset')
         relaunch()
       } catch (e) {
-        logger.error('Advanced.factoryReset', e)
+        notifyError(e, 'config')
       }
     },
   })

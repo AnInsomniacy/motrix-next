@@ -15,7 +15,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 vi.mock('vue-i18n', () => ({
-  useI18n: () => ({ t: (key: string) => key }),
+  useI18n: () => ({ t: (key: string) => key, te: () => false }),
 }))
 
 vi.mock('naive-ui', () => ({
@@ -24,6 +24,12 @@ vi.mock('naive-ui', () => ({
     error: vi.fn(() => ({ destroy: vi.fn() })),
     warning: vi.fn(() => ({ destroy: vi.fn() })),
     info: vi.fn(() => ({ destroy: vi.fn() })),
+  }),
+  useNotification: () => ({
+    error: vi.fn(() => ({ destroy: vi.fn() })),
+    warning: vi.fn(() => ({ destroy: vi.fn() })),
+    info: vi.fn(() => ({ destroy: vi.fn() })),
+    success: vi.fn(() => ({ destroy: vi.fn() })),
   }),
 }))
 

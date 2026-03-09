@@ -25,7 +25,7 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: (...args: unknown[]) => mockInvoke(...args),
 }))
 
-// ── Mock naive-ui (useMessage needed by useAppMessage) ──────────────
+// ── Mock naive-ui (useMessage + useNotification needed by composables) ──
 vi.mock('naive-ui', () => ({
   useMessage: () => ({
     success: vi.fn(() => ({ destroy: vi.fn() })),
@@ -33,11 +33,17 @@ vi.mock('naive-ui', () => ({
     warning: vi.fn(() => ({ destroy: vi.fn() })),
     info: vi.fn(() => ({ destroy: vi.fn() })),
   }),
+  useNotification: () => ({
+    error: vi.fn(() => ({ destroy: vi.fn() })),
+    warning: vi.fn(() => ({ destroy: vi.fn() })),
+    info: vi.fn(() => ({ destroy: vi.fn() })),
+    success: vi.fn(() => ({ destroy: vi.fn() })),
+  }),
 }))
 
 // ── Mock vue-i18n ───────────────────────────────────────────────────
 vi.mock('vue-i18n', () => ({
-  useI18n: () => ({ t: (key: string) => key }),
+  useI18n: () => ({ t: (key: string) => key, te: () => false }),
 }))
 
 import { usePreferenceStore } from '@/stores/preference'
