@@ -240,6 +240,7 @@ defineExpose({ open })
               </div>
             </div>
             <div v-if="releaseNotes" class="update-notes">
+              <!-- eslint-disable-next-line vue/no-v-html -->
               <div class="update-notes-text" v-html="renderedNotes" />
             </div>
           </div>
