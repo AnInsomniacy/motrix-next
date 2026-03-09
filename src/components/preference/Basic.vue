@@ -11,6 +11,7 @@ import { downloadDir } from '@tauri-apps/api/path'
 import { extractSpeedUnit } from '@shared/utils'
 import { logger } from '@shared/logger'
 import { useAppMessage } from '@/composables/useAppMessage'
+import { useAppNotification } from '@/composables/useAppNotification'
 import { buildBasicForm, buildBasicSystemConfig, transformBasicForStore } from '@/composables/useBasicPreference'
 import {
   NForm,
@@ -40,6 +41,7 @@ const { t } = useI18n()
 const preferenceStore = usePreferenceStore()
 const dialog = useDialog()
 const message = useAppMessage()
+const { notifyWarning } = useAppNotification()
 const defaultDownloadDir = ref('')
 const currentPlatform = ref('')
 const isMac = computed(() => currentPlatform.value === 'macos')
@@ -88,8 +90,8 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot, patchSnapshot } =
         const currentlyEnabled = await isEnabled()
         if (f.openAtLogin && !currentlyEnabled) await enable()
         else if (!f.openAtLogin && currentlyEnabled) await disable()
-      } catch (e) {
-        console.error('Failed to sync autostart:', e)
+      } catch {
+        notifyWarning('app.error-title-config', 'app.error-autostart-sync-failed')
       }
     }
   },

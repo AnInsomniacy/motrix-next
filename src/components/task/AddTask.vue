@@ -42,6 +42,7 @@ import {
   NEllipsis,
 } from 'naive-ui'
 import { useAppMessage } from '@/composables/useAppMessage'
+import { useAppNotification } from '@/composables/useAppNotification'
 import type { DataTableColumns } from 'naive-ui'
 import type { BatchItem } from '@shared/types'
 import { FolderOpenOutline } from '@vicons/ionicons5'
@@ -57,6 +58,7 @@ const appStore = useAppStore()
 const taskStore = useTaskStore()
 const preferenceStore = usePreferenceStore()
 const message = useAppMessage()
+const { notifyError } = useAppNotification()
 
 const activeTab = ref(ADD_TASK_TYPE.URI)
 const slideDirection = ref<'left' | 'right'>('left')
@@ -407,12 +409,10 @@ async function handleSubmit() {
     const category = classifySubmitError(e)
     const errMsg = e instanceof Error ? e.message : String(e)
     logger.error('AddTask.submit', e)
-    if (category === 'engine-not-ready') {
-      message.error(t('app.engine-not-ready'), { duration: 5000, closable: true })
-    } else if (category === 'duplicate') {
+    if (category === 'duplicate') {
       message.warning(errMsg, { duration: 5000, closable: true })
     } else {
-      message.error(errMsg, { duration: 5000, closable: true })
+      notifyError(e, category === 'engine-not-ready' ? 'engine' : 'task')
     }
   } finally {
     submitting.value = false

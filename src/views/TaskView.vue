@@ -11,10 +11,10 @@ import { isEngineReady } from '@/api/aria2'
 import { deleteTaskFiles } from '@/composables/useFileDelete'
 import type { Aria2Task } from '@shared/types'
 import { TASK_STATUS } from '@shared/constants'
-import { ARIA2_ERROR_CODES } from '@shared/aria2ErrorCodes'
 import { logger } from '@shared/logger'
 import { useDialog, NCheckbox } from 'naive-ui'
 import { useAppMessage } from '@/composables/useAppMessage'
+import { useAppNotification } from '@/composables/useAppNotification'
 import TaskList from '@/components/task/TaskList.vue'
 import TaskActions from '@/components/task/TaskActions.vue'
 import TaskDetail from '@/components/task/TaskDetail.vue'
@@ -27,6 +27,7 @@ const appStore = useAppStore()
 const preferenceStore = usePreferenceStore()
 const dialog = useDialog()
 const message = useAppMessage()
+const { notifyError, notifyTaskError } = useAppNotification()
 
 const stoppingGids = ref<string[]>([])
 provide('stoppingGids', stoppingGids)
@@ -72,10 +73,8 @@ onMounted(() => {
   changeCurrentList()
   taskStore.setOnTaskError((task) => {
     if (preferenceStore.config?.taskNotification === false) return
-    const i18nKey = task.errorCode ? ARIA2_ERROR_CODES[task.errorCode] : undefined
     const taskName = getTaskName(task, { defaultName: 'Unknown' })
-    const errorText = i18nKey ? t(i18nKey) : task.errorMessage || t('task.error-unknown')
-    message.error(`${taskName}: ${errorText}`, { duration: 8000, closable: true })
+    notifyTaskError(task.errorCode, task.errorMessage, taskName)
   })
 })
 onBeforeUnmount(stopPolling)
@@ -86,7 +85,7 @@ function handlePauseTask(task: Aria2Task) {
   taskStore
     .pauseTask(task)
     .then(() => message.success(t('task.pause-task-success', { taskName })))
-    .catch(() => message.error(t('task.pause-task-fail', { taskName })))
+    .catch((e) => notifyError(e, 'task'))
 }
 function handleResumeTask(task: Aria2Task) {
   const taskName = getTaskName(task, { defaultName: 'Unknown' })
@@ -96,18 +95,18 @@ function handleResumeTask(task: Aria2Task) {
     taskStore
       .restartTask(task)
       .then(() => message.success(t('task.resume-task-success', { taskName })))
-      .catch(() => message.error(t('task.resume-task-fail', { taskName })))
+      .catch((e) => notifyError(e, 'task'))
   } else {
     taskStore
       .resumeTask(task)
       .then(() => message.success(t('task.resume-task-success', { taskName })))
-      .catch(() => message.error(t('task.resume-task-fail', { taskName })))
+      .catch((e) => notifyError(e, 'task'))
   }
 }
 function handleDeleteTask(task: Aria2Task) {
   const noConfirm = preferenceStore.config?.noConfirmBeforeDeleteTask
   if (noConfirm) {
-    taskStore.removeTask(task).catch(console.error)
+    taskStore.removeTask(task).catch((e) => notifyError(e, 'task'))
     return
   }
   const deleteFiles = ref(false)
@@ -155,7 +154,7 @@ function handleDeleteRecord(task: Aria2Task) {
   taskStore
     .removeTaskRecord(task)
     .then(() => message.success(t('task.remove-record-success', { taskName })))
-    .catch(() => message.error(t('task.remove-record-fail', { taskName })))
+    .catch((e) => notifyError(e, 'task'))
 }
 function handleCopyLink(task: Aria2Task) {
   navigator.clipboard.writeText(getTaskUri(task))
@@ -184,7 +183,7 @@ async function handleStopSeeding(task: Aria2Task) {
     // Don't remove from stoppingGids — let the spinner run
     // until the task transitions to 'complete' and vanishes from the list
   } catch (e) {
-    console.error(e)
+    notifyError(e, 'task')
     // Only clear on error so user can retry
     stoppingGids.value = stoppingGids.value.filter((g) => g !== task.gid)
   }

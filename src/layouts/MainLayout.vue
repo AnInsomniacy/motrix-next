@@ -21,6 +21,7 @@ import UpdateDialog from '@/components/preference/UpdateDialog.vue'
 import { useTaskStore } from '@/stores/task'
 import { usePreferenceStore } from '@/stores/preference'
 import { useAppMessage } from '@/composables/useAppMessage'
+import { useAppNotification } from '@/composables/useAppNotification'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import aria2Api, { isEngineReady } from '@/api/aria2'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
@@ -35,6 +36,7 @@ const taskStore = useTaskStore()
 const preferenceStore = usePreferenceStore()
 const navDialog = useDialog()
 const message = useAppMessage()
+const { notifyError } = useAppNotification()
 
 const isTaskPage = computed(() => route.path.startsWith('/task'))
 const isPreferencePage = computed(() => route.path.startsWith('/preference'))
@@ -103,6 +105,14 @@ onMounted(async () => {
   }, 120)
   startGlobalPolling()
 
+  // Drain startup errors queued before Vue context was available
+  if (appStore.startupErrors.length > 0) {
+    for (const err of appStore.startupErrors) {
+      notifyError(err.rawMessage, err.category)
+    }
+    appStore.startupErrors = []
+  }
+
   router.beforeEach((to, from) => {
     const leavingPrefs = from.path.startsWith('/preference') && !to.path.startsWith('/preference')
     const switchingPrefsTab =
@@ -122,7 +132,7 @@ onMounted(async () => {
               preferenceStore.pendingChanges = false
               resolve(true)
             } catch (e) {
-              console.error('Save before leave failed:', e)
+              notifyError(e, 'config')
               resolve(false)
             }
           },
@@ -181,16 +191,16 @@ onMounted(async () => {
         })
         break
       case 'resume-all':
-        taskStore.resumeAllTask().catch(console.error)
+        taskStore.resumeAllTask().catch((e) => notifyError(e))
         break
       case 'pause-all':
-        taskStore.pauseAllTask().catch(console.error)
+        taskStore.pauseAllTask().catch((e) => notifyError(e))
         break
       case 'release-notes':
-        openUrl('https://github.com/AnInsomniacy/motrix-next/releases').catch(console.error)
+        openUrl('https://github.com/AnInsomniacy/motrix-next/releases').catch((e) => notifyError(e))
         break
       case 'report-issue':
-        openUrl('https://github.com/AnInsomniacy/motrix-next/issues').catch(console.error)
+        openUrl('https://github.com/AnInsomniacy/motrix-next/issues').catch((e) => notifyError(e))
         break
     }
   })

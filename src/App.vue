@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   NConfigProvider,
+  NNotificationProvider,
   NMessageProvider,
   NDialogProvider,
   darkTheme,
@@ -148,11 +149,13 @@ const themeOverrides = computed<GlobalThemeOverrides>(() => {
     :locale="naiveLocale"
     :date-locale="naiveDateLocale"
   >
-    <NMessageProvider>
-      <NDialogProvider>
-        <router-view />
-      </NDialogProvider>
-    </NMessageProvider>
+    <NNotificationProvider :max="3">
+      <NMessageProvider>
+        <NDialogProvider>
+          <router-view />
+        </NDialogProvider>
+      </NMessageProvider>
+    </NNotificationProvider>
   </NConfigProvider>
 </template>
 

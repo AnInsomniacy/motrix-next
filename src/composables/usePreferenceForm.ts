@@ -11,6 +11,7 @@ import { isEqual } from 'lodash-es'
 import { invoke } from '@tauri-apps/api/core'
 import { usePreferenceStore } from '@/stores/preference'
 import { useAppMessage } from '@/composables/useAppMessage'
+import { useAppNotification } from '@/composables/useAppNotification'
 import type { AppConfig } from '@shared/types'
 
 export interface UsePreferenceFormOptions<T extends Record<string, unknown>> {
@@ -53,6 +54,7 @@ export function usePreferenceForm<T extends Record<string, unknown>>(options: Us
   const { t } = useI18n()
   const preferenceStore = usePreferenceStore()
   const message = useAppMessage()
+  const { notifyError } = useAppNotification()
 
   // ── Reactive State ──────────────────────────────────────────────────
 
@@ -84,7 +86,7 @@ export function usePreferenceForm<T extends Record<string, unknown>>(options: Us
 
     const saved = await preferenceStore.updateAndSave(storeData)
     if (!saved) {
-      message.error(t('preferences.save-fail-message'))
+      notifyError('Preference persistence failed', 'config')
       throw new Error('Preference persistence failed')
     }
 

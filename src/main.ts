@@ -11,6 +11,7 @@ import aria2Api, { initClient } from './api/aria2'
 import { ENGINE_RPC_PORT, AUTO_SYNC_TRACKER_INTERVAL, DEFAULT_TRACKER_SOURCE } from '@shared/constants'
 import { convertTrackerDataToLine, convertTrackerDataToComma, reduceTrackerString } from '@shared/utils/tracker'
 import { logger } from '@shared/logger'
+import { normalizeError } from '@shared/errorNormalizer'
 import App from './App.vue'
 import 'virtual:uno.css'
 import './styles/variables.css'
@@ -154,11 +155,13 @@ preferenceStore.loadPreference().then(async () => {
     await invoke('start_engine_command')
   } catch (e) {
     logger.error('Engine', e)
+    appStore.startupErrors.push(normalizeError(e, 'engine'))
   }
 
   const ready = await waitForEngine(port, secret)
   if (!ready) {
     logger.error('Engine', 'Engine did not become ready after retries')
+    appStore.startupErrors.push(normalizeError('Engine did not become ready after retries', 'engine'))
   }
 
   try {
