@@ -6,7 +6,7 @@ import { RPC_TIMEOUT } from '../../timing'
 
 interface RPCMessage {
   method: string
-  'json-rpc': string
+  jsonrpc: string
   id: number
   params?: unknown[]
 }
@@ -99,7 +99,7 @@ export class JSONRPCClient extends EventEmitter {
 
     const message: RPCMessage = {
       method,
-      'json-rpc': '2.0',
+      jsonrpc: '2.0',
       id: this.id(),
     }
 
@@ -108,8 +108,8 @@ export class JSONRPCClient extends EventEmitter {
   }
 
   async batch(calls: [string, ...unknown[]][]): Promise<Promise<unknown>[]> {
-    const message = calls.map(([method, params]) => {
-      return this._buildMessage(method as string, params as unknown[])
+    const message = calls.map(([method, ...params]) => {
+      return this._buildMessage(method as string, params)
     })
 
     // Register deferreds BEFORE sending to prevent race with fast HTTP responses

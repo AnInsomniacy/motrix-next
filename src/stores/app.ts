@@ -160,26 +160,32 @@ export const useAppStore = defineStore('app', () => {
 
   function handleDeepLinkUrls(urls: string[]) {
     if (!urls || urls.length === 0) return
-    const url = urls[0]
-    const lower = url.toLowerCase()
-    if (lower.endsWith('.torrent') || (lower.startsWith('file://') && lower.includes('.torrent'))) {
-      const filePath = url.startsWith('file://') ? decodeURIComponent(url.replace(/^file:\/\//, '')) : url
-      showAddTaskDialog(ADD_TASK_TYPE.TORRENT, [filePath])
-    } else if (
-      lower.endsWith('.metalink') ||
-      lower.endsWith('.meta4') ||
-      (lower.startsWith('file://') && (lower.includes('.metalink') || lower.includes('.meta4')))
-    ) {
-      const filePath = url.startsWith('file://') ? decodeURIComponent(url.replace(/^file:\/\//, '')) : url
-      showAddTaskDialog(ADD_TASK_TYPE.TORRENT, [filePath])
-    } else if (lower.startsWith('magnet:')) {
-      addTaskUrl.value = url
-      showAddTaskDialog(ADD_TASK_TYPE.URI)
-    } else if (lower.startsWith('thunder://')) {
-      addTaskUrl.value = decodeThunderLink(url)
-      showAddTaskDialog(ADD_TASK_TYPE.URI)
-    } else if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('ftp://')) {
-      addTaskUrl.value = url
+
+    const uriLines: string[] = []
+
+    for (const url of urls) {
+      const lower = url.toLowerCase()
+      if (lower.endsWith('.torrent') || (lower.startsWith('file://') && lower.includes('.torrent'))) {
+        const filePath = url.startsWith('file://') ? decodeURIComponent(url.replace(/^file:\/\//, '')) : url
+        showAddTaskDialog(ADD_TASK_TYPE.TORRENT, [filePath])
+      } else if (
+        lower.endsWith('.metalink') ||
+        lower.endsWith('.meta4') ||
+        (lower.startsWith('file://') && (lower.includes('.metalink') || lower.includes('.meta4')))
+      ) {
+        const filePath = url.startsWith('file://') ? decodeURIComponent(url.replace(/^file:\/\//, '')) : url
+        showAddTaskDialog(ADD_TASK_TYPE.TORRENT, [filePath])
+      } else if (lower.startsWith('magnet:')) {
+        uriLines.push(url)
+      } else if (lower.startsWith('thunder://')) {
+        uriLines.push(decodeThunderLink(url))
+      } else if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('ftp://')) {
+        uriLines.push(url)
+      }
+    }
+
+    if (uriLines.length > 0) {
+      addTaskUrl.value = uriLines.join('\n')
       showAddTaskDialog(ADD_TASK_TYPE.URI)
     }
   }

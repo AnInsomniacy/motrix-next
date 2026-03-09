@@ -82,7 +82,11 @@ export function usePreferenceForm<T extends Record<string, unknown>>(options: Us
       ? options.transformForStore(form.value as T)
       : { ...(form.value as T) }
 
-    await preferenceStore.updateAndSave(storeData)
+    const saved = await preferenceStore.updateAndSave(storeData)
+    if (!saved) {
+      message.error(t('preferences.save-fail-message'))
+      return
+    }
 
     const systemConfig = options.buildSystemConfig(form.value as T)
     if (Object.keys(systemConfig).length > 0) {

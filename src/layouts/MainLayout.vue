@@ -162,7 +162,7 @@ onMounted(async () => {
       case 'open-torrent': {
         const selected = await openDialog({
           multiple: false,
-          filters: [{ name: 'Torrent', extensions: ['torrent'] }],
+          filters: [{ name: 'Torrent / Metalink', extensions: ['torrent', 'metalink', 'meta4'] }],
         })
         if (typeof selected === 'string') appStore.showAddTaskDialog(ADD_TASK_TYPE.TORRENT, [selected])
         break

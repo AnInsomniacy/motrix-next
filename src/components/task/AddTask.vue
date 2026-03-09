@@ -261,7 +261,7 @@ async function chooseTorrentFile() {
   try {
     const selected = await openDialog({
       multiple: false,
-      filters: [{ name: 'Torrent', extensions: ['torrent'] }],
+      filters: [{ name: 'Torrent / Metalink', extensions: ['torrent', 'metalink', 'meta4'] }],
     })
     if (typeof selected === 'string') await loadTorrentFromPath(selected)
   } catch (e) {
