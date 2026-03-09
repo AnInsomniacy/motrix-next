@@ -63,5 +63,9 @@ export default {
   'error-factory-reset-failed': 'Factory reset failed. Please try again.',
   'error-task-pause-all-failed': 'Failed to pause all tasks.',
   'error-task-resume-all-failed': 'Failed to resume all tasks.',
-  'error-stop-seeding-failed': 'Failed to stop seeding.'
+  'error-stop-seeding-failed': 'Failed to stop seeding.',
+  'close-action-message': 'What would you like to do when closing the window?',
+  'close-action-minimize': 'Minimize to Tray',
+  'close-action-quit': 'Quit',
+  'close-action-remember': 'Don\'t ask again'
 }

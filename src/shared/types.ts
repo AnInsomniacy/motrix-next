@@ -114,6 +114,9 @@ export interface ProtocolsConfig {
   thunder: boolean
 }
 
+/** Close-action behavior when the user closes the app window. */
+export type CloseAction = 'ask' | 'minimize' | 'quit'
+
 /** Application user preferences with full type coverage. */
 export interface AppConfig {
   theme: 'auto' | 'light' | 'dark'
@@ -131,7 +134,7 @@ export interface AppConfig {
   openAtLogin: boolean
   autoCheckUpdate: boolean
   autoHideWindow: boolean
-  minimizeToTrayOnClose: boolean
+  closeAction: CloseAction
   autoSyncTracker: boolean
   keepSeeding: boolean
   keepWindowState: boolean

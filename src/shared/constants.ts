@@ -102,7 +102,7 @@ export const DEFAULT_APP_CONFIG = {
   openAtLogin: false, // never auto-start on first install
   keepWindowState: false, // first launch has no saved state
   autoHideWindow: false,
-  minimizeToTrayOnClose: false, // close=quit is default UX
+  closeAction: 'ask' as const, // ask user what to do on close
   showProgressBar: true,
   traySpeedometer: true, // Motrix signature feature
   dockBadgeSpeed: true, // macOS Dock badge on by default

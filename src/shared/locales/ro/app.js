@@ -45,5 +45,9 @@ export default {
   'menu-open-torrent': 'Deschide fișier Torrent...',
   'menu-preferences': 'Preferințe...',
   'menu-release-notes': 'Note de lansare',
-  'menu-report-issue': 'Raportare problemă'
+  'menu-report-issue': 'Raportare problemă',
+  'close-action-message': 'Ce doriți să faceți la închiderea ferestrei?',
+  'close-action-minimize': 'Minimizează în bara de sistem',
+  'close-action-quit': 'Ieșire',
+  'close-action-remember': 'Nu mai întreba'
 }

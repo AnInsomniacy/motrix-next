@@ -157,6 +157,12 @@ const themeOptions = computed(() => [
   { label: t('preferences.theme-dark'), value: 'dark' },
 ])
 
+const closeActionOptions = computed(() => [
+  { label: t('preferences.close-action-ask'), value: 'ask' },
+  { label: t('preferences.close-action-minimize'), value: 'minimize' },
+  { label: t('preferences.close-action-quit'), value: 'quit' },
+])
+
 function parseSpeedLimit(value: unknown) {
   const str = String(value || '0')
   const num = parseInt(str, 10) || 0
@@ -330,8 +336,8 @@ onMounted(async () => {
       <NFormItem :label="t('preferences.auto-hide-window')">
         <NSwitch v-model:value="form.autoHideWindow" />
       </NFormItem>
-      <NFormItem :label="t('preferences.minimize-to-tray-on-close')">
-        <NSwitch v-model:value="form.minimizeToTrayOnClose" />
+      <NFormItem :label="t('preferences.close-action')">
+        <NSelect v-model:value="form.closeAction" :options="closeActionOptions" style="width: 200px" />
       </NFormItem>
       <NFormItem v-if="isMac" :label="t('preferences.tray-speedometer')">
         <NSwitch v-model:value="form.traySpeedometer" />

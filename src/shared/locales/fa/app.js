@@ -45,5 +45,9 @@ export default {
   'menu-open-torrent': 'باز کردن فایل Torrent...',
   'menu-preferences': 'تنظیمات...',
   'menu-release-notes': 'یادداشت‌های انتشار',
-  'menu-report-issue': 'گزارش مشکل'
+  'menu-report-issue': 'گزارش مشکل',
+  'close-action-message': 'هنگام بستن پنجره چه کاری می‌خواهید انجام دهید؟',
+  'close-action-minimize': 'کوچک کردن به سینی',
+  'close-action-quit': 'خروج',
+  'close-action-remember': 'دیگر نپرس'
 }

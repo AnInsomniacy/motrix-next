@@ -23,7 +23,7 @@ export interface BasicForm {
   keepWindowState: boolean
   resumeAllWhenAppLaunched: boolean
   autoHideWindow: boolean
-  minimizeToTrayOnClose: boolean
+  closeAction: string
   showProgressBar: boolean
   traySpeedometer: boolean
   dockBadgeSpeed: boolean
@@ -69,7 +69,7 @@ export function buildBasicForm(config: AppConfig, defaultDir: string = ''): Basi
     keepWindowState: config.keepWindowState ?? D.keepWindowState,
     resumeAllWhenAppLaunched: config.resumeAllWhenAppLaunched ?? D.resumeAllWhenAppLaunched,
     autoHideWindow: config.autoHideWindow ?? D.autoHideWindow,
-    minimizeToTrayOnClose: config.minimizeToTrayOnClose ?? D.minimizeToTrayOnClose,
+    closeAction: config.closeAction ?? D.closeAction,
     showProgressBar: config.showProgressBar ?? D.showProgressBar,
     traySpeedometer: config.traySpeedometer ?? D.traySpeedometer,
     dockBadgeSpeed: config.dockBadgeSpeed ?? D.dockBadgeSpeed,

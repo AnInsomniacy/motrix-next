@@ -13,6 +13,27 @@ use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_store::StoreExt;
 use upnp::UpnpState;
 
+/// Restores the macOS Dock icon (activation policy → Regular) before showing a window.
+/// No-op on non-macOS platforms.
+#[allow(unused_variables)]
+fn restore_dock_and_show(app: &tauri::AppHandle, window_label: &str) {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2::MainThreadMarker;
+        use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+        if let Some(mtm) = MainThreadMarker::new() {
+            let ns_app = NSApplication::sharedApplication(mtm);
+            ns_app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+            #[allow(deprecated)]
+            ns_app.activateIgnoringOtherApps(true);
+        }
+    }
+    if let Some(window) = app.get_webview_window(window_label) {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default()
@@ -36,10 +57,7 @@ pub fn run() {
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             let _ = app.emit("single-instance-triggered", &argv);
-            if let Some(w) = app.get_webview_window("main") {
-                let _: Result<(), _> = w.show();
-                let _: Result<(), _> = w.set_focus();
-            }
+            restore_dock_and_show(app, "main");
         }));
     }
 
@@ -72,6 +90,7 @@ pub fn run() {
             commands::update_menu_labels,
             commands::update_progress_bar,
             commands::update_dock_badge,
+            commands::set_dock_icon_visible,
             commands::check_for_update,
             commands::install_update,
             commands::cancel_update,
@@ -146,42 +165,55 @@ pub fn run() {
                     tauri::async_runtime::block_on(upnp::stop_mapping(state.inner()));
                 }
             }
-            // Rust-level defense for minimize-to-tray on close.
+            // Rust-level defense for close-action behavior.
             // On Linux/Wayland with decorations:false, the frontend
             // onCloseRequested listener may not fire for all close
             // paths (e.g. Alt+F4, GNOME overview ×, taskbar close).
-            // This handler ensures the window is hidden rather than
-            // destroyed when the setting is enabled.
+            // This handler mirrors the frontend logic as a fallback.
             tauri::RunEvent::WindowEvent {
                 event: tauri::WindowEvent::CloseRequested { api, .. },
                 label,
                 ..
             } => {
-                let should_hide = app
+                let close_action: String = app
                     .store("config.json")
                     .ok()
                     .and_then(|s| s.get("preferences"))
                     .map(|prefs| {
-                        prefs
-                            .get("minimizeToTrayOnClose")
-                            .and_then(|v| v.as_bool())
-                            .unwrap_or(false)
+                        // Try new closeAction key first
+                        if let Some(action) = prefs.get("closeAction").and_then(|v| v.as_str()) {
+                            return action.to_string();
+                        }
+                        // Backward compat: fall back to legacy boolean
+                        if let Some(true) = prefs.get("minimizeToTrayOnClose").and_then(|v| v.as_bool()) {
+                            return "minimize".to_string();
+                        }
+                        "ask".to_string()
                     })
-                    .unwrap_or(false);
+                    .unwrap_or_else(|| "ask".to_string());
 
-                if should_hide {
-                    api.prevent_close();
-                    if let Some(window) = app.get_webview_window(&label) {
-                        let _ = window.hide();
+                match close_action.as_str() {
+                    "quit" => {
+                        // Let the close proceed naturally
+                    }
+                    "minimize" => {
+                        api.prevent_close();
+                        if let Some(window) = app.get_webview_window(&label) {
+                            let _ = window.hide();
+                        }
+                    }
+                    _ => {
+                        // "ask" or unknown — prevent close, let frontend show dialog
+                        api.prevent_close();
+                        if let Some(window) = app.get_webview_window(&label) {
+                            let _ = window.emit("close-requested", ());
+                        }
                     }
                 }
             }
             #[cfg(target_os = "macos")]
             tauri::RunEvent::Reopen { .. } => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
+                restore_dock_and_show(app, "main");
             }
             _ => {}
         });

@@ -45,5 +45,9 @@ export default {
   'menu-open-torrent': 'Åpne Torrent-fil...',
   'menu-preferences': 'Innstillinger...',
   'menu-release-notes': 'Utgivelsesmerknader',
-  'menu-report-issue': 'Rapporter problem'
+  'menu-report-issue': 'Rapporter problem',
+  'close-action-message': 'Hva vil du gjøre når du lukker vinduet?',
+  'close-action-minimize': 'Minimer til systemstatusfeltet',
+  'close-action-quit': 'Avslutt',
+  'close-action-remember': 'Ikke spør igjen'
 }

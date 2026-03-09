@@ -201,6 +201,34 @@ pub fn update_progress_bar(app: AppHandle, progress: f64) -> Result<(), AppError
     Ok(())
 }
 
+/// Shows or hides the macOS Dock icon by switching the app activation policy.
+/// - `visible = false` → `Accessory` (no Dock icon, tray-only)
+/// - `visible = true`  → `Regular` (normal Dock icon)
+/// No-op on non-macOS platforms.
+#[tauri::command]
+pub fn set_dock_icon_visible(_app: AppHandle, visible: bool) -> Result<(), AppError> {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2::MainThreadMarker;
+        use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+
+        if let Some(mtm) = MainThreadMarker::new() {
+            let ns_app = NSApplication::sharedApplication(mtm);
+            let policy = if visible {
+                NSApplicationActivationPolicy::Regular
+            } else {
+                NSApplicationActivationPolicy::Accessory
+            };
+            ns_app.setActivationPolicy(policy);
+            if visible {
+                #[allow(deprecated)]
+                ns_app.activateIgnoringOtherApps(true);
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Updates the macOS dock badge label (empty string clears the badge).
 #[tauri::command]
 pub fn update_dock_badge(app: AppHandle, label: String) -> Result<(), AppError> {

@@ -45,5 +45,9 @@ export default {
   'menu-open-torrent': 'Torrent-bestand openen...',
   'menu-preferences': 'Voorkeuren...',
   'menu-release-notes': 'Uitgavenotities',
-  'menu-report-issue': 'Probleem melden'
+  'menu-report-issue': 'Probleem melden',
+  'close-action-message': 'Wat wilt u doen bij het sluiten van het venster?',
+  'close-action-minimize': 'Minimaliseren naar systeemvak',
+  'close-action-quit': 'Afsluiten',
+  'close-action-remember': 'Niet meer vragen'
 }

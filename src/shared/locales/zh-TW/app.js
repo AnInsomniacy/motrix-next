@@ -45,5 +45,9 @@ export default {
   'menu-open-torrent': '開啟種子檔案...',
   'menu-preferences': '偏好設定...',
   'menu-release-notes': '更新日誌',
-  'menu-report-issue': '回報問題'
+  'menu-report-issue': '回報問題',
+  'close-action-message': '關閉視窗時你想要執行什麼操作？',
+  'close-action-minimize': '最小化到系統匣',
+  'close-action-quit': '結束',
+  'close-action-remember': '不再詢問'
 }

@@ -45,5 +45,9 @@ export default {
   'menu-open-torrent': 'Torrentファイルを開く...',
   'menu-preferences': '設定...',
   'menu-release-notes': 'リリースノート',
-  'menu-report-issue': '問題を報告'
+  'menu-report-issue': '問題を報告',
+  'close-action-message': 'ウィンドウを閉じる時の動作を選択してください',
+  'close-action-minimize': 'トレイに最小化',
+  'close-action-quit': '終了',
+  'close-action-remember': '今後表示しない'
 }
