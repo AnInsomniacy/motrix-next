@@ -10,6 +10,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
 import { logger } from '@shared/logger'
+import { platform } from '@tauri-apps/plugin-os'
 import AsideBar from '@/components/layout/AsideBar.vue'
 import TaskSubnav from '@/components/layout/TaskSubnav.vue'
 import PreferenceSubnav from '@/components/layout/PreferenceSubnav.vue'
@@ -37,6 +38,8 @@ const preferenceStore = usePreferenceStore()
 const navDialog = useDialog()
 const message = useAppMessage()
 const { notifyError } = useAppNotification()
+
+const isMac = platform() === 'macos'
 
 const isTaskPage = computed(() => route.path.startsWith('/task'))
 const isPreferencePage = computed(() => route.path.startsWith('/preference'))
@@ -288,7 +291,7 @@ onUnmounted(() => {
         </Transition>
       </router-view>
     </main>
-    <WindowControls class="window-controls" />
+    <WindowControls v-if="!isMac" class="window-controls" />
     <Speedometer />
     <AboutPanel :show="showAbout" @close="showAbout = false" />
     <AddTask :show="appStore.addTaskVisible" @close="appStore.hideAddTaskDialog()" />

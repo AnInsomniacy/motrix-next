@@ -18,6 +18,9 @@ import './styles/variables.css'
 
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getLocale } from 'tauri-plugin-locale-api'
+import { platform } from '@tauri-apps/plugin-os'
+
+document.documentElement.dataset.platform = platform()
 
 const app = createApp(App)
 const pinia = createPinia()

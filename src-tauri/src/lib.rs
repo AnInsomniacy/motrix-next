@@ -44,7 +44,14 @@ pub fn run() {
     }
 
     builder = builder.plugin(tauri_plugin_deep_link::init());
-    builder = builder.plugin(tauri_plugin_window_state::Builder::new().build());
+    builder = builder.plugin(
+        tauri_plugin_window_state::Builder::new()
+            .with_state_flags(
+                tauri_plugin_window_state::StateFlags::all()
+                    & !tauri_plugin_window_state::StateFlags::DECORATIONS,
+            )
+            .build(),
+    );
 
     builder
         .manage(EngineState::new())
