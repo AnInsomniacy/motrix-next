@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { usePreferenceStore } from '@/stores/preference'
 import { usePreferenceForm } from '@/composables/usePreferenceForm'
 import { useTaskStore } from '@/stores/task'
+import { fetchTaskList } from '@/api/aria2'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { appDataDir, join, resolveResource } from '@tauri-apps/api/path'
 import { LOG_LEVELS, PROXY_SCOPE_OPTIONS } from '@shared/constants'
@@ -283,7 +284,6 @@ function handleSessionReset() {
         // Fetch ALL tasks from aria2 across every category.
         // taskStore.taskList only holds the currently displayed tab,
         // so we query aria2 directly to get the complete queue.
-        const { fetchTaskList } = await import('@/api/aria2')
         const [activeTasks, stoppedTasks] = await Promise.all([
           fetchTaskList({ type: 'active' }),
           fetchTaskList({ type: 'stopped' }),

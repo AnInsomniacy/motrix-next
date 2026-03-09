@@ -7,9 +7,12 @@ import { setI18nLocale } from '@shared/utils/i18n'
 import { usePreferenceStore } from './stores/preference'
 import { useTaskStore } from './stores/task'
 import { useAppStore } from './stores/app'
-import aria2Api, { initClient } from './api/aria2'
+import aria2Api, { initClient, setEngineReady } from './api/aria2'
 import { ENGINE_RPC_PORT, AUTO_SYNC_TRACKER_INTERVAL, DEFAULT_TRACKER_SOURCE } from '@shared/constants'
 import { convertTrackerDataToLine, convertTrackerDataToComma, reduceTrackerString } from '@shared/utils/tracker'
+import { Aria2 } from '@shared/aria2'
+import { detectResource } from '@shared/utils'
+import { createBatchItem } from '@shared/utils/batchHelpers'
 import { logger } from '@shared/logger'
 import { normalizeError } from '@shared/errorNormalizer'
 import App from './App.vue'
@@ -38,7 +41,6 @@ const taskStore = useTaskStore()
 const appStore = useAppStore()
 
 async function waitForEngine(port: number, secret: string, maxRetries = 15): Promise<boolean> {
-  const { Aria2 } = await import('@shared/aria2')
   for (let i = 0; i < maxRetries; i++) {
     try {
       const probe = new Aria2({ host: '127.0.0.1', port, secret })
@@ -179,7 +181,6 @@ preferenceStore.loadPreference().then(async () => {
   } catch (e) {
     logger.warn('Engine', 'WebSocket failed, using HTTP fallback: ' + (e as Error).message)
     // Engine is running (confirmed by waitForEngine), mark as ready for HTTP RPC polling
-    const { setEngineReady } = await import('@/api/aria2')
     setEngineReady(true)
   }
 
@@ -248,10 +249,8 @@ preferenceStore.loadPreference().then(async () => {
       const { readText } = await import('@tauri-apps/plugin-clipboard-manager')
       const text = ((await readText()) || '').trim()
       if (!text || text === lastClipboardText) return
-      const { detectResource } = await import('@shared/utils')
       if (detectResource(text)) {
         lastClipboardText = text
-        const { createBatchItem } = await import('@shared/utils/batchHelpers')
         appStore.enqueueBatch([createBatchItem('uri', text)])
       }
     } catch (e) {
