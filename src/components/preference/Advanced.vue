@@ -7,7 +7,7 @@ import { usePreferenceStore } from '@/stores/preference'
 import { usePreferenceForm } from '@/composables/usePreferenceForm'
 import { useTaskStore } from '@/stores/task'
 import { relaunch } from '@tauri-apps/plugin-process'
-import { appDataDir, resolveResource } from '@tauri-apps/api/path'
+import { appDataDir, join, resolveResource } from '@tauri-apps/api/path'
 import { LOG_LEVELS, PROXY_SCOPE_OPTIONS } from '@shared/constants'
 import { convertTrackerDataToLine } from '@shared/utils/tracker'
 import {
@@ -202,8 +202,8 @@ async function loadPaths() {
   }
   try {
     const dataDir = await appDataDir()
-    sessionPath.value = `${dataDir}download.session`
-    logPath.value = `${dataDir}motrix-next.log`
+    sessionPath.value = await join(dataDir, 'download.session')
+    logPath.value = await join(dataDir, 'motrix-next.log')
   } catch (e) {
     logger.debug('Advanced.loadPaths', e)
   }
@@ -300,6 +300,30 @@ function handleSessionReset() {
         message.success(t('preferences.session-reset'))
       } catch (e) {
         logger.error('Advanced.sessionReset', e)
+      }
+    },
+  })
+}
+
+function handleRestoreDefaults() {
+  dialog.warning({
+    title: t('preferences.restore-defaults'),
+    content: t('preferences.restore-defaults-confirm'),
+    positiveText: t('preferences.restore-defaults'),
+    negativeText: t('app.cancel'),
+    onPositiveClick: async () => {
+      const ok = await preferenceStore.resetToDefaults()
+      if (ok) {
+        Object.assign(form.value, buildForm())
+        resetSnapshot()
+        message.success(t('preferences.restore-defaults-success'))
+        dialog.info({
+          title: t('preferences.restore-defaults'),
+          content: t('preferences.restart-required'),
+          positiveText: t('preferences.restart-now'),
+          negativeText: t('app.cancel'),
+          onPositiveClick: () => relaunch(),
+        })
       }
     },
   })
@@ -509,7 +533,12 @@ onMounted(() => {
         </NSpace>
       </NFormItem>
     </NForm>
-    <PreferenceActionBar :is-dirty="isDirty" @save="handleSave" @discard="handleReset" />
+    <PreferenceActionBar
+      :is-dirty="isDirty"
+      @save="handleSave"
+      @discard="handleReset"
+      @restore="handleRestoreDefaults"
+    />
   </div>
 </template>
 

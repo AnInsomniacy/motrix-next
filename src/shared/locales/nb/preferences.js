@@ -127,4 +127,8 @@ export default {
   'interval-yearly': 'Årlig',
   'upnp-mapping-started': 'UPnP-porttilordning aktivert',
   'upnp-mapping-failed': 'UPnP-porttilordning mislyktes',
+  'restore-defaults': 'Gjenopprett standardinnstillinger',
+  'restore-defaults-confirm': 'Alle innstillinger vil bli tilbakestilt til fabrikkinnstillinger. Dette kan ikke angres.',
+  'restore-defaults-success': 'Standardinnstillinger gjenopprettet',
+  'restart-required': 'Omstart kreves for å bruke alle endringer',
 }

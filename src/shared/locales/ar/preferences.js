@@ -127,4 +127,8 @@ export default {
   'interval-yearly': 'سنويًا',
   'upnp-mapping-started': 'تم تفعيل تعيين منافذ UPnP',
   'upnp-mapping-failed': 'فشل تعيين منافذ UPnP',
+  'restore-defaults': 'استعادة الإعدادات الافتراضية',
+  'restore-defaults-confirm': 'ستتم إعادة جميع الإعدادات إلى القيم الافتراضية. لا يمكن التراجع عن هذا الإجراء.',
+  'restore-defaults-success': 'تمت استعادة الإعدادات الافتراضية',
+  'restart-required': 'يلزم إعادة التشغيل لتطبيق جميع التغييرات',
 }

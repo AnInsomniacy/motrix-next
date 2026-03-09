@@ -127,4 +127,8 @@ export default {
   'interval-yearly': 'Tahunan',
   'upnp-mapping-started': 'Pemetaan port UPnP diaktifkan',
   'upnp-mapping-failed': 'Pemetaan port UPnP gagal',
+  'restore-defaults': 'Kembalikan ke default',
+  'restore-defaults-confirm': 'Semua pengaturan akan direset ke nilai default. Tindakan ini tidak dapat dibatalkan.',
+  'restore-defaults-success': 'Default dikembalikan',
+  'restart-required': 'Perlu mulai ulang untuk menerapkan semua perubahan',
 }

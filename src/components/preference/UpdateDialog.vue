@@ -296,7 +296,7 @@ defineExpose({ open })
           style="min-width: 180px"
           @click="handleActionClick"
         >
-          {{ actionLabel }}
+          {{ t(actionLabel) }}
         </NButton>
       </div>
     </div>

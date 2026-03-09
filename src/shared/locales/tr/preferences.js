@@ -127,4 +127,8 @@ export default {
   'interval-yearly': 'Yıllık',
   'upnp-mapping-started': 'UPnP port eşlemesi etkinleştirildi',
   'upnp-mapping-failed': 'UPnP port eşlemesi başarısız oldu',
+  'restore-defaults': 'Varsayılanları geri yükle',
+  'restore-defaults-confirm': 'Tüm ayarlar fabrika varsayılanlarına sıfırlanacaktır. Bu işlem geri alınamaz.',
+  'restore-defaults-success': 'Varsayılanlar geri yüklendi',
+  'restart-required': 'Tüm değişikliklerin uygulanması için yeniden başlatma gerekli',
 }

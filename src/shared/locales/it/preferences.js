@@ -127,4 +127,8 @@ export default {
   'interval-yearly': 'Annuale',
   'upnp-mapping-started': 'Mappatura porte UPnP attivata',
   'upnp-mapping-failed': 'Mappatura porte UPnP non riuscita',
+  'restore-defaults': 'Ripristina predefiniti',
+  'restore-defaults-confirm': 'Tutte le impostazioni verranno ripristinate ai valori predefiniti. Questa azione non può essere annullata.',
+  'restore-defaults-success': 'Predefiniti ripristinati',
+  'restart-required': 'Riavvio necessario per applicare tutte le modifiche',
 }

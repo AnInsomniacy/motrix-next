@@ -127,4 +127,8 @@ export default {
   'interval-yearly': 'Jaarlijks',
   'upnp-mapping-started': 'UPnP-poorttoewijzing ingeschakeld',
   'upnp-mapping-failed': 'UPnP-poorttoewijzing mislukt',
+  'restore-defaults': 'Standaardwaarden herstellen',
+  'restore-defaults-confirm': 'Alle instellingen worden teruggezet naar de fabrieksinstellingen. Dit kan niet ongedaan worden gemaakt.',
+  'restore-defaults-success': 'Standaardwaarden hersteld',
+  'restart-required': 'Herstart vereist om alle wijzigingen toe te passen',
 }

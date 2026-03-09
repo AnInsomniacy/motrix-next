@@ -55,6 +55,62 @@ export const AUTO_CHECK_UPDATE_INTERVAL = ONE_DAY * 7
 
 export const UPDATE_CHANNELS = ['stable', 'beta'] as const
 
+/**
+ * Factory default values for every AppConfig field.
+ * Used by preference store initialization and the "Restore Defaults" action.
+ *
+ * - `locale: ''` → falls back to OS locale detection at startup
+ * - `dir: ''`    → falls back to system Downloads directory at runtime
+ */
+export const DEFAULT_APP_CONFIG = {
+  theme: 'auto' as const,
+  locale: '',
+  dir: '',
+  split: 16,
+  maxConcurrentDownloads: ENGINE_MAX_CONCURRENT_DOWNLOADS,
+  maxConnectionPerServer: ENGINE_MAX_CONNECTION_PER_SERVER,
+  maxOverallDownloadLimit: '',
+  maxOverallUploadLimit: '',
+  maxDownloadLimit: '',
+  maxUploadLimit: '',
+  seedTime: 0,
+  seedRatio: 0,
+  openAtLogin: false,
+  autoCheckUpdate: true,
+  autoHideWindow: false,
+  minimizeToTrayOnClose: false,
+  autoSyncTracker: true,
+  keepSeeding: false,
+  keepWindowState: true,
+  newTaskShowDownloading: true,
+  noConfirmBeforeDeleteTask: false,
+  resumeAllWhenAppLaunched: false,
+  taskNotification: true,
+  showProgressBar: true,
+  traySpeedometer: true,
+  dockBadgeSpeed: false,
+  hideAppMenu: false,
+  logLevel: 'warn',
+  engineBinPath: '',
+  engineMaxConnectionPerServer: ENGINE_MAX_CONNECTION_PER_SERVER,
+  cookie: '',
+  proxy: { enable: false, server: '', bypass: '', scope: [] },
+  protocols: { magnet: false, thunder: false },
+  trackerSource: [],
+  historyDirectories: [],
+  favoriteDirectories: [],
+  lastCheckUpdateTime: 0,
+  lastSyncTrackerTime: 0,
+  updateChannel: 'stable' as const,
+  runMode: '',
+  userAgent: '',
+  rpcListenPort: ENGINE_RPC_PORT,
+  rpcSecret: '',
+  listenPort: '21301',
+  dhtListenPort: '26701',
+  btTracker: '',
+}
+
 export const MAX_BT_TRACKER_LENGTH = 6144
 
 /**

@@ -127,4 +127,8 @@ export default {
   'interval-yearly': 'Anual',
   'upnp-mapping-started': 'Maparea porturilor UPnP activată',
   'upnp-mapping-failed': 'Maparea porturilor UPnP a eșuat',
+  'restore-defaults': 'Restaurare setări implicite',
+  'restore-defaults-confirm': 'Toate setările vor fi resetate la valorile implicite. Această acțiune nu poate fi anulată.',
+  'restore-defaults-success': 'Setările implicite au fost restaurate',
+  'restart-required': 'Este necesară repornirea pentru a aplica toate modificările',
 }

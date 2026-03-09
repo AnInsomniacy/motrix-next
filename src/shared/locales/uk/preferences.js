@@ -127,4 +127,8 @@ export default {
   'interval-yearly': 'Щороку',
   'upnp-mapping-started': 'Прокидання портів UPnP увімкнено',
   'upnp-mapping-failed': 'Помилка прокидання портів UPnP',
+  'restore-defaults': 'Відновити налаштування за замовчуванням',
+  'restore-defaults-confirm': 'Усі налаштування буде скинуто до заводських значень. Цю дію не можна скасувати.',
+  'restore-defaults-success': 'Налаштування за замовчуванням відновлено',
+  'restart-required': 'Для застосування всіх змін потрібен перезапуск',
 }

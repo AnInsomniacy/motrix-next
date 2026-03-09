@@ -127,4 +127,8 @@ export default {
   'interval-yearly': 'รายปี',
   'upnp-mapping-started': 'เปิดใช้งานการแมปพอร์ต UPnP แล้ว',
   'upnp-mapping-failed': 'การแมปพอร์ต UPnP ล้มเหลว',
+  'restore-defaults': 'คืนค่าเริ่มต้น',
+  'restore-defaults-confirm': 'การตั้งค่าทั้งหมดจะถูกรีเซ็ตเป็นค่าเริ่มต้นจากโรงงาน ไม่สามารถยกเลิกการดำเนินการนี้ได้',
+  'restore-defaults-success': 'คืนค่าเริ่มต้นแล้ว',
+  'restart-required': 'ต้องรีสตาร์ทเพื่อใช้การเปลี่ยนแปลงทั้งหมด',
 }

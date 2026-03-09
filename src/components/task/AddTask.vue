@@ -110,6 +110,18 @@ watch(
   },
 )
 
+// Sync download dir with latest preference every time the dialog opens.
+// AddTask is kept mounted (`:show` not `v-if`), so form.dir would otherwise
+// be stale if the user changes the default dir in preferences.
+watch(
+  () => props.show,
+  (visible) => {
+    if (visible) {
+      form.value.dir = preferenceStore.config.dir || form.value.dir
+    }
+  },
+)
+
 const checkedRowKeys = computed({
   get: () => selectedItem.value?.selectedFileIndices || [],
   set: (keys: number[]) => {

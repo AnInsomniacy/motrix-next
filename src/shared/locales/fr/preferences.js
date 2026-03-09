@@ -127,4 +127,8 @@ export default {
   'interval-yearly': 'Annuel',
   'upnp-mapping-started': 'Mappage de ports UPnP activé',
   'upnp-mapping-failed': 'Échec du mappage de ports UPnP',
+  'restore-defaults': 'Restaurer les paramètres par défaut',
+  'restore-defaults-confirm': 'Tous les paramètres seront réinitialisés aux valeurs par défaut. Cette action est irréversible.',
+  'restore-defaults-success': 'Paramètres par défaut restaurés',
+  'restart-required': 'Redémarrage nécessaire pour appliquer tous les changements',
 }

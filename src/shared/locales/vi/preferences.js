@@ -127,4 +127,8 @@ export default {
   'interval-yearly': 'Hàng năm',
   'upnp-mapping-started': 'Đã bật ánh xạ cổng UPnP',
   'upnp-mapping-failed': 'Ánh xạ cổng UPnP thất bại',
+  'restore-defaults': 'Khôi phục mặc định',
+  'restore-defaults-confirm': 'Tất cả cài đặt sẽ được đặt lại về giá trị mặc định. Hành động này không thể hoàn tác.',
+  'restore-defaults-success': 'Đã khôi phục mặc định',
+  'restart-required': 'Cần khởi động lại để áp dụng tất cả thay đổi',
 }

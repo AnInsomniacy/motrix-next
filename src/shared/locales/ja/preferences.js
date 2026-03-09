@@ -127,4 +127,8 @@ export default {
   'interval-yearly': '毎年',
   'upnp-mapping-started': 'UPnPポートマッピングが有効になりました',
   'upnp-mapping-failed': 'UPnPポートマッピングに失敗しました',
+  'restore-defaults': 'デフォルトに戻す',
+  'restore-defaults-confirm': 'すべての設定が初期値にリセットされます。この操作は元に戻せません。',
+  'restore-defaults-success': 'デフォルト設定に戻しました',
+  'restart-required': 'すべての変更を適用するには再起動が必要です',
 }

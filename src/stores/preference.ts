@@ -5,7 +5,7 @@ import { isEmpty } from 'lodash-es'
 import { load } from '@tauri-apps/plugin-store'
 import { getLangDirection, pushItemToFixedLengthArray, removeArrayItem } from '@shared/utils'
 import { fetchBtTrackerFromSource } from '@shared/utils/tracker'
-import { MAX_NUM_OF_DIRECTORIES } from '@shared/constants'
+import { DEFAULT_APP_CONFIG, MAX_NUM_OF_DIRECTORIES } from '@shared/constants'
 import { logger } from '@shared/logger'
 import type { AppConfig, ProxyConfig } from '@shared/types'
 
@@ -16,13 +16,7 @@ export const usePreferenceStore = defineStore('preference', () => {
   const pendingChanges = ref(false)
   /** Callback registered by the active preference page to save before navigation. */
   const saveBeforeLeave = ref<(() => Promise<void>) | null>(null)
-  const config = ref<AppConfig>({
-    theme: 'auto',
-    locale: '',
-    showProgressBar: true,
-    traySpeedometer: true,
-    autoSyncTracker: true,
-  } as AppConfig)
+  const config = ref<AppConfig>({ ...DEFAULT_APP_CONFIG } as AppConfig)
 
   const theme = computed(() => config.value.theme)
   const locale = computed(() => config.value.locale)
@@ -139,6 +133,25 @@ export const usePreferenceStore = defineStore('preference', () => {
     updatePreference({ locale: l })
   }
 
+  /**
+   * Resets all preferences to factory defaults and persists.
+   * Preserves the current locale to avoid unexpected language switches.
+   */
+  async function resetToDefaults(): Promise<boolean> {
+    const currentLocale = config.value.locale
+    try {
+      const store = await getStore()
+      const defaults = { ...DEFAULT_APP_CONFIG, locale: currentLocale } as AppConfig
+      await store.set(STORE_KEY, defaults)
+      await store.save()
+      config.value = defaults
+      return true
+    } catch (e) {
+      logger.error('PreferenceStore.resetToDefaults', e)
+      return false
+    }
+  }
+
   async function fetchBtTracker(trackerSource: string[] = []) {
     const proxy = config.value.proxy || ({ enable: false } as ProxyConfig)
     return fetchBtTrackerFromSource(trackerSource, proxy)
@@ -166,5 +179,6 @@ export const usePreferenceStore = defineStore('preference', () => {
     updateAppTheme,
     updateAppLocale,
     fetchBtTracker,
+    resetToDefaults,
   }
 })

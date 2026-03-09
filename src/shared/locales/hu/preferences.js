@@ -127,4 +127,8 @@ export default {
   'interval-yearly': 'Évente',
   'upnp-mapping-started': 'UPnP porttérképezés engedélyezve',
   'upnp-mapping-failed': 'UPnP porttérképezés sikertelen',
+  'restore-defaults': 'Alapértelmezések visszaállítása',
+  'restore-defaults-confirm': 'Minden beállítás visszaáll a gyári alapértékekre. Ez a művelet nem vonható vissza.',
+  'restore-defaults-success': 'Alapértelmezések visszaállítva',
+  'restart-required': 'Újraindítás szükséges az összes módosítás alkalmazásához',
 }

@@ -10,6 +10,7 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { downloadDir } from '@tauri-apps/api/path'
 import { extractSpeedUnit } from '@shared/utils'
 import { logger } from '@shared/logger'
+import { useAppMessage } from '@/composables/useAppMessage'
 import { buildBasicForm, buildBasicSystemConfig, transformBasicForStore } from '@/composables/useBasicPreference'
 import {
   NForm,
@@ -38,6 +39,7 @@ import UpdateDialog from '@/components/preference/UpdateDialog.vue'
 const { t } = useI18n()
 const preferenceStore = usePreferenceStore()
 const dialog = useDialog()
+const message = useAppMessage()
 const defaultDownloadDir = ref('')
 const currentPlatform = ref('')
 const isMac = computed(() => currentPlatform.value === 'macos')
@@ -215,6 +217,30 @@ function loadForm() {
 
 function handleCheckUpdate() {
   updateDialogRef.value?.open()
+}
+
+function handleRestoreDefaults() {
+  dialog.warning({
+    title: t('preferences.restore-defaults'),
+    content: t('preferences.restore-defaults-confirm'),
+    positiveText: t('preferences.restore-defaults'),
+    negativeText: t('app.cancel'),
+    onPositiveClick: async () => {
+      const ok = await preferenceStore.resetToDefaults()
+      if (ok) {
+        Object.assign(form.value, buildForm())
+        resetSnapshot()
+        message.success(t('preferences.restore-defaults-success'))
+        dialog.info({
+          title: t('preferences.restore-defaults'),
+          content: t('preferences.restart-required'),
+          positiveText: t('preferences.restart-now'),
+          negativeText: t('app.cancel'),
+          onPositiveClick: () => relaunch(),
+        })
+      }
+    },
+  })
 }
 
 onMounted(async () => {
@@ -413,7 +439,12 @@ onMounted(async () => {
         </NSpace>
       </NFormItem>
     </NForm>
-    <PreferenceActionBar :is-dirty="isDirty" @save="handleSave" @discard="handleReset" />
+    <PreferenceActionBar
+      :is-dirty="isDirty"
+      @save="handleSave"
+      @discard="handleReset"
+      @restore="handleRestoreDefaults"
+    />
   </div>
 </template>
 

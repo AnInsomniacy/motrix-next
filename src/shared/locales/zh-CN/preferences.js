@@ -127,4 +127,8 @@ export default {
   'interval-yearly': '每年',
   'upnp-mapping-started': 'UPnP 端口映射已启用',
   'upnp-mapping-failed': 'UPnP 端口映射失败',
+  'restore-defaults': '恢复默认设置',
+  'restore-defaults-confirm': '所有设置将恢复为出厂默认值，此操作不可撤销。',
+  'restore-defaults-success': '已恢复默认设置',
+  'restart-required': '需要重新启动以应用所有更改',
 }

@@ -127,4 +127,8 @@ export default {
   'interval-yearly': 'Ежегодно',
   'upnp-mapping-started': 'Проброс портов UPnP включён',
   'upnp-mapping-failed': 'Ошибка проброса портов UPnP',
+  'restore-defaults': 'Восстановить настройки по умолчанию',
+  'restore-defaults-confirm': 'Все настройки будут сброшены до заводских значений. Это действие нельзя отменить.',
+  'restore-defaults-success': 'Настройки по умолчанию восстановлены',
+  'restart-required': 'Для применения всех изменений требуется перезапуск',
 }

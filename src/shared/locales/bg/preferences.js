@@ -127,4 +127,8 @@ export default {
   'interval-yearly': 'Ежегодно',
   'upnp-mapping-started': 'UPnP картографирането на портове е активирано',
   'upnp-mapping-failed': 'UPnP картографирането на портове е неуспешно',
+  'restore-defaults': 'Възстанови настройките',
+  'restore-defaults-confirm': 'Всички настройки ще бъдат нулирани до фабричните стойности. Това действие е необратимо.',
+  'restore-defaults-success': 'Настройките са възстановени',
+  'restart-required': 'Изисква се рестартиране за прилагане на всички промени',
 }
