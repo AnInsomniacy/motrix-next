@@ -1,5 +1,5 @@
 /** @fileoverview Unit tests for errorNormalizer — the pure error normalization utility. */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { normalizeError, normalizeTaskError, errorDedupeKey } from '@shared/errorNormalizer'
 import type { ErrorCategory, NormalizedError } from '@shared/errorNormalizer'
 
@@ -51,6 +51,34 @@ describe('extractRawMessage (via normalizeError)', () => {
   it('handles number', () => {
     const result = normalizeError(42)
     expect(result.rawMessage).toBe('42')
+  })
+})
+
+// ── extractRawMessage circular reference ─────────────────────────────
+
+describe('extractRawMessage with circular references', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'debug').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('falls back to String(error) when JSON.stringify fails on circular object', () => {
+    const circular: Record<string, unknown> = { a: 1 }
+    circular.self = circular
+
+    const result = normalizeError(circular)
+    expect(result.rawMessage).toBe('[object Object]')
+  })
+
+  it('logs debug message when JSON.stringify fails', () => {
+    const circular: Record<string, unknown> = { a: 1 }
+    circular.self = circular
+
+    normalizeError(circular)
+    expect(console.debug).toHaveBeenCalled()
   })
 })
 
@@ -126,6 +154,24 @@ describe('detectCategory (via normalizeError)', () => {
 
     it('falls back to generic for unrecognized messages', () => {
       expect(normalizeError('something unknown happened').category).toBe('generic')
+    })
+  })
+
+  describe('category ordering edge cases', () => {
+    it('classifies "update timeout" as update, not network', () => {
+      expect(normalizeError('update timeout').category).toBe('update')
+    })
+
+    it('classifies "upgrade failed timeout" as update', () => {
+      expect(normalizeError('upgrade failed timeout').category).toBe('update')
+    })
+
+    it('still classifies pure timeout as network', () => {
+      expect(normalizeError('request timeout').category).toBe('network')
+    })
+
+    it('still classifies pure connection errors as network', () => {
+      expect(normalizeError('connection refused').category).toBe('network')
     })
   })
 })
@@ -286,7 +332,7 @@ describe('normalizeTaskError', () => {
 // ── errorDedupeKey ───────────────────────────────────────────────────
 
 describe('errorDedupeKey', () => {
-  it('uses category:messageKey when messageKey is present', () => {
+  it('uses category:messageKey when messageKey is present (non-task)', () => {
     const err: NormalizedError = {
       category: 'engine',
       titleKey: 'app.error-title-engine',
@@ -303,5 +349,33 @@ describe('errorDedupeKey', () => {
       rawMessage: 'something went wrong',
     }
     expect(errorDedupeKey(err)).toBe('generic:something went wrong')
+  })
+
+  describe('task error dedup keys', () => {
+    it('produces different keys for different files with the same error code', () => {
+      const errA = normalizeTaskError('5', 'disk full', 'fileA.zip')
+      const errB = normalizeTaskError('5', 'disk full', 'fileB.zip')
+      expect(errorDedupeKey(errA)).not.toBe(errorDedupeKey(errB))
+    })
+
+    it('produces the same key for the same file and error code', () => {
+      const errA = normalizeTaskError('5', 'disk full', 'fileA.zip')
+      const errB = normalizeTaskError('5', 'disk full', 'fileA.zip')
+      expect(errorDedupeKey(errA)).toBe(errorDedupeKey(errB))
+    })
+
+    it('includes messageKey and rawMessage in task dedup key', () => {
+      const err = normalizeTaskError('5', 'disk full', 'fileA.zip')
+      const key = errorDedupeKey(err)
+      expect(key).toContain('task:')
+      expect(key).toContain('task.error-disk-full')
+      expect(key).toContain('fileA.zip')
+    })
+
+    it('falls back to rawMessage when no messageKey', () => {
+      const err = normalizeTaskError(undefined, 'something broke', 'fileA.zip')
+      const key = errorDedupeKey(err)
+      expect(key).toBe('task:fileA.zip: something broke')
+    })
   })
 })

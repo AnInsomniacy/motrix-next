@@ -1,6 +1,7 @@
 /** @fileoverview Pure utility for normalizing any error into a structured format for UI display. */
 
 import { ARIA2_ERROR_CODES } from './aria2ErrorCodes'
+import { logger } from './logger'
 
 export type ErrorCategory = 'engine' | 'task' | 'network' | 'file' | 'config' | 'update' | 'generic'
 
@@ -54,6 +55,7 @@ function extractRawMessage(error: unknown): string {
   try {
     return JSON.stringify(error)
   } catch {
+    logger.debug('errorNormalizer', 'JSON.stringify failed for error object')
     return String(error)
   }
 }
@@ -80,6 +82,15 @@ function detectCategory(error: unknown, rawMessage: string): ErrorCategory {
   // Task patterns
   if (msg.includes('duplicate') || msg.includes('already')) return 'task'
 
+  // Update patterns (before network — "update timeout" should be 'update', not 'network')
+  if (msg.includes('update') || msg.includes('upgrade')) return 'update'
+
+  // File patterns
+  if (msg.includes('disk full') || msg.includes('permission denied') || msg.includes('enospc')) return 'file'
+
+  // Config patterns
+  if (msg.includes('config') || msg.includes('preference') || msg.includes('settings')) return 'config'
+
   // Network patterns (includes macOS WebKit "load failed" and WebSocket errors)
   if (
     msg.includes('network') ||
@@ -93,15 +104,6 @@ function detectCategory(error: unknown, rawMessage: string): ErrorCategory {
     msg.includes('networkerror')
   )
     return 'network'
-
-  // File patterns
-  if (msg.includes('disk full') || msg.includes('permission denied') || msg.includes('enospc')) return 'file'
-
-  // Config patterns
-  if (msg.includes('config') || msg.includes('preference') || msg.includes('settings')) return 'config'
-
-  // Update patterns
-  if (msg.includes('update') || msg.includes('upgrade')) return 'update'
 
   return 'generic'
 }
@@ -148,5 +150,10 @@ export function normalizeTaskError(
 
 /** Generates a deduplication key from a normalized error. */
 export function errorDedupeKey(err: NormalizedError): string {
+  // For task errors, include rawMessage so different files with the same
+  // aria2 error code produce distinct keys and each notification shows.
+  if (err.category === 'task' && err.messageKey) {
+    return `task:${err.messageKey}:${err.rawMessage}`
+  }
   return `${err.category}:${err.messageKey || err.rawMessage}`
 }
