@@ -44,17 +44,22 @@ const isMac = platform() === 'macos'
 
 const isTaskPage = computed(() => route.path.startsWith('/task'))
 const isPreferencePage = computed(() => route.path.startsWith('/preference'))
+type PendingCloseAction = 'none' | 'minimize' | 'quit'
+const CLOSE_ACTION_DIALOG_NO_TRANSITION_CLASS = 'close-action-dialog-no-transition'
 const showAbout = ref(false)
 const appReady = ref(false)
+const renderExitDialog = ref(false)
 const showExitDialog = ref(false)
 const isExiting = ref(false)
 const dontAskAgain = ref(false)
+const pendingCloseAction = ref<PendingCloseAction>('none')
 
 const updateDialogRef = ref<InstanceType<typeof UpdateDialog> | null>(null)
 
 let unlistenDragDrop: (() => void) | null = null
 let unlistenMenuEvent: (() => void) | null = null
 let unlistenCloseRequested: (() => void) | null = null
+let unlistenCloseRequestedFallback: (() => void) | null = null
 let unlistenDeepLink: (() => void) | null = null
 let unlistenSingleInstance: (() => void) | null = null
 let globalStatTimer: ReturnType<typeof setTimeout> | null = null
@@ -101,27 +106,66 @@ async function handleExitConfirm() {
 }
 
 function handleExitCancel() {
+  closeExitDialog()
+}
+
+function openCloseActionDialog() {
+  if (isExiting.value || showExitDialog.value) return
+  setExitDialogLeaveAnimationDisabled(false)
+  pendingCloseAction.value = 'none'
+  dontAskAgain.value = false
+  renderExitDialog.value = true
+  showExitDialog.value = true
+}
+
+function setExitDialogLeaveAnimationDisabled(disabled: boolean) {
+  if (typeof document === 'undefined') return
+  document.body.classList.toggle(CLOSE_ACTION_DIALOG_NO_TRANSITION_CLASS, disabled)
+}
+
+function closeExitDialog(action: PendingCloseAction = 'none') {
+  if (!showExitDialog.value) return
+  pendingCloseAction.value = action
+  setExitDialogLeaveAnimationDisabled(true)
   showExitDialog.value = false
+}
+
+async function handleExitDialogAfterLeave() {
+  setExitDialogLeaveAnimationDisabled(false)
+  if (showExitDialog.value) return
+
+  renderExitDialog.value = false
+  const action = pendingCloseAction.value
+  pendingCloseAction.value = 'none'
+
+  if (action === 'minimize') {
+    await hideWindowToTray()
+    return
+  }
+
+  if (action === 'quit') {
+    await handleExitConfirm()
+  }
+}
+
+async function hideWindowToTray() {
+  const appWindow = getCurrentWindow()
+  await invoke('set_dock_icon_visible', { visible: false })
+  await appWindow.hide()
 }
 
 async function handleMinimizeToTray() {
   if (dontAskAgain.value) {
     await preferenceStore.updateAndSave({ closeAction: 'minimize' })
   }
-  const appWindow = getCurrentWindow()
-  // Hide window and Dock icon first, then dismiss dialog while invisible
-  // to avoid the user seeing the dismiss animation on re-show.
-  await invoke('set_dock_icon_visible', { visible: false })
-  await appWindow.hide()
-  showExitDialog.value = false
+  closeExitDialog('minimize')
 }
 
 async function handleQuitApp() {
   if (dontAskAgain.value) {
     await preferenceStore.updateAndSave({ closeAction: 'quit' })
   }
-  showExitDialog.value = false
-  await handleExitConfirm()
+  closeExitDialog('quit')
 }
 
 onMounted(async () => {
@@ -244,14 +288,19 @@ onMounted(async () => {
     if (urls.length > 0) appStore.handleDeepLinkUrls(urls)
   })
 
+  unlistenCloseRequestedFallback = await listen('close-requested', () => {
+    if ((preferenceStore.config.closeAction ?? 'ask') === 'ask') {
+      openCloseActionDialog()
+    }
+  })
+
   const appWindow = getCurrentWindow()
   unlistenCloseRequested = await appWindow.onCloseRequested(async (event) => {
     event.preventDefault()
 
     const action = preferenceStore.config.closeAction ?? 'ask'
     if (action === 'minimize') {
-      await invoke('set_dock_icon_visible', { visible: false })
-      await appWindow.hide()
+      await hideWindowToTray()
       return
     }
     if (action === 'quit') {
@@ -259,10 +308,7 @@ onMounted(async () => {
       return
     }
     // 'ask' — show dialog
-    if (!isExiting.value) {
-      dontAskAgain.value = false
-      showExitDialog.value = true
-    }
+    openCloseActionDialog()
   })
 
   // Sync native menu labels with current locale
@@ -291,10 +337,12 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  setExitDialogLeaveAnimationDisabled(false)
   stopGlobalPolling()
   if (unlistenDragDrop) unlistenDragDrop()
   if (unlistenMenuEvent) unlistenMenuEvent()
   if (unlistenCloseRequested) unlistenCloseRequested()
+  if (unlistenCloseRequestedFallback) unlistenCloseRequestedFallback()
   if (unlistenDeepLink) unlistenDeepLink()
   if (unlistenSingleInstance) unlistenSingleInstance()
 })
@@ -324,6 +372,8 @@ onUnmounted(() => {
 
     <!-- Close action dialog: minimize to tray or quit -->
     <NModal
+      v-if="renderExitDialog"
+      class="close-action-modal"
       :show="showExitDialog"
       preset="card"
       :title="t('app.confirm-exit-title')"
@@ -333,6 +383,7 @@ onUnmounted(() => {
       size="small"
       style="width: 400px"
       transform-origin="center"
+      :on-after-leave="handleExitDialogAfterLeave"
       @update:show="
         (v: boolean) => {
           if (!v) handleExitCancel()

@@ -439,6 +439,12 @@ textarea {
   transform: scale(0.96) !important;
 }
 
+body.close-action-dialog-no-transition .n-modal-mask.fade-in-transition-leave-active,
+body.close-action-dialog-no-transition .close-action-modal.fade-in-scale-up-transition-leave-active {
+  transition: none !important;
+  animation: none !important;
+}
+
 .n-dialog {
   transform-origin: center center !important;
 }
