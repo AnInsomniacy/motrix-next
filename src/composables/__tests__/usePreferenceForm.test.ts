@@ -26,6 +26,8 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 // ── Mock naive-ui (useMessage + useNotification needed by composables) ──
+const mockNotificationError = vi.fn(() => ({ destroy: vi.fn() }))
+
 vi.mock('naive-ui', () => ({
   useMessage: () => ({
     success: vi.fn(() => ({ destroy: vi.fn() })),
@@ -34,7 +36,7 @@ vi.mock('naive-ui', () => ({
     info: vi.fn(() => ({ destroy: vi.fn() })),
   }),
   useNotification: () => ({
-    error: vi.fn(() => ({ destroy: vi.fn() })),
+    error: mockNotificationError,
     warning: vi.fn(() => ({ destroy: vi.fn() })),
     info: vi.fn(() => ({ destroy: vi.fn() })),
     success: vi.fn(() => ({ destroy: vi.fn() })),
@@ -243,6 +245,28 @@ describe('usePreferenceForm', () => {
     const { handleSave } = result
 
     await expect(handleSave()).rejects.toThrow('Preference persistence failed')
+
+    unmount()
+  })
+
+  it('calls notifyError with config hint when persistence fails', async () => {
+    // Reset modules to clear useAppNotification's module-level activeErrors dedup map
+    vi.resetModules()
+    const { usePreferenceStore: freshPrefStore } = await import('@/stores/preference')
+    const { usePreferenceForm: freshUsePreferenceForm } = await import('../usePreferenceForm')
+
+    setActivePinia(createPinia())
+    const store = freshPrefStore()
+    store.updateAndSave = vi.fn().mockResolvedValue(false)
+
+    const { result, unmount } = withSetup(() => freshUsePreferenceForm(makeOptions()))
+    const { handleSave } = result
+
+    await handleSave().catch(() => {})
+
+    expect(mockNotificationError).toHaveBeenCalled()
+    const opts = mockNotificationError.mock.calls[0][0] as Record<string, unknown>
+    expect(opts.content).toContain('Preference persistence failed')
 
     unmount()
   })

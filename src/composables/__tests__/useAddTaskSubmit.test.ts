@@ -18,6 +18,9 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key, te: () => false }),
 }))
 
+const mockNotificationError = vi.fn(() => ({ destroy: vi.fn() }))
+const mockNotificationWarning = vi.fn(() => ({ destroy: vi.fn() }))
+
 vi.mock('naive-ui', () => ({
   useMessage: () => ({
     success: vi.fn(() => ({ destroy: vi.fn() })),
@@ -26,8 +29,8 @@ vi.mock('naive-ui', () => ({
     info: vi.fn(() => ({ destroy: vi.fn() })),
   }),
   useNotification: () => ({
-    error: vi.fn(() => ({ destroy: vi.fn() })),
-    warning: vi.fn(() => ({ destroy: vi.fn() })),
+    error: mockNotificationError,
+    warning: mockNotificationWarning,
     info: vi.fn(() => ({ destroy: vi.fn() })),
     success: vi.fn(() => ({ destroy: vi.fn() })),
   }),
@@ -39,14 +42,43 @@ vi.mock('@/api/aria2', () => ({
   isEngineReady: () => mockIsEngineReady(),
 }))
 
+const mockRouterPush = vi.fn().mockResolvedValue(undefined)
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: mockRouterPush }),
+}))
+
+vi.mock('@shared/logger', () => ({
+  logger: { error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+}))
+
+import { defineComponent, ref } from 'vue'
+import { mount } from '@vue/test-utils'
+import { setActivePinia, createPinia } from 'pinia'
+import { useAppStore } from '@/stores/app'
+import { useTaskStore } from '@/stores/task'
 import {
   buildEngineOptions,
   classifySubmitError,
   submitBatchItems,
   submitManualUris,
+  useAddTaskSubmit,
   type AddTaskForm,
 } from '../useAddTaskSubmit'
 import type { BatchItem, Aria2EngineOptions } from '@shared/types'
+
+function withSetup<T>(composableFn: () => T): { result: T; unmount: () => void } {
+  let result!: T
+  const wrapper = mount(
+    defineComponent({
+      setup() {
+        result = composableFn()
+        return {}
+      },
+      template: '<div />',
+    }),
+  )
+  return { result, unmount: () => wrapper.unmount() }
+}
 
 // ── buildEngineOptions ──────────────────────────────────────────────
 
@@ -312,5 +344,71 @@ describe('submitManualUris', () => {
 
     const call = (mockTaskStore.addUri as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(call.outs).toEqual([])
+  })
+})
+
+// ── handleSubmit error notification paths ───────────────────────────
+
+describe('handleSubmit error notifications', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    mockIsEngineReady.mockReturnValue(true)
+  })
+
+  function setupSubmit(uris: string) {
+    const appStore = useAppStore()
+    const taskStore = useTaskStore()
+    // Make addUri reject to trigger error paths
+    taskStore.addUri = vi.fn().mockRejectedValue(new Error('not initialized'))
+    appStore.pendingBatch = []
+    const form = ref<AddTaskForm>({
+      uris,
+      out: '',
+      dir: '/dl',
+      split: 16,
+      userAgent: '',
+      authorization: '',
+      referer: '',
+      cookie: '',
+      allProxy: '',
+    })
+    const onClose = vi.fn()
+    const { result, unmount } = withSetup(() => useAddTaskSubmit({ form, onClose }))
+    return { result, unmount, taskStore }
+  }
+
+  it('calls notifyError with engine hint when engine is not ready', async () => {
+    mockIsEngineReady.mockReturnValue(false)
+    const { result, unmount, taskStore } = setupSubmit('http://example.com/file.zip')
+    taskStore.addUri = vi.fn().mockRejectedValue(new Error('some error'))
+
+    await result.handleSubmit()
+
+    expect(mockNotificationError).toHaveBeenCalledOnce()
+    const opts = mockNotificationError.mock.calls[0][0] as Record<string, unknown>
+    // Should show engine error title (falls back to generic since te() returns false in mock)
+    expect(opts.title).toBeDefined()
+    unmount()
+  })
+
+  it('calls notifyError with task hint for generic submit errors', async () => {
+    const { result, unmount, taskStore } = setupSubmit('http://example.com/file.zip')
+    taskStore.addUri = vi.fn().mockRejectedValue(new Error('network timeout'))
+
+    await result.handleSubmit()
+
+    expect(mockNotificationError).toHaveBeenCalledOnce()
+    unmount()
+  })
+
+  it('does not call notifyError for duplicate errors (uses message.warning)', async () => {
+    const { result, unmount, taskStore } = setupSubmit('http://example.com/file.zip')
+    taskStore.addUri = vi.fn().mockRejectedValue(new Error('GID already exists'))
+
+    await result.handleSubmit()
+
+    expect(mockNotificationError).not.toHaveBeenCalled()
+    unmount()
   })
 })

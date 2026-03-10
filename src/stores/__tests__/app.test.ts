@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAppStore } from '../app'
 import { createBatchItem, resetBatchIdCounter } from '@shared/utils/batchHelpers'
+import { normalizeError } from '@shared/errorNormalizer'
 
 describe('useAppStore', () => {
   beforeEach(() => {
@@ -61,5 +62,33 @@ describe('useAppStore', () => {
       { kind: 'torrent', source: '/Users/test/Downloads/a.torrent' },
       { kind: 'metalink', source: '/Users/test/Downloads/b.meta4' },
     ])
+  })
+
+  it('startupErrors initialises as empty array', () => {
+    const store = useAppStore()
+    expect(store.startupErrors).toEqual([])
+  })
+
+  it('startupErrors can accumulate NormalizedError entries', () => {
+    const store = useAppStore()
+    const err1 = normalizeError('engine failed', 'engine')
+    const err2 = normalizeError('engine not ready after retries', 'engine')
+
+    store.startupErrors.push(err1)
+    store.startupErrors.push(err2)
+
+    expect(store.startupErrors).toHaveLength(2)
+    expect(store.startupErrors[0].category).toBe('engine')
+    expect(store.startupErrors[0].rawMessage).toBe('engine failed')
+    expect(store.startupErrors[1].rawMessage).toBe('engine not ready after retries')
+  })
+
+  it('startupErrors can be drained (cleared)', () => {
+    const store = useAppStore()
+    store.startupErrors.push(normalizeError('test error', 'engine'))
+    expect(store.startupErrors).toHaveLength(1)
+
+    store.startupErrors = []
+    expect(store.startupErrors).toEqual([])
   })
 })
