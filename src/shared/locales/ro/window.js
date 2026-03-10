@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ro - window. */
 export default {
   'reload': 'Reîncarcă',
   'close': 'Închide',

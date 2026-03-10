@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for th - about. */
 export default {
   'engine-version': 'เวอร์ชันเอนจิน',
   'license': 'สัญญาอนุญาต',

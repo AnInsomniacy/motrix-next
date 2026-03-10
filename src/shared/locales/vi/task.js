@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for vi - task. */
 export default {
   'active': 'Đang tải',
   'waiting': 'Đang chờ',

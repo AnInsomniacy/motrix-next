@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for bg - menu. */
 export default {
   'app': 'Motrix Next',
   'file': 'Файл',

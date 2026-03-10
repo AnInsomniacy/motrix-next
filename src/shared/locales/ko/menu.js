@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ko - menu. */
 export default {
   'app': 'Motrix Next',
   'file': '파일',

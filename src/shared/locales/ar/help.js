@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ar - help. */
 export default {
   'official-website': 'الموقع الرسمي',
   'manual': 'دليل المستخدم',

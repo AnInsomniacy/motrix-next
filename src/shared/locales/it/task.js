@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for it - task. */
 export default {
   'active': 'In scaricamento',
   'waiting': 'In attesa',

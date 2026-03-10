@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ko - preferences. */
 export default {
   'basic': '기본 설정',
   'advanced': '고급 설정',

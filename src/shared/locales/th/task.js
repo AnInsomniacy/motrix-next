@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for th - task. */
 export default {
   'active': 'กำลังดาวน์โหลด',
   'waiting': 'รอดำเนินการ',

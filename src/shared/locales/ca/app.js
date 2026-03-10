@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ca - application. */
 export default {
   'task-list': 'Tasques',
   'add-task': 'Afegir tasca',

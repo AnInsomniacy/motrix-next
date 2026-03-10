@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for tr - task. */
 export default {
   'active': 'İndiriliyor',
   'waiting': 'Bekliyor',

@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for it - edit. */
 export default {
   'undo': 'Annulla',
   'redo': 'Ripeti',

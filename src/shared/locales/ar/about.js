@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ar - about. */
 export default {
   'engine-version': 'إصدار المحرك',
   'license': 'الرخصة',

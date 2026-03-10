@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for bg - preferences. */
 export default {
   'basic': 'Основни',
   'advanced': 'Разширени',

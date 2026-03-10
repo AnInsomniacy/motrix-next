@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ro - task. */
 export default {
   'active': 'Se descarcă',
   'waiting': 'În așteptare',

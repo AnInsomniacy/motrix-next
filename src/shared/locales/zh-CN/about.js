@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for zh-CN - about. */
 export default {
   'engine-version': '引擎版本',
   'license': '开源许可',

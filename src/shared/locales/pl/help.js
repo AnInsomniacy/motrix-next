@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for pl - help. */
 export default {
   'official-website': 'Oficjalna strona',
   'manual': 'Podręcznik użytkownika',

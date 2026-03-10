@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for id - edit. */
 export default {
   'undo': 'Urungkan',
   'redo': 'Ulangi',

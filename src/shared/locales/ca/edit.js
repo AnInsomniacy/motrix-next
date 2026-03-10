@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ca - edit. */
 export default {
   'undo': 'Desfés',
   'redo': 'Refés',

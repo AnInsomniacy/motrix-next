@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for bg - task. */
 export default {
   'active': 'Изтегляне',
   'waiting': 'Изчакване',

@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ar - menu. */
 export default {
   'app': 'Motrix Next',
   'file': 'ملف',

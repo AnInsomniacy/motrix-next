@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for fr - edit. */
 export default {
   'undo': 'Annuler',
   'redo': 'Rétablir',

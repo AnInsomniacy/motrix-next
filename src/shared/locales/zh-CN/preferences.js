@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for zh-CN - preferences. */
 export default {
   'basic': '基础设置',
   'advanced': '进阶设置',

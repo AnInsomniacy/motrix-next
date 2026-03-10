@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ca - window. */
 export default {
   'reload': 'Recarrega',
   'close': 'Tanca',

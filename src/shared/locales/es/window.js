@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for es - window. */
 export default {
   'reload': 'Recargar',
   'close': 'Cerrar',

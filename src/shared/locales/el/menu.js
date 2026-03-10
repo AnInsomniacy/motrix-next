@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for el - menu. */
 export default {
   'app': 'Motrix Next',
   'file': 'Αρχείο',

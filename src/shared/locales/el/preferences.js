@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for el - preferences. */
 export default {
   'basic': 'Βασικά',
   'advanced': 'Σύνθετα',

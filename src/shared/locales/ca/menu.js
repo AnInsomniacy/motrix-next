@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ca - menu. */
 export default {
   'app': 'Motrix Next',
   'file': 'Fitxer',

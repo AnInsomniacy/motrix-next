@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for fa - application. */
 export default {
   'task-list': 'وظایف',
   'add-task': 'افزودن وظیفه',

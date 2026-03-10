@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for nl - preferences. */
 export default {
   'basic': 'Algemeen',
   'advanced': 'Geavanceerd',

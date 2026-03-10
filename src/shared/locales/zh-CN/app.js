@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for zh-CN - application. */
 export default {
   'task-list': '任务列表',
   'add-task': '新建任务',

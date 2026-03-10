@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ar - edit. */
 export default {
   'undo': 'تراجع',
   'redo': 'إعادة',

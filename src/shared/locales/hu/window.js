@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for hu - window. */
 export default {
   'reload': 'Újratöltés',
   'close': 'Bezárás',

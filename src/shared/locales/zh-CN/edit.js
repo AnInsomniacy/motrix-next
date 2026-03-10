@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for zh-CN - edit. */
 export default {
   'undo': '撤销',
   'redo': '重做',

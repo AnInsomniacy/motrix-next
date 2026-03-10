@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for id - window. */
 export default {
   'reload': 'Muat ulang',
   'close': 'Tutup',

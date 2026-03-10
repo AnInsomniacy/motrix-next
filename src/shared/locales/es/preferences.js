@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for es - preferences. */
 export default {
   'basic': 'General',
   'advanced': 'Avanzado',

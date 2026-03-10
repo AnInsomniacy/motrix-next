@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for el - window. */
 export default {
   'reload': 'Ανανέωση',
   'close': 'Κλείσιμο',

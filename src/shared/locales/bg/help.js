@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for bg - help. */
 export default {
   'official-website': 'Официален сайт',
   'manual': 'Ръководство',

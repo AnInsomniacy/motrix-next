@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for pl - window. */
 export default {
   'reload': 'Przeładuj',
   'close': 'Zamknij',

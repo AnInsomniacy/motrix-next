@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ru - task. */
 export default {
   'active': 'Загрузка',
   'waiting': 'Ожидание',

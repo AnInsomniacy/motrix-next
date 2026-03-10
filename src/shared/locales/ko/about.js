@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ko - about. */
 export default {
   'engine-version': '엔진 버전',
   'license': '라이선스',

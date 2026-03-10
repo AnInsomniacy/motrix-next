@@ -1,3 +1,4 @@
+/** @fileoverview Locale registry and language resolution. */
 /**
  * Welcome to translate to more versions in other languages.
  * Please read the translation guide before starting work.

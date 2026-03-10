@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for zh-TW - window. */
 export default {
   'reload': '重新載入',
   'close': '關閉',

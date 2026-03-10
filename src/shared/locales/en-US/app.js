@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for en-US - application. */
 export default {
   'task-list': 'Tasks',
   'add-task': 'Add Task',

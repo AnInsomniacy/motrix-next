@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for hu - help. */
 export default {
   'official-website': 'Hivatalos weboldal',
   'manual': 'Felhasználói kézikönyv',

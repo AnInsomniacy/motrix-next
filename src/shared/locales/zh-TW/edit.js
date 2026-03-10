@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for zh-TW - edit. */
 export default {
   'undo': '復原',
   'redo': '重做',

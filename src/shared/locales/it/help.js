@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for it - help. */
 export default {
   'official-website': 'Sito ufficiale',
   'manual': 'Manuale utente',

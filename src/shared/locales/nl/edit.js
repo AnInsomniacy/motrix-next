@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for nl - edit. */
 export default {
   'undo': 'Ongedaan maken',
   'redo': 'Opnieuw',

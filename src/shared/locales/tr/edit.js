@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for tr - edit. */
 export default {
   'undo': 'Geri al',
   'redo': 'Yinele',

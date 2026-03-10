@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for vi - about. */
 export default {
   'engine-version': 'Phiên bản engine',
   'license': 'Giấy phép',

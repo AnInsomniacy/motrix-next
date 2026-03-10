@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for fr - window. */
 export default {
   'reload': 'Recharger',
   'close': 'Fermer',

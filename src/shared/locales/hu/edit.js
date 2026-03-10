@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for hu - edit. */
 export default {
   'undo': 'Visszavonás',
   'redo': 'Újra',

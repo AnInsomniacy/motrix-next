@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for th - preferences. */
 export default {
   'basic': 'ทั่วไป',
   'advanced': 'ขั้นสูง',

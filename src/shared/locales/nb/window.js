@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for nb - window. */
 export default {
   'reload': 'Last inn på nytt',
   'close': 'Lukk',

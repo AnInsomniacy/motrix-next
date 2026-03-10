@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for uk - edit. */
 export default {
   'undo': 'Скасувати',
   'redo': 'Повторити',

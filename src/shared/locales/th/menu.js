@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for th - menu. */
 export default {
   'app': 'Motrix Next',
   'file': 'ไฟล์',

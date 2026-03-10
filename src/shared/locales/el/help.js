@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for el - help. */
 export default {
   'official-website': 'Επίσημη ιστοσελίδα',
   'manual': 'Εγχειρίδιο',

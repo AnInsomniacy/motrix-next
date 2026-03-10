@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ca - help. */
 export default {
   'official-website': 'Lloc web oficial',
   'manual': 'Manual d\'usuari',

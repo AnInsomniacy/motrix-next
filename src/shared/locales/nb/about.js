@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for nb - about. */
 export default {
   'engine-version': 'Motorversjon',
   'license': 'Lisens',

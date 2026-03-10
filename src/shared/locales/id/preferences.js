@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for id - preferences. */
 export default {
   'basic': 'Umum',
   'advanced': 'Lanjutan',

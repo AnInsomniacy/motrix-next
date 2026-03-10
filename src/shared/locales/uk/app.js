@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for uk - application. */
 export default {
   'task-list': 'Завдання',
   'add-task': 'Додати завдання',

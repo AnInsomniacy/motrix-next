@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for hu - task. */
 export default {
   'active': 'Letöltés',
   'waiting': 'Várakozás',

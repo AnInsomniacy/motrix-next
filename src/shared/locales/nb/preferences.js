@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for nb - preferences. */
 export default {
   'basic': 'Generelt',
   'advanced': 'Avansert',

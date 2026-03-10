@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for zh-TW - preferences. */
 export default {
   'basic': '基本設定',
   'advanced': '進階設定',

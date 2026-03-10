@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ru - window. */
 export default {
   'reload': 'Перезагрузить',
   'close': 'Закрыть',

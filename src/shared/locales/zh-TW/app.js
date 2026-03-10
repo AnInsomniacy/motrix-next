@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for zh-TW - application. */
 export default {
   'task-list': '任務列表',
   'add-task': '新增任務',

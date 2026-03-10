@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for id - about. */
 export default {
   'engine-version': 'Versi mesin',
   'license': 'Lisensi',

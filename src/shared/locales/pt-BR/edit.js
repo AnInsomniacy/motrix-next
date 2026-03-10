@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for pt-BR - edit. */
 export default {
   'undo': 'Desfazer',
   'redo': 'Refazer',

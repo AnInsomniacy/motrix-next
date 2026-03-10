@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for nl - menu. */
 export default {
   'app': 'Motrix Next',
   'file': 'Bestand',

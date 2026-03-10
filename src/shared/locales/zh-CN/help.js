@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for zh-CN - help. */
 export default {
   'official-website': '官方网站',
   'manual': '使用手册',

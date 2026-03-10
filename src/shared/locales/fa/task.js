@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for fa - task. */
 export default {
   'active': 'در حال دانلود',
   'waiting': 'در انتظار',

@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for zh-CN - task. */
 export default {
   'active': '下载中',
   'waiting': '等待中',

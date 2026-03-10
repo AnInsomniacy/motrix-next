@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for bg - application. */
 export default {
   'task-list': 'Задачи',
   'add-task': 'Добави задача',

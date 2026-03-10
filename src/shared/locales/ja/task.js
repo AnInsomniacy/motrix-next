@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ja - task. */
 export default {
   'active': 'ダウンロード中',
   'waiting': '待機中',

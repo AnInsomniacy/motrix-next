@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for es - application. */
 export default {
   'task-list': 'Tareas',
   'add-task': 'Agregar tarea',

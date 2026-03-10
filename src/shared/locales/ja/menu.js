@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ja - menu. */
 export default {
   'app': 'Motrix Next',
   'file': 'ファイル',

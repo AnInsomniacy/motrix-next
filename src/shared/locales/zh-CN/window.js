@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for zh-CN - window. */
 export default {
   'reload': '重新加载',
   'close': '关闭',

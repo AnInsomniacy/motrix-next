@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for hu - preferences. */
 export default {
   'basic': 'Általános',
   'advanced': 'Haladó',

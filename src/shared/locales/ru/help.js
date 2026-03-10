@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ru - help. */
 export default {
   'official-website': 'Официальный сайт',
   'manual': 'Руководство',

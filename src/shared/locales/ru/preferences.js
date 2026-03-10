@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ru - preferences. */
 export default {
   'basic': 'Основные',
   'advanced': 'Расширенные',

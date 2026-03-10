@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for zh-TW - about. */
 export default {
   'engine-version': '引擎版本',
   'license': '開源授權',

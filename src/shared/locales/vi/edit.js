@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for vi - edit. */
 export default {
   'undo': 'Hoàn tác',
   'redo': 'Làm lại',

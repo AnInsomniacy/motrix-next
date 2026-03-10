@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for it - about. */
 export default {
   'engine-version': 'Versione motore',
   'license': 'Licenza',

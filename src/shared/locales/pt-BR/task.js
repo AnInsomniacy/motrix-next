@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for pt-BR - task. */
 export default {
   'active': 'Baixando',
   'waiting': 'Aguardando',

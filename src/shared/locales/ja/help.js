@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ja - help. */
 export default {
   'official-website': '公式サイト',
   'manual': 'ユーザーマニュアル',

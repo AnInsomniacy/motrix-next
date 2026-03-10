@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for nb - help. */
 export default {
   'official-website': 'Offisiell nettside',
   'manual': 'Brukerhåndbok',

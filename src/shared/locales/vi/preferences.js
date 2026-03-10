@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for vi - preferences. */
 export default {
   'basic': 'Cơ bản',
   'advanced': 'Nâng cao',

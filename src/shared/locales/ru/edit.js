@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ru - edit. */
 export default {
   'undo': 'Отменить',
   'redo': 'Повторить',

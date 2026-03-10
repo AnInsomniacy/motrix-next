@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for en-US - task. */
 export default {
   'active': 'Downloading',
   'waiting': 'Waiting',

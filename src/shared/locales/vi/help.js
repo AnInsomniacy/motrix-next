@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for vi - help. */
 export default {
   'official-website': 'Trang web chính thức',
   'manual': 'Hướng dẫn sử dụng',

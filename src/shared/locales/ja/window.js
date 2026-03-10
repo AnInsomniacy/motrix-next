@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ja - window. */
 export default {
   'reload': '再読み込み',
   'close': '閉じる',

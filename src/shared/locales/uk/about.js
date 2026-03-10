@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for uk - about. */
 export default {
   'engine-version': 'Версія рушія',
   'license': 'Ліцензія',

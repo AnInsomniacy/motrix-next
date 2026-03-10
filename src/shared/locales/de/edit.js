@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for de - edit. */
 export default {
   'undo': 'Rückgängig',
   'redo': 'Wiederholen',

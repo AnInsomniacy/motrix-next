@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for es - edit. */
 export default {
   'undo': 'Deshacer',
   'redo': 'Rehacer',

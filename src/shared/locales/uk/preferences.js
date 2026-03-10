@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for uk - preferences. */
 export default {
   'basic': 'Основні',
   'advanced': 'Розширені',

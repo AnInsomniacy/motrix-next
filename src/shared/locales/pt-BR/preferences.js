@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for pt-BR - preferences. */
 export default {
   'basic': 'Básico',
   'advanced': 'Avançado',

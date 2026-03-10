@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ro - about. */
 export default {
   'engine-version': 'Versiune motor',
   'license': 'Licență',

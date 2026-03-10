@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ar - application. */
 export default {
   'task-list': 'المهام',
   'add-task': 'إضافة مهمة',

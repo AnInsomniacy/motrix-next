@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for vi - application. */
 export default {
   'task-list': 'Tác vụ',
   'add-task': 'Thêm tác vụ',

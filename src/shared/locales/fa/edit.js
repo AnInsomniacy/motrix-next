@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for fa - edit. */
 export default {
   'undo': 'بازگردانی',
   'redo': 'انجام مجدد',

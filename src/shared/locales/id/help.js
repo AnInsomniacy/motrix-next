@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for id - help. */
 export default {
   'official-website': 'Situs resmi',
   'manual': 'Panduan pengguna',

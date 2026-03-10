@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ko - edit. */
 export default {
   'undo': '실행 취소',
   'redo': '다시 실행',

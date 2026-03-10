@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for th - edit. */
 export default {
   'undo': 'เลิกทำ',
   'redo': 'ทำซ้ำ',

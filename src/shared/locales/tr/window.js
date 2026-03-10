@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for tr - window. */
 export default {
   'reload': 'Yeniden yükle',
   'close': 'Kapat',

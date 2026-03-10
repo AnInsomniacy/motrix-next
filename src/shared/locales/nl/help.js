@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for nl - help. */
 export default {
   'official-website': 'Officiële website',
   'manual': 'Handleiding',

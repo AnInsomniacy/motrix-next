@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for tr - application. */
 export default {
   'task-list': 'Görevler',
   'add-task': 'Görev ekle',

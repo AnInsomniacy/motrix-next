@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for pl - menu. */
 export default {
   'app': 'Motrix Next',
   'file': 'Plik',

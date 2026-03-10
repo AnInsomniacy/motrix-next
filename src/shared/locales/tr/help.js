@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for tr - help. */
 export default {
   'official-website': 'Resmi web sitesi',
   'manual': 'Kullanım kılavuzu',

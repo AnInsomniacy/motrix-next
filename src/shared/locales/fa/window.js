@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for fa - window. */
 export default {
   'reload': 'بارگذاری مجدد',
   'close': 'بستن',

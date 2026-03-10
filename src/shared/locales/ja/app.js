@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ja - application. */
 export default {
   'task-list': 'タスク一覧',
   'add-task': 'タスク追加',

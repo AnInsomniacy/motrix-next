@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for fa - preferences. */
 export default {
   'basic': 'عمومی',
   'advanced': 'پیشرفته',

@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for bg - edit. */
 export default {
   'undo': 'Отмяна',
   'redo': 'Повтори',

@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ca - index. */
 import about from './about'
 import app from './app'
 import edit from './edit'

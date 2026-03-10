@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for id - task. */
 export default {
   'active': 'Mengunduh',
   'waiting': 'Menunggu',

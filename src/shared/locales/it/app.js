@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for it - application. */
 export default {
   'task-list': 'Attività',
   'add-task': 'Aggiungi attività',

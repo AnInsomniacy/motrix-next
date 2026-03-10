@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for nb - edit. */
 export default {
   'undo': 'Angre',
   'redo': 'Gjør om',

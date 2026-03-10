@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for hu - application. */
 export default {
   'task-list': 'Feladatok',
   'add-task': 'Feladat hozzáadása',

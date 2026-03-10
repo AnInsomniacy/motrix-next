@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for id - application. */
 export default {
   'task-list': 'Tugas',
   'add-task': 'Tambah tugas',

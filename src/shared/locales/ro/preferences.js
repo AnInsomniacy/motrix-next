@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ro - preferences. */
 export default {
   'basic': 'General',
   'advanced': 'Avansat',

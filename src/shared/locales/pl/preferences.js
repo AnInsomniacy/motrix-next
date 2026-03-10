@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for pl - preferences. */
 export default {
   'basic': 'Ogólne',
   'advanced': 'Zaawansowane',

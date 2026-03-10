@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for it - window. */
 export default {
   'reload': 'Ricarica',
   'close': 'Chiudi',

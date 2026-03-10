@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for en-US - edit. */
 export default {
   'undo': 'Undo',
   'redo': 'Redo',

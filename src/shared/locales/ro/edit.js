@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ro - edit. */
 export default {
   'undo': 'Anulează',
   'redo': 'Refă',

@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for fa - help. */
 export default {
   'official-website': 'وب‌سایت رسمی',
   'manual': 'راهنمای کاربر',

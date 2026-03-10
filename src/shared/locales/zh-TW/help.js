@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for zh-TW - help. */
 export default {
   'official-website': '官方網站',
   'manual': '使用手冊',

@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for th - window. */
 export default {
   'reload': 'โหลดใหม่',
   'close': 'ปิด',

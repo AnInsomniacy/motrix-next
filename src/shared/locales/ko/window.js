@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ko - window. */
 export default {
   'reload': '새로고침',
   'close': '닫기',

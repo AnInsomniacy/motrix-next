@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ca - preferences. */
 export default {
   'basic': 'General',
   'advanced': 'Avançat',

@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for uk - task. */
 export default {
   'active': 'Завантаження',
   'waiting': 'Очікування',

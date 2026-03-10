@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for th - application. */
 export default {
   'task-list': 'งาน',
   'add-task': 'เพิ่มงาน',

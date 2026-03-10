@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for uk - help. */
 export default {
   'official-website': 'Офіційний сайт',
   'manual': 'Посібник',

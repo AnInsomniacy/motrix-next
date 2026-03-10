@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for nl - application. */
 export default {
   'task-list': 'Taken',
   'add-task': 'Taak toevoegen',

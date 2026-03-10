@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for nb - task. */
 export default {
   'active': 'Laster ned',
   'waiting': 'Venter',

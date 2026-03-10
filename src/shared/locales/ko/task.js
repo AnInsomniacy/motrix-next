@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ko - task. */
 export default {
   'active': '다운로드 중',
   'waiting': '대기 중',

@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for pt-BR - application. */
 export default {
   'task-list': 'Tarefas',
   'add-task': 'Adicionar tarefa',

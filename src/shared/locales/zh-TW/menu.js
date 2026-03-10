@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for zh-TW - menu. */
 export default {
   'app': 'Motrix Next',
   'file': '檔案',

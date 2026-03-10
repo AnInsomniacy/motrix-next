@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for el - application. */
 export default {
   'task-list': 'Εργασίες',
   'add-task': 'Προσθήκη εργασίας',

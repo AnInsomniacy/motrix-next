@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ro - application. */
 export default {
   'task-list': 'Sarcini',
   'add-task': 'Adaugă sarcină',

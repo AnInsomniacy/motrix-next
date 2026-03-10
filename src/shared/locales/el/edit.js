@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for el - edit. */
 export default {
   'undo': 'Αναίρεση',
   'redo': 'Ακύρωση αναίρεσης',

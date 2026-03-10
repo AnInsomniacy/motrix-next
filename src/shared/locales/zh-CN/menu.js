@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for zh-CN - menu. */
 export default {
   'app': 'Motrix Next',
   'file': '文件',

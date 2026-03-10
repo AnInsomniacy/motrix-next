@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for nl - window. */
 export default {
   'reload': 'Herladen',
   'close': 'Sluiten',

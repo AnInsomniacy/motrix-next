@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for pl - edit. */
 export default {
   'undo': 'Cofnij',
   'redo': 'Ponów',

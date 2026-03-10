@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ja - about. */
 export default {
   'engine-version': 'エンジンバージョン',
   'license': 'ライセンス',

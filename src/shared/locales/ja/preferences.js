@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ja - preferences. */
 export default {
   'basic': '基本設定',
   'advanced': '詳細設定',

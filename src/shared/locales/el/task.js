@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for el - task. */
 export default {
   'active': 'Λήψη',
   'waiting': 'Αναμονή',

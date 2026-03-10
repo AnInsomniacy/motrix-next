@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ru - application. */
 export default {
   'task-list': 'Задачи',
   'add-task': 'Добавить задачу',

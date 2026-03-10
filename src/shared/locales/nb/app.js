@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for nb - application. */
 export default {
   'task-list': 'Oppgaver',
   'add-task': 'Legg til oppgave',

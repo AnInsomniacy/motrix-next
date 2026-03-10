@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for uk - window. */
 export default {
   'reload': 'Перезавантажити',
   'close': 'Закрити',

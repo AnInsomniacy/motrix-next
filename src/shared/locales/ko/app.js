@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ko - application. */
 export default {
   'task-list': '작업 목록',
   'add-task': '작업 추가',

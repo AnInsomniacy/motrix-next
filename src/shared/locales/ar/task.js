@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for ar - task. */
 export default {
   'active': 'جارٍ التنزيل',
   'waiting': 'في الانتظار',

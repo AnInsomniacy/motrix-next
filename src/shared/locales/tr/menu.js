@@ -1,3 +1,4 @@
+/** @fileoverview Locale messages for tr - menu. */
 export default {
   'app': 'Motrix Next',
   'file': 'Dosya',
