@@ -40,6 +40,20 @@ const message = useAppMessage()
 const { notifyError } = useAppNotification()
 
 const isMac = platform() === 'macos'
+const sessionUsesNativeTrafficLights = ref<boolean | null>(isMac ? null : false)
+const showCustomWindowControls = computed(() => !isMac || sessionUsesNativeTrafficLights.value === false)
+const isNativeWindowChrome = computed(() => isMac && sessionUsesNativeTrafficLights.value === true)
+const isCustomWindowChrome = computed(() => showCustomWindowControls.value)
+const roundedShellBackground =
+  'linear-gradient(90deg, var(--aside-bg) 0, var(--aside-bg) var(--aside-width), var(--subnav-bg) var(--aside-width), var(--subnav-bg) calc(var(--aside-width) + var(--subnav-width)), var(--main-bg) calc(var(--aside-width) + var(--subnav-width)), var(--main-bg) 100%)'
+type ContainerStyle = { '--window-shell-background': string }
+const containerStyle = computed<ContainerStyle | undefined>(() =>
+  isCustomWindowChrome.value
+    ? {
+        '--window-shell-background': roundedShellBackground,
+      }
+    : undefined,
+)
 
 const isTaskPage = computed(() => route.path.startsWith('/task'))
 const isPreferencePage = computed(() => route.path.startsWith('/preference'))
@@ -223,6 +237,17 @@ onMounted(async () => {
   })
 
   const appWindow = getCurrentWindow()
+  if (isMac) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const state = await invoke<{ nativeTrafficLightsVisible: boolean }>('get_window_chrome_state')
+      sessionUsesNativeTrafficLights.value = state.nativeTrafficLightsVisible
+    } catch (e) {
+      logger.debug('MainLayout.windowChromeState', e)
+      sessionUsesNativeTrafficLights.value = !!preferenceStore.config.useNativeTrafficLights
+    }
+  }
+
   unlistenCloseRequested = await appWindow.onCloseRequested(async (event) => {
     event.preventDefault()
 
@@ -276,7 +301,16 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div id="container" :class="{ 'app-ready': appReady, 'app-closing': isExiting }">
+  <div
+    id="container"
+    :class="{
+      'app-ready': appReady,
+      'app-closing': isExiting,
+      'native-window-chrome': isNativeWindowChrome,
+      'custom-window-chrome': isCustomWindowChrome,
+    }"
+    :style="containerStyle"
+  >
     <AsideBar @show-about="showAbout = true" />
     <div class="subnav-slot">
       <Transition name="fade" mode="out-in">
@@ -291,7 +325,7 @@ onUnmounted(() => {
         </Transition>
       </router-view>
     </main>
-    <WindowControls v-if="!isMac || !preferenceStore.config.useNativeTrafficLights" class="window-controls" />
+    <WindowControls v-if="showCustomWindowControls" class="window-controls" />
     <Speedometer />
     <AboutPanel :show="showAbout" @close="showAbout = false" />
     <AddTask :show="appStore.addTaskVisible" @close="appStore.hideAddTaskDialog()" />
@@ -339,6 +373,7 @@ onUnmounted(() => {
   display: flex;
   height: 100vh;
   position: relative;
+  background: var(--window-shell-background, transparent);
   border-radius: 12px;
   overflow: hidden;
   opacity: 0;
@@ -346,6 +381,9 @@ onUnmounted(() => {
   transition:
     opacity 650ms cubic-bezier(0.05, 0.7, 0.1, 1),
     transform 650ms cubic-bezier(0.05, 0.7, 0.1, 1);
+}
+#container.native-window-chrome {
+  border-radius: 0;
 }
 #container.app-ready {
   opacity: 1;

@@ -243,11 +243,6 @@
   --window-ctrl-hover-color: rgba(255, 255, 255, 0.9);
 }
 
-/* ── macOS: native window chrome provides its own rounded corners ──── */
-[data-platform='macos'] #container {
-  border-radius: 0;
-}
-
 /* ── Global Reset ──────────────────────────────────────────────────── */
 * {
   margin: 0;

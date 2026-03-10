@@ -7,6 +7,18 @@ use tauri::AppHandle;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy)]
+pub struct MacWindowChromeState {
+    pub native_traffic_lights_visible: bool,
+}
+
+#[derive(Clone, Copy, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowChromeStatePayload {
+    pub native_traffic_lights_visible: bool,
+}
+
 /// Reads all user preferences from the `user.json` store.
 #[tauri::command]
 pub fn get_app_config(app: AppHandle) -> Result<Value, AppError> {
@@ -199,6 +211,51 @@ pub fn update_progress_bar(app: AppHandle, progress: f64) -> Result<(), AppError
         }
     }
     Ok(())
+}
+
+/// Returns the window chrome mode that was applied to this session at startup.
+#[tauri::command]
+pub fn get_window_chrome_state(app: AppHandle) -> Result<WindowChromeStatePayload, AppError> {
+    #[cfg(target_os = "macos")]
+    if let Some(state) = app.try_state::<MacWindowChromeState>() {
+        return Ok(WindowChromeStatePayload {
+            native_traffic_lights_visible: state.native_traffic_lights_visible,
+        });
+    }
+
+    Ok(WindowChromeStatePayload {
+        native_traffic_lights_visible: false,
+    })
+}
+
+/// Shows or hides the native macOS traffic lights while keeping the decorated window.
+#[cfg(target_os = "macos")]
+pub fn set_macos_traffic_lights_visible(
+    window: &tauri::WebviewWindow,
+    visible: bool,
+) -> Result<(), AppError> {
+    use objc2_app_kit::{NSWindow, NSWindowButton};
+
+    let window = window.clone();
+    let main_thread_window = window.clone();
+    window
+        .run_on_main_thread(move || {
+            let Ok(ns_window_ptr) = main_thread_window.ns_window() else {
+                return;
+            };
+            let ns_window = unsafe { &*(ns_window_ptr as *mut NSWindow) };
+            for button_kind in [
+                NSWindowButton::CloseButton,
+                NSWindowButton::MiniaturizeButton,
+                NSWindowButton::ZoomButton,
+            ] {
+                if let Some(button) = ns_window.standardWindowButton(button_kind) {
+                    button.setHidden(!visible);
+                    button.setEnabled(visible);
+                }
+            }
+        })
+        .map_err(|e| AppError::Io(e.to_string()))
 }
 
 /// Updates the macOS dock badge label (empty string clears the badge).

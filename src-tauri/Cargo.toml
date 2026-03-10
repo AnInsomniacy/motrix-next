@@ -35,3 +35,7 @@ tauri-plugin-locale = "2.0.1"
 url = "2.5.8"
 tauri-plugin-window-state = "2.4.1"
 igd-next = { version = "0.15", features = ["aio_tokio"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSRunningApplication", "NSButton", "NSControl", "NSView", "NSWindow"] }

@@ -59,6 +59,7 @@ pub fn run() {
         .manage(std::sync::Arc::new(UpdateCancelState::new()))
         .invoke_handler(tauri::generate_handler![
             commands::get_app_config,
+            commands::get_window_chrome_state,
             commands::save_preference,
             commands::get_system_config,
             commands::save_system_config,
@@ -109,9 +110,9 @@ pub fn run() {
                 _ => {}
             });
 
-            // On macOS, the build config sets decorations:true + titleBarStyle:Overlay
-            // for native traffic lights. If the user hasn't opted in, remove decorations
-            // at startup so the custom WindowControls are shown instead.
+            // On macOS, keep the decorated overlay window for native rounded corners.
+            // If the user has not opted into native traffic lights, hide the native
+            // traffic lights but preserve the decorated host window.
             #[cfg(target_os = "macos")]
             {
                 let use_native = app
@@ -121,10 +122,11 @@ pub fn run() {
                     .and_then(|v| v.get("useNativeTrafficLights").cloned())
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
-                if !use_native {
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.set_decorations(false);
-                    }
+                app.manage(commands::MacWindowChromeState {
+                    native_traffic_lights_visible: use_native,
+                });
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = commands::set_macos_traffic_lights_visible(&window, use_native);
                 }
             }
 
