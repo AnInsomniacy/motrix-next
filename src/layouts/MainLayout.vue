@@ -12,6 +12,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { logger } from '@shared/logger'
 import { platform } from '@tauri-apps/plugin-os'
+import { exit } from '@tauri-apps/plugin-process'
 import AsideBar from '@/components/layout/AsideBar.vue'
 import TaskSubnav from '@/components/layout/TaskSubnav.vue'
 import PreferenceSubnav from '@/components/layout/PreferenceSubnav.vue'
@@ -97,12 +98,12 @@ async function handleExitConfirm() {
   showExitDialog.value = false
   appReady.value = false
   await new Promise((r) => setTimeout(r, 250))
+  // Terminate the Tauri process first to ensure it runs before the
+  // webview is torn down. exit() kills the process, so destroy() is
+  // only reached if exit() somehow fails.
+  await exit(0)
   const appWindow = getCurrentWindow()
   await appWindow.destroy()
-  // Terminate the Tauri process. destroy() only closes the webview;
-  // without exit(), the tray icon and aria2 sidecar stay alive.
-  const { exit } = await import('@tauri-apps/plugin-process')
-  await exit(0)
 }
 
 function handleExitCancel() {
@@ -150,7 +151,9 @@ async function handleExitDialogAfterLeave() {
 
 async function hideWindowToTray() {
   const appWindow = getCurrentWindow()
-  await invoke('set_dock_icon_visible', { visible: false })
+  if (isMac) {
+    await invoke('set_dock_icon_visible', { visible: false })
+  }
   await appWindow.hide()
 }
 

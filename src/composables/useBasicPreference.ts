@@ -5,7 +5,7 @@
  * The btAutoDownloadContent ↔ followTorrent/followMetalink/pauseMetadata
  * mapping is the key business logic tested here.
  */
-import type { AppConfig } from '@shared/types'
+import type { AppConfig, CloseAction } from '@shared/types'
 import { DEFAULT_APP_CONFIG as D } from '@shared/constants'
 
 // ── Types ───────────────────────────────────────────────────────────
@@ -23,7 +23,7 @@ export interface BasicForm {
   keepWindowState: boolean
   resumeAllWhenAppLaunched: boolean
   autoHideWindow: boolean
-  closeAction: string
+  closeAction: CloseAction
   showProgressBar: boolean
   traySpeedometer: boolean
   dockBadgeSpeed: boolean
