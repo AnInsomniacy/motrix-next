@@ -73,10 +73,10 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot, patchSnapshot } =
     const prevLocale = prevConfig.locale || 'en-US'
     if (f.locale !== prevLocale) {
       dialog.info({
-        title: 'Language Changed',
-        content: 'Restart the application to apply the new language.',
-        positiveText: 'Restart Now',
-        negativeText: 'Later',
+        title: t('preferences.language-changed-title'),
+        content: t('preferences.language-changed-content'),
+        positiveText: t('preferences.restart-now'),
+        negativeText: t('preferences.later'),
         onPositiveClick: () => {
           relaunch()
         },
@@ -90,7 +90,8 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot, patchSnapshot } =
         const currentlyEnabled = await isEnabled()
         if (f.openAtLogin && !currentlyEnabled) await enable()
         else if (!f.openAtLogin && currentlyEnabled) await disable()
-      } catch {
+      } catch (e) {
+        logger.debug('Basic.autostart-sync', e)
         notifyWarning('app.error-title-config', 'app.error-autostart-sync-failed')
       }
     }
@@ -270,8 +271,8 @@ onMounted(async () => {
 <template>
   <div class="preference-form-wrapper">
     <NForm label-placement="left" label-align="left" label-width="240px" size="small" class="form-preference">
-      <NDivider title-placement="left">Language</NDivider>
-      <NFormItem label="Select Language">
+      <NDivider title-placement="left">{{ t('preferences.language') }}</NDivider>
+      <NFormItem :label="t('preferences.select-language')">
         <NSelect v-model:value="form.locale" :options="localeOptions" style="width: 200px" />
       </NFormItem>
 

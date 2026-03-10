@@ -86,8 +86,8 @@ export function usePreferenceForm<T extends Record<string, unknown>>(options: Us
 
     const saved = await preferenceStore.updateAndSave(storeData)
     if (!saved) {
-      notifyError('Preference persistence failed', 'config')
-      throw new Error('Preference persistence failed')
+      notifyError(t('preferences.persistence-failed'), 'config')
+      return
     }
 
     const systemConfig = options.buildSystemConfig(form.value as T)
