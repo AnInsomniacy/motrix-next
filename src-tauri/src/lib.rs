@@ -18,16 +18,7 @@ use upnp::UpnpState;
 #[allow(unused_variables)]
 fn restore_dock_and_show(app: &tauri::AppHandle, window_label: &str) {
     #[cfg(target_os = "macos")]
-    {
-        use objc2::MainThreadMarker;
-        use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
-        if let Some(mtm) = MainThreadMarker::new() {
-            let ns_app = NSApplication::sharedApplication(mtm);
-            ns_app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
-            #[allow(deprecated)]
-            ns_app.activateIgnoringOtherApps(true);
-        }
-    }
+    commands::set_dock_visibility(true);
     if let Some(window) = app.get_webview_window(window_label) {
         let _ = window.show();
         let _ = window.set_focus();
@@ -198,6 +189,8 @@ pub fn run() {
                     }
                     "minimize" => {
                         api.prevent_close();
+                        #[cfg(target_os = "macos")]
+                        commands::set_dock_visibility(false);
                         if let Some(window) = app.get_webview_window(&label) {
                             let _ = window.hide();
                         }
