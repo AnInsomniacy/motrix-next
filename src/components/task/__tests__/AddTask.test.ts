@@ -1,3 +1,4 @@
+/** @fileoverview Unit tests for the AddTask component's batch URI integration and lifecycle. */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
