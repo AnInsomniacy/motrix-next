@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'ซ่อนถาดระบบ',
   'tray-speedometer': 'แสดงความเร็วแบบเรียลไทม์ในถาด',
   'dock-badge-speed': 'แสดงความเร็วบนไอคอน Dock',
+  'use-native-traffic-lights': 'ใช้ปุ่มสัญญาณไฟจราจรของ macOS',
   'show-progress-bar': 'แสดงแถบความคืบหน้า',
   'language': 'ภาษา',
   'change-language': 'เปลี่ยนภาษา',

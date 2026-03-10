@@ -143,6 +143,7 @@ export interface AppConfig {
   traySpeedometer: boolean
   dockBadgeSpeed: boolean
   hideAppMenu: boolean
+  useNativeTrafficLights: boolean
   logLevel: string
   engineBinPath: string
   engineMaxConnectionPerServer: number

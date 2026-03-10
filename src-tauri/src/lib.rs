@@ -109,6 +109,25 @@ pub fn run() {
                 _ => {}
             });
 
+            // On macOS, the build config sets decorations:true + titleBarStyle:Overlay
+            // for native traffic lights. If the user hasn't opted in, remove decorations
+            // at startup so the custom WindowControls are shown instead.
+            #[cfg(target_os = "macos")]
+            {
+                let use_native = app
+                    .store("config.json")
+                    .ok()
+                    .and_then(|s| s.get("preferences"))
+                    .and_then(|v| v.get("useNativeTrafficLights").cloned())
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                if !use_native {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.set_decorations(false);
+                    }
+                }
+            }
+
             let app_handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| {
                 let urls: Vec<String> = event.urls().iter().map(|u| u.to_string()).collect();

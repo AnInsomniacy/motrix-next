@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'Hidden Tray',
   'tray-speedometer': 'Show real-time speed in tray',
   'dock-badge-speed': 'Show speed badge on Dock icon',
+  'use-native-traffic-lights': 'Use native macOS traffic lights',
   'show-progress-bar': 'Show download progress bar',
   'language': 'Language',
   'change-language': 'Change language',

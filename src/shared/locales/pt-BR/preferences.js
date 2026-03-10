@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'Bandeja oculta',
   'tray-speedometer': 'Mostrar velocidade em tempo real na bandeja',
   'dock-badge-speed': 'Exibir velocidade no ícone do Dock',
+  'use-native-traffic-lights': 'Usar semáforos nativos do macOS',
   'show-progress-bar': 'Mostrar barra de progresso',
   'language': 'Idioma',
   'change-language': 'Alterar idioma',

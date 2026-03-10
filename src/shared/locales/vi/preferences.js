@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'Ẩn khay hệ thống',
   'tray-speedometer': 'Hiện tốc độ thời gian thực trên khay',
   'dock-badge-speed': 'Tốc độ trên biểu tượng Dock',
+  'use-native-traffic-lights': 'Sử dụng nút điều khiển gốc của macOS',
   'show-progress-bar': 'Hiện thanh tiến trình',
   'language': 'Ngôn ngữ',
   'change-language': 'Đổi ngôn ngữ',

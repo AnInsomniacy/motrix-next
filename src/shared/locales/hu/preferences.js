@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'Tálca elrejtése',
   'tray-speedometer': 'Valós idejű sebesség megjelenítése a tálcán',
   'dock-badge-speed': 'Sebesség a Dock ikonon',
+  'use-native-traffic-lights': 'Natív macOS ablakkezelő gombok használata',
   'show-progress-bar': 'Folyamatjelző megjelenítése',
   'language': 'Nyelv',
   'change-language': 'Nyelv váltása',

@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'Скрыть системный лоток',
   'tray-speedometer': 'Показывать скорость в реальном времени в лотке',
   'dock-badge-speed': 'Скорость на значке Dock',
+  'use-native-traffic-lights': 'Использовать нативные кнопки macOS',
   'show-progress-bar': 'Показывать индикатор прогресса',
   'language': 'Язык',
   'change-language': 'Сменить язык',

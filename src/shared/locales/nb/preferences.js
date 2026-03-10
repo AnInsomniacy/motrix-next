@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'Skjul systemkurv',
   'tray-speedometer': 'Vis sanntidshastighet i systemkurven',
   'dock-badge-speed': 'Vis hastighet på Dock-ikonet',
+  'use-native-traffic-lights': 'Bruk macOS sine native trafikklys',
   'show-progress-bar': 'Vis fremdriftslinje',
   'language': 'Språk',
   'change-language': 'Endre språk',

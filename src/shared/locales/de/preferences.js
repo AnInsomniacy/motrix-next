@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'Taskleiste ausblenden',
   'tray-speedometer': 'Echtzeit-Geschwindigkeit in Taskleiste anzeigen',
   'dock-badge-speed': 'Geschwindigkeit im Dock anzeigen',
+  'use-native-traffic-lights': 'Native macOS-Ampelknöpfe verwenden',
   'show-progress-bar': 'Fortschrittsbalken anzeigen',
   'language': 'Sprache',
   'change-language': 'Sprache ändern',

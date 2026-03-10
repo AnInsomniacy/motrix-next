@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'Tepsiyi gizle',
   'tray-speedometer': 'Tepside gerçek zamanlı hız göster',
   'dock-badge-speed': 'Dock simgesinde hız göster',
+  'use-native-traffic-lights': 'Yerel macOS trafik ışıklarını kullan',
   'show-progress-bar': 'İlerleme çubuğu göster',
   'language': 'Dil',
   'change-language': 'Dili değiştir',

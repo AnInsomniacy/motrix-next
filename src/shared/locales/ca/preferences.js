@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'Safata amagada',
   'tray-speedometer': 'Mostrar velocitat en temps real a la safata',
   'dock-badge-speed': 'Mostra la velocitat al Dock',
+  'use-native-traffic-lights': 'Utilitza els semàfors natius de macOS',
   'show-progress-bar': 'Mostrar barra de progrés',
   'language': 'Idioma',
   'change-language': 'Canviar idioma',

@@ -30,6 +30,7 @@ const userKeys = [
   'tracker-source',
   'tray-speedometer',
   'update-channel',
+  'use-native-traffic-lights',
 ]
 
 const systemKeys = [
@@ -156,6 +157,13 @@ const systemKeys = [
   'user-agent',
 ]
 
-const needRestartKeys = ['dht-listen-port', 'hide-app-menu', 'listen-port', 'rpc-listen-port', 'rpc-secret']
+const needRestartKeys = [
+  'dht-listen-port',
+  'hide-app-menu',
+  'listen-port',
+  'rpc-listen-port',
+  'rpc-secret',
+  'use-native-traffic-lights',
+]
 
 export { userKeys, systemKeys, needRestartKeys }

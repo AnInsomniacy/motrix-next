@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'トレイを非表示',
   'tray-speedometer': 'トレイにリアルタイム速度を表示',
   'dock-badge-speed': 'Dockアイコンに速度を表示',
+  'use-native-traffic-lights': 'macOS ネイティブの信号ボタンを使用',
   'show-progress-bar': 'ダウンロード進捗バーを表示',
   'language': '言語',
   'change-language': '言語を変更',

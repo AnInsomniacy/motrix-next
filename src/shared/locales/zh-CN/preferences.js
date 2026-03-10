@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': '隐藏托盘',
   'tray-speedometer': '托盘显示实时速度',
   'dock-badge-speed': 'Dock 图标显示下载速度',
+  'use-native-traffic-lights': '使用 macOS 原生红绿灯按钮',
   'show-progress-bar': '显示下载进度条',
   'language': '语言',
   'change-language': '切换语言',

@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'Barre de menu masquée',
   'tray-speedometer': 'Afficher la vitesse dans la barre de menu',
   'dock-badge-speed': 'Vitesse sur l\u0027icône du Dock',
+  'use-native-traffic-lights': 'Utiliser les feux de signalisation natifs de macOS',
   'show-progress-bar': 'Afficher la barre de progression',
   'language': 'Langue',
   'change-language': 'Changer de langue',

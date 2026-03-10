@@ -291,7 +291,7 @@ onUnmounted(() => {
         </Transition>
       </router-view>
     </main>
-    <WindowControls v-if="!isMac" class="window-controls" />
+    <WindowControls v-if="!isMac || !preferenceStore.config.useNativeTrafficLights" class="window-controls" />
     <Speedometer />
     <AboutPanel :show="showAbout" @close="showAbout = false" />
     <AddTask :show="appStore.addTaskVisible" @close="appStore.hideAddTaskDialog()" />

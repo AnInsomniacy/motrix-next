@@ -27,6 +27,7 @@ export interface BasicForm {
   showProgressBar: boolean
   traySpeedometer: boolean
   dockBadgeSpeed: boolean
+  useNativeTrafficLights: boolean
   taskNotification: boolean
   newTaskShowDownloading: boolean
   noConfirmBeforeDeleteTask: boolean
@@ -72,6 +73,7 @@ export function buildBasicForm(config: AppConfig, defaultDir: string = ''): Basi
     showProgressBar: config.showProgressBar ?? D.showProgressBar,
     traySpeedometer: config.traySpeedometer ?? D.traySpeedometer,
     dockBadgeSpeed: config.dockBadgeSpeed ?? D.dockBadgeSpeed,
+    useNativeTrafficLights: config.useNativeTrafficLights ?? D.useNativeTrafficLights,
     taskNotification: config.taskNotification ?? D.taskNotification,
     newTaskShowDownloading: config.newTaskShowDownloading ?? D.newTaskShowDownloading,
     noConfirmBeforeDeleteTask: config.noConfirmBeforeDeleteTask ?? D.noConfirmBeforeDeleteTask,

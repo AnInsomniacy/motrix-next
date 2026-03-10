@@ -111,6 +111,7 @@ export const DEFAULT_APP_CONFIG = {
   noConfirmBeforeDeleteTask: false, // require confirmation to prevent accidental deletion
   resumeAllWhenAppLaunched: false, // don't flood bandwidth on launch
   hideAppMenu: false,
+  useNativeTrafficLights: false, // macOS only; opt-in for native traffic light controls
 
   // ── Auto Update ───────────────────────────────────────────────
   autoCheckUpdate: true, // qBT checks every launch; security best practice

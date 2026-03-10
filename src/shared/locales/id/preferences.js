@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'Sembunyikan baki',
   'tray-speedometer': 'Tampilkan kecepatan real-time di baki',
   'dock-badge-speed': 'Tampilkan kecepatan di ikon Dock',
+  'use-native-traffic-lights': 'Gunakan tombol lampu lalu lintas bawaan macOS',
   'show-progress-bar': 'Tampilkan bilah kemajuan',
   'language': 'Bahasa',
   'change-language': 'Ubah bahasa',

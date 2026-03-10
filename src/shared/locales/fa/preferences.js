@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'مخفی کردن نوار سیستم',
   'tray-speedometer': 'نمایش سرعت لحظه‌ای در نوار',
   'dock-badge-speed': 'نمایش سرعت در نماد Dock',
+  'use-native-traffic-lights': 'استفاده از دکمه\u200Cهای بومی macOS',
   'show-progress-bar': 'نمایش نوار پیشرفت',
   'language': 'زبان',
   'change-language': 'تغییر زبان',

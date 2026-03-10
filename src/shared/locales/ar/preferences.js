@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'إخفاء شريط النظام',
   'tray-speedometer': 'إظهار السرعة الفورية في الشريط',
   'dock-badge-speed': 'عرض السرعة على أيقونة Dock',
+  'use-native-traffic-lights': 'استخدام أزرار إشارة المرور الأصلية في macOS',
   'show-progress-bar': 'إظهار شريط التقدم',
   'language': 'اللغة',
   'change-language': 'تغيير اللغة',

@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'Systeemvak verbergen',
   'tray-speedometer': 'Realtime snelheid in systeemvak tonen',
   'dock-badge-speed': 'Snelheid op Dock-pictogram',
+  'use-native-traffic-lights': 'Gebruik native macOS-stoplichten',
   'show-progress-bar': 'Voortgangsbalk tonen',
   'language': 'Taal',
   'change-language': 'Taal wijzigen',

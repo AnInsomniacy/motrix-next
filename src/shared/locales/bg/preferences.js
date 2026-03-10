@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'Скрий системната лента',
   'tray-speedometer': 'Покажи скоростта в реално време в лентата',
   'dock-badge-speed': 'Показване на скоростта в Dock',
+  'use-native-traffic-lights': 'Използвай macOS бутони за управление на прозореца',
   'show-progress-bar': 'Покажи лента за прогрес',
   'language': 'Език',
   'change-language': 'Смени език',

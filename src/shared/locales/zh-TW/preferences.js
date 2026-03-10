@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': '隱藏工具列',
   'tray-speedometer': '工具列顯示即時速度',
   'dock-badge-speed': 'Dock 圖示顯示下載速度',
+  'use-native-traffic-lights': '使用 macOS 原生紅綠燈按鈕',
   'show-progress-bar': '顯示下載進度列',
   'language': '語言',
   'change-language': '切換語言',

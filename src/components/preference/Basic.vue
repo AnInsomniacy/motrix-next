@@ -339,6 +339,9 @@ onMounted(async () => {
       <NFormItem v-if="isMac" :label="t('preferences.dock-badge-speed')">
         <NSwitch v-model:value="form.dockBadgeSpeed" />
       </NFormItem>
+      <NFormItem v-if="isMac" :label="t('preferences.use-native-traffic-lights')">
+        <NSwitch v-model:value="form.useNativeTrafficLights" />
+      </NFormItem>
 
       <NDivider title-placement="left">{{ t('preferences.startup') }}</NDivider>
       <NFormItem :show-label="false">

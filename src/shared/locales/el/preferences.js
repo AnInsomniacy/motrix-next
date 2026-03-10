@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'Απόκρυψη γραμμής εργασιών',
   'tray-speedometer': 'Εμφάνιση ταχύτητας σε πραγματικό χρόνο',
   'dock-badge-speed': 'Εμφάνιση ταχύτητας στο Dock',
+  'use-native-traffic-lights': 'Χρήση εγγενών κουμπιών φαναριών macOS',
   'show-progress-bar': 'Εμφάνιση γραμμής προόδου',
   'language': 'Γλώσσα',
   'change-language': 'Αλλαγή γλώσσας',

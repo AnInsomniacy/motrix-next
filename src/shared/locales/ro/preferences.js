@@ -48,6 +48,7 @@ export default {
   'run-mode-hide-tray': 'Ascunde bara de sistem',
   'tray-speedometer': 'Arată viteza în timp real în bară',
   'dock-badge-speed': 'Viteza pe pictograma Dock',
+  'use-native-traffic-lights': 'Folosește butoanele native macOS',
   'show-progress-bar': 'Arată bara de progres',
   'language': 'Limbă',
   'change-language': 'Schimbă limba',
