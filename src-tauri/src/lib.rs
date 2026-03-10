@@ -1,3 +1,10 @@
+//! Tauri application setup and plugin configuration.
+//! Handles window management, close actions, and platform-specific behavior.
+
+const CLOSE_ACTION_QUIT: &str = "quit";
+const CLOSE_ACTION_MINIMIZE: &str = "minimize";
+const CLOSE_ACTION_ASK: &str = "ask";
+
 mod commands;
 mod engine;
 mod error;
@@ -177,17 +184,17 @@ pub fn run() {
                         }
                         // Backward compat: fall back to legacy boolean
                         if let Some(true) = prefs.get("minimizeToTrayOnClose").and_then(|v| v.as_bool()) {
-                            return "minimize".to_string();
+                            return CLOSE_ACTION_MINIMIZE.to_string();
                         }
-                        "ask".to_string()
+                        CLOSE_ACTION_ASK.to_string()
                     })
-                    .unwrap_or_else(|| "ask".to_string());
+                    .unwrap_or_else(|| CLOSE_ACTION_ASK.to_string());
 
                 match close_action.as_str() {
-                    "quit" => {
+                    CLOSE_ACTION_QUIT => {
                         // Let the close proceed naturally
                     }
-                    "minimize" => {
+                    CLOSE_ACTION_MINIMIZE => {
                         api.prevent_close();
                         #[cfg(target_os = "macos")]
                         commands::set_dock_visibility(false);
@@ -196,7 +203,7 @@ pub fn run() {
                         }
                     }
                     _ => {
-                        // "ask" or unknown — prevent close, let frontend show dialog
+                        // CLOSE_ACTION_ASK or unknown — prevent close, let frontend show dialog
                         api.prevent_close();
                         if let Some(window) = app.get_webview_window(&label) {
                             let _ = window.emit("close-requested", ());
