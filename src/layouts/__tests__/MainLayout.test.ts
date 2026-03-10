@@ -159,7 +159,7 @@ vi.mock('naive-ui', async () => {
     props: {
       show: { type: Boolean, default: false },
       onAfterLeave: { type: Function, default: undefined },
-      'onUpdate:show': { type: Function, default: undefined },
+      'onUpdate:show': { type: Function, default: undefined }, // eslint-disable-line vue/prop-name-casing
     },
     setup(props, { slots }) {
       const syncVisibility = () => {
