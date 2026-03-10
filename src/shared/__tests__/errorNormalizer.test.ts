@@ -42,10 +42,10 @@ describe('extractRawMessage (via normalizeError)', () => {
     expect(result.rawMessage).toBe('null')
   })
 
-  it('throws on undefined (edge case: JSON.stringify returns undefined value)', () => {
-    // JSON.stringify(undefined) returns the JS value undefined, not a string.
-    // detectCategory then crashes calling rawMessage.toLowerCase().
-    expect(() => normalizeError(undefined)).toThrow()
+  it('handles undefined', () => {
+    const result = normalizeError(undefined)
+    expect(result.rawMessage).toBe('undefined')
+    expect(result.category).toBe('generic')
   })
 
   it('handles number', () => {

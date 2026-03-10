@@ -37,6 +37,7 @@ const NETWORK_PATTERNS: Array<[RegExp, string]> = [
 ]
 
 function extractRawMessage(error: unknown): string {
+  if (error === null || error === undefined) return String(error)
   if (error instanceof Error) return error.message
   if (typeof error === 'string') return error
   if (error && typeof error === 'object') {
