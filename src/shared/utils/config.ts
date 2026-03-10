@@ -119,6 +119,13 @@ export const checkIsNeedRestart = (changed: Record<string, unknown> = {}): boole
   return result
 }
 
+export const checkConfigChangeNeedsRestart = (
+  current: Record<string, unknown> = {},
+  next: Record<string, unknown> = {},
+): boolean => {
+  return checkIsNeedRestart(diffConfig(current, next))
+}
+
 export const checkIsNeedRun = (enable: boolean, lastTime: number, interval: number): boolean => {
   if (!enable) return false
   return Date.now() - lastTime > interval

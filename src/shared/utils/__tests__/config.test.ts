@@ -9,6 +9,7 @@ import {
   separateConfig,
   diffConfig,
   checkIsNeedRestart,
+  checkConfigChangeNeedsRestart,
   checkIsNeedRun,
   buildRpcUrl,
   formatOptionsForEngine,
@@ -106,6 +107,24 @@ describe('checkIsNeedRestart', () => {
   })
   it('returns false for non-restart keys', () => {
     expect(checkIsNeedRestart({ theme: 'dark' })).toBe(false)
+  })
+})
+
+describe('checkConfigChangeNeedsRestart', () => {
+  it('returns true when useNativeTrafficLights changes', () => {
+    expect(checkConfigChangeNeedsRestart({ useNativeTrafficLights: false }, { useNativeTrafficLights: true })).toBe(
+      true,
+    )
+  })
+
+  it('returns false when restart-required keys are unchanged', () => {
+    expect(checkConfigChangeNeedsRestart({ useNativeTrafficLights: true }, { useNativeTrafficLights: true })).toBe(
+      false,
+    )
+  })
+
+  it('returns false when only non-restart keys change', () => {
+    expect(checkConfigChangeNeedsRestart({ theme: 'light' }, { theme: 'dark' })).toBe(false)
   })
 })
 

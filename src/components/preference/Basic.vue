@@ -9,6 +9,7 @@ import { platform } from '@tauri-apps/plugin-os'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { downloadDir } from '@tauri-apps/api/path'
 import { extractSpeedUnit } from '@shared/utils'
+import { checkConfigChangeNeedsRestart } from '@shared/utils/config'
 import { logger } from '@shared/logger'
 import { useAppMessage } from '@/composables/useAppMessage'
 import { useAppNotification } from '@/composables/useAppNotification'
@@ -69,19 +70,8 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot, patchSnapshot } =
   buildSystemConfig: buildBasicSystemConfig,
   transformForStore: transformBasicForStore,
   afterSave: async (f, prevConfig) => {
-    // Locale change → restart prompt
-    const prevLocale = prevConfig.locale || 'en-US'
-    if (f.locale !== prevLocale) {
-      dialog.info({
-        title: 'Language Changed',
-        content: 'Restart the application to apply the new language.',
-        positiveText: 'Restart Now',
-        negativeText: 'Later',
-        onPositiveClick: () => {
-          relaunch()
-        },
-      })
-    }
+    const nextConfig = transformBasicForStore(f)
+    const restartRequired = checkConfigChangeNeedsRestart(prevConfig as Record<string, unknown>, nextConfig)
 
     // Sync autostart state immediately on save
     if (f.openAtLogin !== !!prevConfig.openAtLogin) {
@@ -93,6 +83,16 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot, patchSnapshot } =
       } catch {
         notifyWarning('app.error-title-config', 'app.error-autostart-sync-failed')
       }
+    }
+
+    if (restartRequired) {
+      dialog.info({
+        title: t('preferences.restart-required'),
+        content: t('preferences.restart-required'),
+        positiveText: t('preferences.restart-now'),
+        negativeText: t('app.cancel'),
+        onPositiveClick: () => relaunch(),
+      })
     }
   },
 })
