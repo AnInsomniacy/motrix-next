@@ -55,7 +55,11 @@ export default {
   'use-native-traffic-lights': 'Use native macOS traffic lights',
   'show-progress-bar': 'Show download progress bar',
   'language': 'Language',
+  'select-language': 'Select Language',
   'change-language': 'Change language',
+  'language-changed-title': 'Language Changed',
+  'language-changed-content': 'Restart the application to apply the new language.',
+  'later': 'Later',
   'hide-app-menu': 'Hide app menu (Windows & Linux only)',
   'proxy': 'Proxy',
   'enable-proxy': 'Enable proxy',
@@ -136,4 +140,5 @@ export default {
   'restore-defaults-confirm': 'All settings will be reset to factory defaults. This cannot be undone.',
   'restore-defaults-success': 'Defaults restored',
   'restart-required': 'Restart required to apply all changes',
+  'persistence-failed': 'Preference persistence failed',
 }

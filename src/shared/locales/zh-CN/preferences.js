@@ -55,7 +55,11 @@ export default {
   'use-native-traffic-lights': '使用 macOS 原生红绿灯按钮',
   'show-progress-bar': '显示下载进度条',
   'language': '语言',
+  'select-language': '选择语言',
   'change-language': '切换语言',
+  'language-changed-title': '语言已更改',
+  'language-changed-content': '重启应用以应用新语言。',
+  'later': '稍后',
   'hide-app-menu': '隐藏菜单栏（仅 Windows 和 Linux）',
   'proxy': '代理',
   'enable-proxy': '启用代理',
@@ -136,4 +140,5 @@ export default {
   'restore-defaults-confirm': '所有设置将恢复为出厂默认值，此操作不可撤销。',
   'restore-defaults-success': '已恢复默认设置',
   'restart-required': '需要重新启动以应用所有更改',
+  'persistence-failed': '偏好设置保存失败',
 }

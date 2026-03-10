@@ -77,6 +77,18 @@ describe('buildBasicForm', () => {
     expect(form.theme).toBe('auto')
   })
 
+  it('reads useNativeTrafficLights=true from config', () => {
+    const form = buildBasicForm({
+      useNativeTrafficLights: true,
+    } as unknown as AppConfig)
+    expect(form.useNativeTrafficLights).toBe(true)
+  })
+
+  it('defaults useNativeTrafficLights to false for empty config', () => {
+    const form = buildBasicForm(emptyConfig)
+    expect(form.useNativeTrafficLights).toBe(false)
+  })
+
   it('formats speed limits as strings', () => {
     const form = buildBasicForm({
       maxOverallDownloadLimit: 1024,
