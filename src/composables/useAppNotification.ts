@@ -14,7 +14,7 @@ const MAX_ERROR_NOTIFICATIONS = 3
 const activeErrors = new Map<string, { destroy: () => void; createdAt: number }>()
 
 function evictOldest() {
-  if (activeErrors.size <= MAX_ERROR_NOTIFICATIONS) return
+  if (activeErrors.size < MAX_ERROR_NOTIFICATIONS) return
   let oldestKey = ''
   let oldestTime = Infinity
   for (const [key, entry] of activeErrors) {
@@ -46,11 +46,10 @@ export function useAppNotification() {
   }
 
   /**
-   * Show an error notification with structured title and description.
-   * Deduplicates by error key to prevent notification spam.
+   * Internal helper that handles dedup, eviction, and notification creation
+   * for a pre-normalized error. Both notifyError and notifyTaskError delegate here.
    */
-  function notifyError(error: unknown, contextHint?: ErrorCategory) {
-    const normalized = normalizeError(error, contextHint)
+  function showErrorNotification(normalized: NormalizedError) {
     const key = errorDedupeKey(normalized)
 
     logger.error(`[${normalized.category}]`, normalized.rawMessage)
@@ -60,7 +59,9 @@ export function useAppNotification() {
 
     evictOldest()
 
-    const title = te(normalized.titleKey) ? t(normalized.titleKey) : t('app.error-title-generic')
+    // Use t() directly — vue-i18n falls back to the fallback locale (en-US)
+    // so non-translated locales still get category-specific English titles.
+    const title = t(normalized.titleKey)
     const description = resolveDescription(normalized)
 
     const inst = notification.error({
@@ -82,36 +83,18 @@ export function useAppNotification() {
   }
 
   /**
+   * Show an error notification with structured title and description.
+   * Deduplicates by error key to prevent notification spam.
+   */
+  function notifyError(error: unknown, contextHint?: ErrorCategory) {
+    showErrorNotification(normalizeError(error, contextHint))
+  }
+
+  /**
    * Show an error notification for an aria2 task error with errorCode-based mapping.
    */
   function notifyTaskError(errorCode: string | undefined, errorMessage: string | undefined, taskName?: string) {
-    const normalized = normalizeTaskError(errorCode, errorMessage, taskName)
-    const key = errorDedupeKey(normalized)
-
-    logger.error(`[task]`, normalized.rawMessage)
-
-    if (activeErrors.has(key)) return
-    evictOldest()
-
-    const title = te(normalized.titleKey) ? t(normalized.titleKey) : t('app.error-title-generic')
-    const description = resolveDescription(normalized)
-
-    const inst = notification.error({
-      title,
-      content: description,
-      closable: true,
-      duration: 15_000,
-      keepAliveOnHover: true,
-      onClose: () => {
-        activeErrors.delete(key)
-        return true
-      },
-      onAfterLeave: () => {
-        activeErrors.delete(key)
-      },
-    })
-
-    activeErrors.set(key, { destroy: inst.destroy, createdAt: Date.now() })
+    showErrorNotification(normalizeTaskError(errorCode, errorMessage, taskName))
   }
 
   /**
