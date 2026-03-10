@@ -262,8 +262,8 @@ onMounted(async () => {
 <template>
   <div class="preference-form-wrapper">
     <NForm label-placement="left" label-align="left" label-width="240px" size="small" class="form-preference">
-      <NDivider title-placement="left">Language</NDivider>
-      <NFormItem label="Select Language">
+      <NDivider title-placement="left">{{ t('preferences.language') }}</NDivider>
+      <NFormItem :label="t('preferences.language')">
         <NSelect v-model:value="form.locale" :options="localeOptions" style="width: 200px" />
       </NFormItem>
 
