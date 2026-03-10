@@ -386,7 +386,7 @@ describe('handleSubmit error notifications', () => {
     await result.handleSubmit()
 
     expect(mockNotificationError).toHaveBeenCalledOnce()
-    const opts = mockNotificationError.mock.calls[0][0] as Record<string, unknown>
+    const opts = (mockNotificationError.mock.calls[0] as unknown as [Record<string, unknown>])[0]
     // Should show engine error title (falls back to generic since te() returns false in mock)
     expect(opts.title).toBeDefined()
     unmount()

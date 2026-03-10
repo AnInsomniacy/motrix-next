@@ -265,7 +265,7 @@ describe('usePreferenceForm', () => {
     await handleSave().catch(() => {})
 
     expect(mockNotificationError).toHaveBeenCalled()
-    const opts = mockNotificationError.mock.calls[0][0] as Record<string, unknown>
+    const opts = (mockNotificationError.mock.calls[0] as unknown as [Record<string, unknown>])[0]
     expect(opts.content).toContain('Preference persistence failed')
 
     unmount()
