@@ -268,11 +268,11 @@ describe('useAppNotification', () => {
   // ── evictOldest ──────────────────────────────────────────────────
 
   describe('evictOldest', () => {
-    // evictOldest checks `activeErrors.size <= MAX_ERROR_NOTIFICATIONS (3)`.
+    // evictOldest checks `activeErrors.size < MAX_ERROR_NOTIFICATIONS (3)`.
     // It's called BEFORE adding the new entry, so eviction triggers when
-    // there are already 4 entries (on the 5th notifyError call).
+    // there are already 3 entries (on the 4th notifyError call).
 
-    it('does not evict when <=4 active errors (threshold not exceeded)', async () => {
+    it('does not evict when <=3 active errors (at capacity)', async () => {
       const useAppNotification = await freshModule()
       const { notifyError } = useAppNotification()
 
@@ -282,14 +282,12 @@ describe('useAppNotification', () => {
       notifyError('error two')
       vi.setSystemTime(3000)
       notifyError('error three')
-      vi.setSystemTime(4000)
-      notifyError('error four')
 
-      expect(mockNotificationApi.error).toHaveBeenCalledTimes(4)
+      expect(mockNotificationApi.error).toHaveBeenCalledTimes(3)
       expect(destroyFn).not.toHaveBeenCalled()
     })
 
-    it('destroys oldest when 5th error is added (exceeds MAX_ERROR_NOTIFICATIONS)', async () => {
+    it('destroys oldest when 4th error is added (exceeds MAX_ERROR_NOTIFICATIONS)', async () => {
       const useAppNotification = await freshModule()
       const { notifyError } = useAppNotification()
 
@@ -301,10 +299,8 @@ describe('useAppNotification', () => {
       notifyError('error gamma')
       vi.setSystemTime(4000)
       notifyError('error delta')
-      vi.setSystemTime(5000)
-      notifyError('error epsilon')
 
-      expect(mockNotificationApi.error).toHaveBeenCalledTimes(5)
+      expect(mockNotificationApi.error).toHaveBeenCalledTimes(4)
       // The oldest (error alpha, createdAt=1000) should have been evicted
       expect(destroyFn).toHaveBeenCalledTimes(1)
     })

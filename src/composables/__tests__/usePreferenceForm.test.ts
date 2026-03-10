@@ -235,14 +235,15 @@ describe('usePreferenceForm', () => {
     unmount()
   })
 
-  it('throws when store persistence fails', async () => {
+  it('notifies and returns when store persistence fails', async () => {
     const store = usePreferenceStore()
     store.updateAndSave = vi.fn().mockResolvedValue(false)
 
     const { result, unmount } = withSetup(() => usePreferenceForm(makeOptions()))
     const { handleSave } = result
 
-    await expect(handleSave()).rejects.toThrow('Preference persistence failed')
+    // Should resolve without throwing (notification already informs user)
+    await expect(handleSave()).resolves.toBeUndefined()
 
     unmount()
   })

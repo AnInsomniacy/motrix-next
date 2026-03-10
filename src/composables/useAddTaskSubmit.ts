@@ -172,7 +172,7 @@ export function useAddTaskSubmit({ form, onClose }: UseAddTaskSubmitOptions) {
         onClose()
         if (preferenceStore.config.newTaskShowDownloading !== false) {
           router.push({ path: '/task/active' }).catch((e) => {
-            logger.debug('AddTask.submit', 'navigation to /task/active failed', e)
+            logger.debug('AddTask.navigation', e)
           })
         }
       }
