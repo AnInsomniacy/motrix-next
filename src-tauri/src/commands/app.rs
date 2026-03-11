@@ -236,6 +236,11 @@ pub fn update_dock_badge(app: AppHandle, label: String) -> Result<(), AppError> 
 /// Toggles the macOS Dock icon visibility at runtime.
 /// `Accessory` hides the icon (menu-bar-only mode); `Regular` restores it.
 /// No-op on non-macOS platforms.
+///
+/// When hiding, forces macOS to process the policy change by calling
+/// `NSApp.hide()`. Without this, `setActivationPolicy(.accessory)` alone
+/// does not reliably remove the dock icon after the app has been presented
+/// as a Regular app.
 #[tauri::command]
 pub fn set_dock_visible(app: AppHandle, visible: bool) -> Result<(), AppError> {
     #[cfg(target_os = "macos")]
@@ -246,6 +251,18 @@ pub fn set_dock_visible(app: AppHandle, visible: bool) -> Result<(), AppError> {
         } else {
             ActivationPolicy::Accessory
         });
+        // Force macOS to update the dock by deactivating the app.
+        // set_activation_policy alone doesn't remove the dock icon
+        // after the app has already been presented as Regular.
+        if !visible {
+            unsafe {
+                use objc2::MainThreadMarker;
+                use objc2_app_kit::NSApplication;
+                let mtm = MainThreadMarker::new_unchecked();
+                let ns_app = NSApplication::sharedApplication(mtm);
+                ns_app.hide(None);
+            }
+        }
     }
     let _ = (app, visible);
     Ok(())

@@ -121,6 +121,10 @@ async function onExitDialogAfterLeave() {
     pendingTrayHide.value = false
     const appWindow = getCurrentWindow()
     await appWindow.hide()
+    if (preferenceStore.config.hideDockOnMinimize) {
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('set_dock_visible', { visible: false })
+    }
   }
 }
 
@@ -295,6 +299,10 @@ onMounted(async () => {
     // GNOME Activities overview ×, and WM-level close signals on Wayland.
     if (preferenceStore.config.minimizeToTrayOnClose) {
       await appWindow.hide()
+      if (preferenceStore.config.hideDockOnMinimize) {
+        const { invoke } = await import('@tauri-apps/api/core')
+        await invoke('set_dock_visible', { visible: false })
+      }
       return
     }
 

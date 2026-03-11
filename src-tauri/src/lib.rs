@@ -253,6 +253,15 @@ pub fn run() {
                         if hide_dock {
                             use tauri::ActivationPolicy;
                             let _ = app.set_activation_policy(ActivationPolicy::Accessory);
+                            // Force macOS to process the policy change.
+                            // Without this, the dock icon remains after
+                            // the app was already shown as Regular.
+                            unsafe {
+                                use objc2::MainThreadMarker;
+                                use objc2_app_kit::NSApplication;
+                                let mtm = MainThreadMarker::new_unchecked();
+                                NSApplication::sharedApplication(mtm).hide(None);
+                            }
                         }
                     }
                 }

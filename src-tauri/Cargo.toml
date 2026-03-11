@@ -36,3 +36,7 @@ url = "2.5.8"
 tauri-plugin-window-state = "2.4.1"
 igd-next = { version = "0.15", features = ["aio_tokio"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSRunningApplication"] }
+objc2 = "0.6"

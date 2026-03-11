@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /** @fileoverview Custom window control buttons (minimize, maximize, close). */
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { invoke } from '@tauri-apps/api/core'
 import { NIcon } from 'naive-ui'
 import { RemoveOutline, CopyOutline, CloseOutline } from '@vicons/ionicons5'
 import { usePreferenceStore } from '@/stores/preference'
@@ -16,9 +17,12 @@ function toggleMaximize() {
   appWindow.toggleMaximize()
 }
 
-function close() {
+async function close() {
   if (preferenceStore.config.minimizeToTrayOnClose) {
-    appWindow.hide()
+    await appWindow.hide()
+    if (preferenceStore.config.hideDockOnMinimize) {
+      await invoke('set_dock_visible', { visible: false })
+    }
   } else {
     appWindow.close()
   }
