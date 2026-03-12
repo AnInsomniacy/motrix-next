@@ -110,7 +110,9 @@ fn show_tray_popup(app: &AppHandle, cursor: PhysicalPosition<f64>) {
 
 pub fn setup_tray(app: &AppHandle) -> Result<TrayMenuState, Box<dyn std::error::Error>> {
     // Create MenuItem references for TrayMenuState (used by update_tray_menu_labels).
-    // These are NOT attached to a native OS menu — all platforms use the custom popup.
+    // On macOS/Windows these are NOT attached to a native OS menu — those platforms
+    // use the custom Vue popup.  On Linux they are cloned into a native Menu because
+    // libappindicator requires a menu for the tray icon to be visible.
     let show_item = MenuItem::with_id(app, "show", "Show Motrix Next", true, None::<&str>)?;
     let new_task_item = MenuItem::with_id(app, "tray-new-task", "New Task", true, None::<&str>)?;
     let resume_all_item =
@@ -118,12 +120,34 @@ pub fn setup_tray(app: &AppHandle) -> Result<TrayMenuState, Box<dyn std::error::
     let pause_all_item = MenuItem::with_id(app, "tray-pause-all", "Pause All", true, None::<&str>)?;
     let quit_item = MenuItem::with_id(app, "tray-quit", "Quit", true, None::<&str>)?;
 
+    // Clone items before moving into the HashMap — Linux needs the originals
+    // for the native menu, while the HashMap is used for dynamic label updates.
     let mut items_map: HashMap<String, MenuItem<tauri::Wry>> = HashMap::new();
-    items_map.insert("show".to_string(), show_item);
-    items_map.insert("tray-new-task".to_string(), new_task_item);
-    items_map.insert("tray-resume-all".to_string(), resume_all_item);
-    items_map.insert("tray-pause-all".to_string(), pause_all_item);
-    items_map.insert("tray-quit".to_string(), quit_item);
+    items_map.insert("show".to_string(), show_item.clone());
+    items_map.insert("tray-new-task".to_string(), new_task_item.clone());
+    items_map.insert("tray-resume-all".to_string(), resume_all_item.clone());
+    items_map.insert("tray-pause-all".to_string(), pause_all_item.clone());
+    items_map.insert("tray-quit".to_string(), quit_item.clone());
+
+    // Linux: build a native OS menu from the same items.
+    // libappindicator requires a menu attached to the tray icon for it to be
+    // visible in GNOME and other desktop environments.
+    #[cfg(target_os = "linux")]
+    let linux_menu = {
+        use tauri::menu::{Menu, PredefinedMenuItem};
+        Menu::with_items(
+            app,
+            &[
+                &show_item,
+                &PredefinedMenuItem::separator(app)?,
+                &new_task_item,
+                &resume_all_item,
+                &pause_all_item,
+                &PredefinedMenuItem::separator(app)?,
+                &quit_item,
+            ],
+        )?
+    };
 
     // Popup is created lazily on click via ensure_tray_popup / show_tray_popup.
     // No eager creation at startup — prevents blocking the main window.
@@ -166,6 +190,29 @@ pub fn setup_tray(app: &AppHandle) -> Result<TrayMenuState, Box<dyn std::error::
                 _ => {}
             }
         });
+
+    // Linux: attach native menu and its event handler.
+    #[cfg(target_os = "linux")]
+    let builder = builder.menu(&linux_menu).on_menu_event(|app, event| {
+        match event.id.as_ref() {
+            "show" => {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+            "tray-new-task" | "tray-resume-all" | "tray-pause-all" => {
+                // Emit to frontend — MainLayout.vue handles these via
+                // the existing tray-menu-action listener.
+                let action = event.id.as_ref().strip_prefix("tray-").unwrap_or(event.id.as_ref());
+                let _ = app.emit("tray-menu-action", action);
+            }
+            "tray-quit" => {
+                app.exit(0);
+            }
+            _ => {}
+        }
+    });
 
     let _tray = builder.build(app)?;
 

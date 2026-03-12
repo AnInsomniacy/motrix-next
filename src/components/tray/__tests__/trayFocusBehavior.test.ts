@@ -66,10 +66,16 @@ describe('tray.rs — cursor-based custom tray menu', () => {
     })
   })
 
-  describe('no native menu on any platform', () => {
-    it('does NOT attach builder.menu() on any platform', () => {
-      expect(traySource).not.toContain('builder.menu(')
-      expect(traySource).not.toContain('builder = builder.menu(')
+  describe('native menu: macOS/Windows skip, Linux required', () => {
+    it('attaches .menu() only under cfg(target_os = "linux")', () => {
+      // Linux: libappindicator requires a native menu for the tray icon to show.
+      // macOS/Windows: use custom Vue popup instead.
+      expect(traySource).toContain('.menu(')
+      // The .menu() call must be inside a #[cfg(target_os = "linux")] block
+      const menuIdx = traySource.indexOf('.menu(')
+      expect(menuIdx).toBeGreaterThanOrEqual(0)
+      const preceding = traySource.slice(Math.max(0, menuIdx - 500), menuIdx)
+      expect(preceding).toContain('#[cfg(target_os = "linux")]')
     })
   })
 
@@ -200,6 +206,51 @@ describe('tray.rs — Linux isolation (cfg gates)', () => {
       // Must NOT be gated — left-click → show main window works everywhere
       expect(preceding).not.toContain('#[cfg(not(target_os = "linux"))]')
     })
+  })
+})
+
+// ─── Test Group 2c: Linux native tray menu (libappindicator requirement) ──
+
+describe('tray.rs — Linux native tray menu (libappindicator)', () => {
+  let traySource: string
+
+  beforeAll(() => {
+    traySource = fs.readFileSync(path.join(TAURI_ROOT, 'src', 'tray.rs'), 'utf-8')
+  })
+
+  it('builds a Menu from existing MenuItems under cfg(target_os = "linux")', () => {
+    // libappindicator requires a native OS menu for the icon to be visible.
+    // The menu must be constructed with Menu::with_items using the same
+    // MenuItem instances (show, new-task, resume-all, pause-all, quit).
+    expect(traySource).toContain('Menu::with_items')
+    const menuBuildIdx = traySource.indexOf('Menu::with_items')
+    const preceding = traySource.slice(Math.max(0, menuBuildIdx - 500), menuBuildIdx)
+    expect(preceding).toContain('#[cfg(target_os = "linux")]')
+  })
+
+  it('adds .on_menu_event() handler under cfg(target_os = "linux")', () => {
+    // Native menu items need a click handler to emit actions
+    expect(traySource).toContain('.on_menu_event(')
+    const eventIdx = traySource.indexOf('.on_menu_event(')
+    const preceding = traySource.slice(Math.max(0, eventIdx - 500), eventIdx)
+    expect(preceding).toContain('#[cfg(target_os = "linux")]')
+  })
+
+  it('clones MenuItems so they can be used in both Menu and TrayMenuState', () => {
+    // MenuItem must be cloned: one copy goes into Menu::with_items,
+    // the other into the HashMap for dynamic label updates.
+    expect(traySource).toContain('.clone()')
+  })
+
+  it('includes separators in the native menu (PredefinedMenuItem::separator)', () => {
+    expect(traySource).toContain('PredefinedMenuItem::separator')
+  })
+
+  it('handles quit action in on_menu_event (exits the app)', () => {
+    // The native menu quit handler must call app.exit or equivalent
+    const menuEventBlock = extractMenuEventBlock(traySource)
+    expect(menuEventBlock).toBeTruthy()
+    expect(menuEventBlock).toContain('tray-quit')
   })
 })
 
@@ -438,4 +489,23 @@ function extractCaseBlock(source: string, caseValue: string): string | null {
     end = afterCase.length
   }
   return afterCase.slice(0, end)
+}
+
+/** Extract .on_menu_event() handler block from Rust source */
+function extractMenuEventBlock(source: string): string | null {
+  const idx = source.indexOf('.on_menu_event(')
+  if (idx === -1) return null
+  const braceStart = source.indexOf('{', idx)
+  if (braceStart === -1) return null
+  let depth = 0
+  let end = braceStart
+  for (let i = braceStart; i < source.length; i++) {
+    if (source[i] === '{') depth++
+    if (source[i] === '}') depth--
+    if (depth === 0) {
+      end = i
+      break
+    }
+  }
+  return source.slice(braceStart, end + 1)
 }
