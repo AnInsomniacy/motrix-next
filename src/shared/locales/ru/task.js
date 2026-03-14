@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'Раздача',
   'no-paused-tasks': 'Нет приостановленных задач',
   'no-active-tasks': 'Нет активных задач',
+  'failed': 'задач(а/и) не удалось добавить',
+  'file-load-failed': 'Не удалось загрузить файл',
 }

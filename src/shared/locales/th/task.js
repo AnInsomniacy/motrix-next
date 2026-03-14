@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'กำลังแชร์',
   'no-paused-tasks': 'ไม่มีงานที่หยุดชั่วคราว',
   'no-active-tasks': 'ไม่มีงานที่กำลังดำเนินการ',
+  'failed': 'งานไม่สามารถเพิ่มได้',
+  'file-load-failed': 'โหลดไฟล์ล้มเหลว',
 }

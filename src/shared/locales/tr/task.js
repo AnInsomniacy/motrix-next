@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'Paylaşılıyor',
   'no-paused-tasks': 'Duraklatılmış görev yok',
   'no-active-tasks': 'Aktif görev yok',
+  'failed': 'görev(ler) eklenemedi',
+  'file-load-failed': 'Dosya yüklenemedi',
 }

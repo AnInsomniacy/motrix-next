@@ -192,4 +192,6 @@ export default {
   'status-seeding': '시딩 중',
   'no-paused-tasks': '일시정지된 작업이 없습니다',
   'no-active-tasks': '진행 중인 작업이 없습니다',
+  'failed': '개 작업을 추가할 수 없습니다',
+  'file-load-failed': '파일 로드 실패',
 }

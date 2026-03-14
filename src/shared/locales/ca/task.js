@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'Compartint',
   'no-paused-tasks': 'No hi ha tasques en pausa',
   'no-active-tasks': 'No hi ha tasques actives',
+  'failed': 'tasques no afegides',
+  'file-load-failed': 'Error en carregar el fitxer',
 }

@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'Udostępnianie',
   'no-paused-tasks': 'Brak wstrzymanych zadań',
   'no-active-tasks': 'Brak aktywnych zadań',
+  'failed': 'zadanie(-nia) nie mogło(-gły) zostać dodane',
+  'file-load-failed': 'Nie udało się załadować pliku',
 }

@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'シード中',
   'no-paused-tasks': '一時停止中のタスクはありません',
   'no-active-tasks': '進行中のタスクはありません',
+  'failed': '件のタスクを追加できませんでした',
+  'file-load-failed': 'ファイルの読み込みに失敗しました',
 }

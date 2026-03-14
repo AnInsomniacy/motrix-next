@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'Berbagi',
   'no-paused-tasks': 'Tidak ada tugas yang dijeda',
   'no-active-tasks': 'Tidak ada tugas aktif',
+  'failed': 'tugas tidak dapat ditambahkan',
+  'file-load-failed': 'Gagal memuat file',
 }

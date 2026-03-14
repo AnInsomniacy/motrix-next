@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'Deling',
   'no-paused-tasks': 'Ingen oppgaver på pause',
   'no-active-tasks': 'Ingen aktive oppgaver',
+  'failed': 'oppgave(r) kunne ikke legges til',
+  'file-load-failed': 'Filen kunne ikke lastes',
 }

@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'Đang chia sẻ',
   'no-paused-tasks': 'Không có tác vụ tạm dừng',
   'no-active-tasks': 'Không có tác vụ đang hoạt động',
+  'failed': 'tác vụ không thể thêm được',
+  'file-load-failed': 'Tải tệp thất bại',
 }

@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'مشاركة',
   'no-paused-tasks': 'لا توجد مهام متوقفة مؤقتاً',
   'no-active-tasks': 'لا توجد مهام نشطة',
+  'failed': 'مهمة (مهام) لم يتم إضافتها',
+  'file-load-failed': 'فشل تحميل الملف',
 }

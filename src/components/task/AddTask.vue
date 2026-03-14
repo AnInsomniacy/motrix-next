@@ -253,7 +253,7 @@ async function resolveFileItem(item: BatchItem) {
   } catch (e) {
     logger.error('AddTask.resolveFileItem', e)
     item.status = 'failed'
-    item.error = e instanceof Error ? e.message : String(e)
+    item.error = t('task.file-load-failed')
   }
 }
 
@@ -501,11 +501,9 @@ function kindTagType(kind: string): 'info' | 'success' | 'warning' {
                         <NTag :type="kindTagType(item.kind)" size="small" :bordered="false">
                           {{ item.kind === 'metalink' ? 'Metalink' : 'Torrent' }}
                         </NTag>
-                        <NTag v-if="item.status === 'failed'" type="error" size="small" :bordered="false">✕</NTag>
                         <NButton quaternary size="tiny" @click.stop="removeBatchItem(item)">✕</NButton>
                       </NSpace>
                     </div>
-                    <div v-if="item.error" class="batch-item-error">{{ item.error }}</div>
                   </div>
                 </TransitionGroup>
               </div>
@@ -662,10 +660,5 @@ function kindTagType(kind: string): 'info' | 'success' | 'warning' {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-}
-.batch-item-error {
-  color: var(--n-text-color-error, #e88080);
-  font-size: 12px;
-  margin-top: 4px;
 }
 </style>

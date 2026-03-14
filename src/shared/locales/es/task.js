@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'Compartiendo',
   'no-paused-tasks': 'No hay tareas en pausa',
   'no-active-tasks': 'No hay tareas activas',
+  'failed': 'tarea(s) no se pudo/pudieron agregar',
+  'file-load-failed': 'Error al cargar el archivo',
 }

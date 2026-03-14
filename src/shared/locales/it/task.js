@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'In condivisione',
   'no-paused-tasks': 'Nessun download in pausa',
   'no-active-tasks': 'Nessun download attivo',
+  'failed': 'attività non aggiunta/e',
+  'file-load-failed': 'Caricamento file non riuscito',
 }

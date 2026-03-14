@@ -106,6 +106,7 @@ export async function submitBatchItems(
     } catch (e) {
       item.status = 'failed'
       item.error = e instanceof Error ? e.message : String(e)
+      logger.error('submitBatchItems', e)
       failures++
     }
   }

@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'Megosztás',
   'no-paused-tasks': 'Nincsenek szüneteltetett feladatok',
   'no-active-tasks': 'Nincsenek aktív feladatok',
+  'failed': 'feladat(ok) nem sikerült hozzáadni',
+  'file-load-failed': 'A fájl betöltése sikertelen',
 }

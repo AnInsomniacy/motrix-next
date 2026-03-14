@@ -192,4 +192,6 @@ export default {
   'status-seeding': '做種中',
   'no-paused-tasks': '沒有暫停中的任務',
   'no-active-tasks': '沒有進行中的任務',
+  'failed': '個任務無法新增',
+  'file-load-failed': '檔案載入失敗',
 }

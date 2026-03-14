@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'Partajare',
   'no-paused-tasks': 'Nu există sarcini în pauză',
   'no-active-tasks': 'Nu există sarcini active',
+  'failed': 'sarcină(-ini) nu a/au putut fi adăugată(-e)',
+  'file-load-failed': 'Încărcarea fișierului a eșuat',
 }

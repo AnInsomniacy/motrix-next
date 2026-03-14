@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'Seeden',
   'no-paused-tasks': 'Geen gepauzeerde taken',
   'no-active-tasks': 'Geen actieve taken',
+  'failed': 'taak/taken kon(den) niet worden toegevoegd',
+  'file-load-failed': 'Bestand laden mislukt',
 }

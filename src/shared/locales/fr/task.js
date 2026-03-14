@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'Partage',
   'no-paused-tasks': 'Aucune tâche en pause',
   'no-active-tasks': 'Aucune tâche active',
+  'failed': 'tâche(s) impossible(s) à ajouter',
+  'file-load-failed': 'Échec du chargement du fichier',
 }

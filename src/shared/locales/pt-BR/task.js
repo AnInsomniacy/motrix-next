@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'Semeando',
   'no-paused-tasks': 'Nenhuma tarefa pausada',
   'no-active-tasks': 'Nenhuma tarefa ativa',
+  'failed': 'tarefa(s) não pôde(puderam) ser adicionada(s)',
+  'file-load-failed': 'Falha ao carregar o arquivo',
 }

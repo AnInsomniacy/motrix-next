@@ -192,4 +192,6 @@ export default {
   'status-seeding': 'اشتراک‌گذاری',
   'no-paused-tasks': 'هیچ وظیفه متوقفی وجود ندارد',
   'no-active-tasks': 'هیچ وظیفه فعالی وجود ندارد',
+  'failed': 'وظیفه(ها) اضافه نشد',
+  'file-load-failed': 'بارگذاری فایل ناموفق بود',
 }
