@@ -192,7 +192,7 @@ See [AGENTS.md](AGENTS.md) for detailed version management, release workflow, an
 
 My supervisor doesn't know about this side project — [see what I'm supposed to be doing](https://github.com/AnInsomniacy).
 
-[Buy me a coffee ☕](https://github.com/AnInsomniacy/AnInsomniacy/blob/main/SPONSOR.md) and maybe I'll finally afford that certificate!
+[Buy me a coffee ☕](https://github.com/AnInsomniacy/AnInsomniacy/blob/main/SPONSOR.md) and maybe I'll finally afford that Apple certificate!
 
 ## Contributing
 

@@ -65,11 +65,12 @@ describe('graceful engine shutdown before relaunch()', () => {
       expect(relaunchIdx).toBeGreaterThan(applyIdx)
     })
 
-    it('enforces a minimum animation duration before relaunch', () => {
+    it('calls apply_update directly without artificial delay', () => {
       const fn = extractFunction(updateDialogSrc, 'handleInstallAndRelaunch')
       expect(fn).toBeTruthy()
-      // Must contain a delay/timer mechanism (Promise, setTimeout, or MIN_)
-      expect(fn!.includes('Promise') || fn!.includes('setTimeout') || fn!.includes('MIN_')).toBe(true)
+      // No artificial timer — apply_update is awaited directly
+      expect(fn!.includes('await invoke')).toBe(true)
+      expect(fn!.includes('MIN_')).toBe(false)
     })
   })
 
