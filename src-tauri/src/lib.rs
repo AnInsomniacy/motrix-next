@@ -89,11 +89,31 @@ pub fn run() {
     }
 
     builder = builder.plugin(tauri_plugin_deep_link::init());
-    builder = builder.plugin(
+    // Window-state plugin: saves/restores window position and size.
+    //
+    // macOS: Exclude StateFlags::MAXIMIZED to avoid a known bug in tao
+    // where isMaximized() triggers a new resize event, creating an
+    // infinite loop (tauri-apps/tauri#5812).  The frontend also skips
+    // isMaximized() tracking on macOS (see MainLayout.vue).
+    builder = builder.plugin({
+        use tauri_plugin_window_state::StateFlags;
+
+        let flags = {
+            #[cfg(target_os = "macos")]
+            {
+                StateFlags::all() & !StateFlags::MAXIMIZED
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                StateFlags::all()
+            }
+        };
+
         tauri_plugin_window_state::Builder::new()
             .skip_initial_state("main")
-            .build(),
-    );
+            .with_state_flags(flags)
+            .build()
+    });
 
     builder
         .manage(EngineState::new())
@@ -181,7 +201,18 @@ pub fn run() {
 
                 if keep_state {
                     if let Some(w) = app.get_webview_window("main") {
-                        let _ = w.restore_state(StateFlags::all());
+                        // Exclude MAXIMIZED on macOS — same tao bug as above.
+                        let flags = {
+                            #[cfg(target_os = "macos")]
+                            {
+                                StateFlags::all() & !StateFlags::MAXIMIZED
+                            }
+                            #[cfg(not(target_os = "macos"))]
+                            {
+                                StateFlags::all()
+                            }
+                        };
+                        let _ = w.restore_state(flags);
                     }
                 }
             }

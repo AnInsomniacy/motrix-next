@@ -50,9 +50,11 @@ import {
   dateNbNO,
 } from 'naive-ui'
 import { useTheme } from './composables/useTheme'
+import { useVisibilityPause } from './composables/useVisibilityPause'
 
 const { locale: currentLocale } = useI18n()
 const { isDark } = useTheme()
+useVisibilityPause()
 
 const theme = computed(() => (isDark.value ? darkTheme : null))
 

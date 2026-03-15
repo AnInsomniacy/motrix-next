@@ -583,6 +583,8 @@ function handleClose() {
   border-top-color: currentColor;
   border-radius: 50%;
   animation: m3-spin 0.8s linear infinite;
+  will-change: transform;
+  contain: layout style paint;
 }
 
 @keyframes m3-spin {

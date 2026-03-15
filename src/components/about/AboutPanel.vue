@@ -491,6 +491,8 @@ function openUrl(url: string) {
 .spinner {
   animation: spin 0.8s linear infinite;
   flex-shrink: 0;
+  will-change: transform;
+  contain: layout style paint;
 }
 .version-loading {
   display: flex;

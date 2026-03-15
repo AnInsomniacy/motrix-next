@@ -10,7 +10,8 @@ import { TASK_STATUS } from '@shared/constants'
 import { checkTaskIsSeeder } from '@shared/utils/task'
 import { deleteTaskFiles } from '@/composables/useFileDelete'
 import { logger } from '@shared/logger'
-import { NButton, NIcon, NTooltip, NCheckbox, useDialog } from 'naive-ui'
+import { NButton, NIcon, NCheckbox, useDialog } from 'naive-ui'
+import MTooltip from '@/components/common/MTooltip.vue'
 import { useAppMessage } from '@/composables/useAppMessage'
 import {
   AddOutline,
@@ -279,7 +280,7 @@ function onBtnRelease(ev: PointerEvent) {
 
 <template>
   <div class="task-actions">
-    <NTooltip>
+    <MTooltip>
       <template #trigger>
         <NButton
           type="primary"
@@ -296,8 +297,8 @@ function onBtnRelease(ev: PointerEvent) {
         </NButton>
       </template>
       {{ t('task.new-task') || 'New Task' }}
-    </NTooltip>
-    <NTooltip>
+    </MTooltip>
+    <MTooltip>
       <template #trigger>
         <NButton
           quaternary
@@ -314,8 +315,8 @@ function onBtnRelease(ev: PointerEvent) {
         </NButton>
       </template>
       {{ t('task.refresh-list') || 'Refresh' }}
-    </NTooltip>
-    <NTooltip v-if="currentList !== 'stopped'">
+    </MTooltip>
+    <MTooltip v-if="currentList !== 'stopped'">
       <template #trigger>
         <NButton
           quaternary
@@ -333,8 +334,8 @@ function onBtnRelease(ev: PointerEvent) {
         </NButton>
       </template>
       {{ t('task.resume-all-task') || 'Resume All' }}
-    </NTooltip>
-    <NTooltip v-if="currentList !== 'stopped'">
+    </MTooltip>
+    <MTooltip v-if="currentList !== 'stopped'">
       <template #trigger>
         <NButton
           quaternary
@@ -352,8 +353,8 @@ function onBtnRelease(ev: PointerEvent) {
         </NButton>
       </template>
       {{ t('task.pause-all-task') || 'Pause All' }}
-    </NTooltip>
-    <NTooltip v-if="currentList !== 'stopped'">
+    </MTooltip>
+    <MTooltip v-if="currentList !== 'stopped'">
       <template #trigger>
         <NButton
           quaternary
@@ -374,8 +375,8 @@ function onBtnRelease(ev: PointerEvent) {
         </NButton>
       </template>
       {{ t('task.stop-all-seeding') }}
-    </NTooltip>
-    <NTooltip v-if="currentList !== 'stopped'">
+    </MTooltip>
+    <MTooltip v-if="currentList !== 'stopped'">
       <template #trigger>
         <NButton
           quaternary
@@ -393,8 +394,8 @@ function onBtnRelease(ev: PointerEvent) {
         </NButton>
       </template>
       {{ t('task.delete-all-task') }}
-    </NTooltip>
-    <NTooltip v-if="currentList === 'stopped'">
+    </MTooltip>
+    <MTooltip v-if="currentList === 'stopped'">
       <template #trigger>
         <NButton
           quaternary
@@ -411,7 +412,7 @@ function onBtnRelease(ev: PointerEvent) {
         </NButton>
       </template>
       {{ t('task.purge-record') || 'Purge Records' }}
-    </NTooltip>
+    </MTooltip>
   </div>
 </template>
 
@@ -448,5 +449,7 @@ function onBtnRelease(ev: PointerEvent) {
   animation: spin 0.9s linear infinite;
   display: inline-block;
   transform-origin: center;
+  will-change: transform;
+  contain: layout style paint;
 }
 </style>

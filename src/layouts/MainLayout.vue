@@ -10,6 +10,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
 import { logger } from '@shared/logger'
+import { throttledResizeHandler, cancelPendingResize } from '@/layouts/resizeThrottle'
 import AsideBar from '@/components/layout/AsideBar.vue'
 import TaskSubnav from '@/components/layout/TaskSubnav.vue'
 import PreferenceSubnav from '@/components/layout/PreferenceSubnav.vue'
@@ -165,12 +166,22 @@ onMounted(async () => {
   // Track maximize state to remove border-radius + border when maximized.
   // On Windows, transparent + decorations:false windows leak transparent
   // pixels through CSS border-radius corners when the HWND is maximized.
+  //
+  // SKIP on macOS: isMaximized() IPC triggers a new resize event on macOS
+  // (tauri-apps/tauri#5812), creating an infinite loop that freezes the UI.
+  // With decorations:false there is no native maximize button anyway, so
+  // isMaximized is always false — no tracking needed.
   {
-    const appWindow = getCurrentWindow()
-    isMaximized.value = await appWindow.isMaximized()
-    unlistenResize = await appWindow.onResized(async () => {
+    const isMacOS = navigator.userAgent.includes('Macintosh')
+    if (!isMacOS) {
+      const appWindow = getCurrentWindow()
       isMaximized.value = await appWindow.isMaximized()
-    })
+      unlistenResize = await appWindow.onResized(() => {
+        throttledResizeHandler(async () => {
+          isMaximized.value = await appWindow.isMaximized()
+        })
+      })
+    }
   }
 
   // Show feedback when the engine finishes initializing (or re-initializing
@@ -462,6 +473,7 @@ onUnmounted(() => {
   if (unlistenSingleInstance) unlistenSingleInstance()
   if (unlistenTrayMenu) unlistenTrayMenu()
   if (unlistenResize) unlistenResize()
+  cancelPendingResize()
 })
 </script>
 
@@ -632,6 +644,8 @@ onUnmounted(() => {
   width: 30%;
   background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
   animation: init-indeterminate 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
+  contain: layout style paint;
 }
 @keyframes init-indeterminate {
   0% {

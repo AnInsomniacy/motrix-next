@@ -4,7 +4,8 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 
-import { NIcon, NTooltip } from 'naive-ui'
+import { NIcon } from 'naive-ui'
+import MTooltip from '@/components/common/MTooltip.vue'
 import { ListOutline, AddOutline, SettingsOutline, HelpCircleOutline } from '@vicons/ionicons5'
 
 const { t } = useI18n()
@@ -57,38 +58,38 @@ function showAddTask() {
       </h1>
       <ul class="menu top-menu" data-tauri-drag-region>
         <li class="non-draggable" @click="nav('/task/active')">
-          <NTooltip placement="right">
+          <MTooltip placement="right">
             <template #trigger>
               <NIcon :size="20"><ListOutline /></NIcon>
             </template>
             {{ t('app.task-list') }}
-          </NTooltip>
+          </MTooltip>
         </li>
         <li class="non-draggable" @click="showAddTask">
-          <NTooltip placement="right">
+          <MTooltip placement="right">
             <template #trigger>
               <NIcon :size="20"><AddOutline /></NIcon>
             </template>
             {{ t('app.add-task') }}
-          </NTooltip>
+          </MTooltip>
         </li>
       </ul>
       <ul class="menu bottom-menu">
         <li class="non-draggable" @click="emit('show-about')">
-          <NTooltip placement="right">
+          <MTooltip placement="right">
             <template #trigger>
               <NIcon :size="20"><HelpCircleOutline /></NIcon>
             </template>
             {{ t('app.about') }}
-          </NTooltip>
+          </MTooltip>
         </li>
         <li class="non-draggable" @click="nav('/preference/basic')">
-          <NTooltip placement="right">
+          <MTooltip placement="right">
             <template #trigger>
               <NIcon :size="20"><SettingsOutline /></NIcon>
             </template>
             {{ t('app.preferences') }}
-          </NTooltip>
+          </MTooltip>
         </li>
       </ul>
     </div>

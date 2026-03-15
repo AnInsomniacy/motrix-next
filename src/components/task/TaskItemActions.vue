@@ -3,7 +3,8 @@
 import { computed, inject, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TASK_STATUS } from '@shared/constants'
-import { NIcon, NTooltip } from 'naive-ui'
+import { NIcon } from 'naive-ui'
+import MTooltip from '@/components/common/MTooltip.vue'
 import {
   PauseOutline,
   PlayOutline,
@@ -156,7 +157,7 @@ function onRelease(ev: PointerEvent) {
       @pointerleave="onRelease"
       @click.stop="onAction(action.event)"
     >
-      <NTooltip :delay="500" :style="action.tooltip ? 'max-width: 220px' : ''">
+      <MTooltip :style="action.tooltip ? 'max-width: 220px' : ''">
         <template #trigger>
           <span v-if="action.event === 'stop-seeding'" class="stop-icon-wrapper">
             <span class="stop-icon-static" :class="{ 'fade-out': isStopping }">
@@ -176,7 +177,7 @@ function onRelease(ev: PointerEvent) {
         <template v-else>
           {{ action.tooltip || action.label }}
         </template>
-      </NTooltip>
+      </MTooltip>
     </li>
   </ul>
 </template>
@@ -269,6 +270,8 @@ function onRelease(ev: PointerEvent) {
 .stop-icon-spin.fade-in {
   opacity: 1;
   animation: spin-stop 0.9s linear infinite;
+  will-change: transform;
+  contain: layout style paint;
 }
 @keyframes spin-stop {
   from {
