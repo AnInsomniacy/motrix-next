@@ -60,11 +60,16 @@ export function resetBatchIdCounter(): void {
  * Split, trim, remove blanks, and deduplicate URI lines by first occurrence.
  * Handles multiline payloads — each line is treated as an independent URI.
  */
+const magnetHashRegex = /^[0-9a-fA-F]{40}$/
+
 export function normalizeUriLines(text: string): string[] {
   const seen = new Set<string>()
   const result: string[] = []
   for (const raw of text.split('\n')) {
-    const line = raw.trim()
+    let line = raw.trim()
+    if (magnetHashRegex.test(line)) {
+      line = `magnet:?xt=urn:btih:${line}`
+    }
     if (line && !seen.has(line)) {
       seen.add(line)
       result.push(line)

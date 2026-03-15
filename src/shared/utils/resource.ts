@@ -16,7 +16,7 @@ export const decodeThunderLink = (url = ''): string => {
 
 export const splitTaskLinks = (links = ''): string[] => {
   const temp = compact(splitTextRows(links))
-  return temp.map((item) => decodeThunderLink(item))
+  return temp.map((item: string) => decodeThunderLink(item))
 }
 
 /**
@@ -41,7 +41,8 @@ export const detectResource = (content: string): boolean => {
 
   if (lines.length === 0) return false
 
-  return lines.every((line) => RESOURCE_TAGS.some((tag) => line.startsWith(tag)))
+  const magnetHashRegex = /^[0-9a-fA-F]{40}$/
+  return lines.every((line) => RESOURCE_TAGS.some((tag) => line.startsWith(tag)) || magnetHashRegex.test(line))
 }
 
 export const needCheckCopyright = (links = ''): boolean => {

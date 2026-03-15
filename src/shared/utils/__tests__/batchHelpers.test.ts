@@ -7,11 +7,17 @@ describe('normalizeUriLines', () => {
       normalizeUriLines(`
         https://a.example/file
         magnet:?xt=urn:btih:abc
+        d8988e034cb5de79d319242e3365bf30a7741a6e
 
         https://a.example/file
         thunder://foo
       `),
-    ).toEqual(['https://a.example/file', 'magnet:?xt=urn:btih:abc', 'thunder://foo'])
+    ).toEqual([
+      'https://a.example/file',
+      'magnet:?xt=urn:btih:abc',
+      'magnet:?xt=urn:btih:d8988e034cb5de79d319242e3365bf30a7741a6e',
+      'thunder://foo',
+    ])
   })
 
   it('handles multiline payload text exactly like a textarea source', () => {
