@@ -29,7 +29,7 @@ jobs:
           - platform: windows-latest
             args: --target aarch64-pc-windows-msvc --bundles nsis
             label: windows-aarch64
-          - platform: ubuntu-latest
+          - platform: ubuntu-22.04
             args: --target x86_64-unknown-linux-gnu
             label: linux-x86_64
           - platform: ubuntu-24.04-arm
