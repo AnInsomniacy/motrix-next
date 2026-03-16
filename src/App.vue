@@ -113,7 +113,7 @@ const themeOverrides = computed<GlobalThemeOverrides>(() => {
       primaryColorHover: isDark.value ? '#f0bf48' : '#c89319',
       primaryColorPressed: isDark.value ? '#d4a530' : '#b38417',
       primaryColorSuppl: '#E0A422',
-      bodyColor: isDark.value ? '#141210' : '#fefbf6',
+      bodyColor: 'transparent',
       cardColor: isDark.value ? '#201e1b' : '#f3efe8',
       modalColor: isDark.value ? '#2b2926' : '#ede9e2',
       popoverColor: isDark.value ? '#2b2926' : '#ede9e2',
