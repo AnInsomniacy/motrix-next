@@ -33,17 +33,9 @@
 
 However, the original project has been largely inactive since 2023. The Electron + Vue 2 + Vuex + Element UI stack accumulated technical debt, making it increasingly difficult to maintain, extend, or package for modern platforms.
 
-### What we kept
-
-We owe a great deal to the original [Motrix](https://github.com/agalwood/Motrix) and its community. The following were gratefully adopted and continue to serve as the foundation for parts of Motrix Next:
-
-- **Aria2 error code system and RPC client** — the error handling conventions and JSON-RPC communication layer for the aria2 engine
-- **Internationalization** — 25+ community-contributed locale files covering Chinese, Japanese, Korean, Arabic, French, German, and many more
-- **Download utilities** — tracker list management, cURL command parsing, and other protocol-level helpers
-
 ### What we rebuilt
 
-**Motrix Next is not a fork — it is a complete rewrite.** Every other layer of the application has been redesigned and reimplemented from scratch:
+Motrix Next is a ground-up rewrite — same download manager spirit, entirely new codebase.
 
 | Layer | Motrix (Legacy) | Motrix Next |
 |-------|----------------|-------------|
@@ -57,6 +49,8 @@ We owe a great deal to the original [Motrix](https://github.com/agalwood/Motrix)
 | **Bundle Size** | ~80 MB | **~20 MB** |
 | **Auto-Update** | electron-updater | **Tauri updater plugin** |
 
+> [!IMPORTANT]
+> **6-platform aria2 engine** — the [official aria2 release](https://github.com/aria2/aria2/releases) only ships Windows 32/64-bit and Android ARM64 pre-built binaries. We [compile aria2 from source](https://github.com/AnInsomniacy/aria2-builder) as fully static binaries for all 6 targets: macOS (Apple Silicon / Intel), Windows (x64 / ARM64), and Linux (x64 / ARM64).
 
 
 ### Design & Motion
@@ -101,11 +95,10 @@ This app is not code-signed — Apple charges $99/year and I'm a PhD student sur
 >
 > This removes the quarantine flag that macOS Gatekeeper applies to unsigned apps.
 
-**Intel Mac (x86_64)** is not supported — the GitHub Actions runner fails to compile some of our dependencies for this architecture. If you're still rocking an Intel Mac, you're welcome to try building from source (see [Development](#development)) — it might just work on your machine!
 
 ### Why No Portable Version?
 
-Motrix Next relies on [aria2](https://aria2.github.io/) as a sidecar process — a separate executable that Tauri launches at runtime. This architecture means:
+Motrix Next relies on [aria2](https://aria2.github.io/) as a sidecar process — a separate executable that Tauri launches at runtime. The aria2 binaries are [compiled from source](https://github.com/AnInsomniacy/aria2-builder) as fully static builds covering all 6 supported platforms. This architecture means:
 
 - The **aria2 binary must exist alongside the main executable** — it cannot be embedded into a single `.exe`.
 - **Deep links** (`magnet://`, `thunder://`) and **file associations** (`.torrent`) require Windows registry entries that only an installer can configure.
@@ -171,7 +164,7 @@ motrix-next/
 │   │   ├── menu.rs             #   Native menu builder
 │   │   ├── tray.rs             #   System tray setup
 │   │   └── lib.rs              #   Tauri builder & plugin registration
-│   └── binaries/               # Aria2 sidecar binary
+│   └── binaries/               # Aria2 sidecar binaries (6 platforms)
 ├── scripts/                    # bump-version.sh
 ├── .github/workflows/          # CI (ci.yml) + Release (release.yml)
 └── website/                    # Landing page (static HTML)
