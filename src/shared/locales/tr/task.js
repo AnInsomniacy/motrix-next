@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'Tüm seedleme durduruldu',
   'stop-all-seeding-fail': 'Seedleme durdurulamadı',
   'stop-all-seeding-none': 'Aktif seedleme görevi yok',
+  'stop-seeding-success': 'Seedleme durduruldu',
   'download-fail-message': '{taskName} indirmesi başarısız',
   'download-fail-notify': 'İndirme başarısız',
   'status-active': 'İndiriliyor',

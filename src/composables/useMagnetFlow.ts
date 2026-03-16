@@ -48,3 +48,54 @@ export function buildSelectFileOption(indices: number[]): string {
   if (indices.length === 0) return ''
   return [...indices].sort((a, b) => a - b).join(',')
 }
+
+/**
+ * Determines whether the file selection dialog should be shown for a magnet download.
+ *
+ * When pauseMetadata=true (btAutoDownloadContent unchecked), aria2 pauses the
+ * follow-up download after metadata resolves — giving the UI a chance to show
+ * the file selection dialog.
+ *
+ * When pauseMetadata=false (btAutoDownloadContent checked), aria2 starts the
+ * follow-up download immediately — no file selection needed.
+ *
+ * Defaults to true (show dialog) when the config value is missing,
+ * aligning with the industry standard of giving users control over file selection.
+ */
+export function shouldShowFileSelection(config: { pauseMetadata?: boolean }): boolean {
+  return config.pauseMetadata !== false
+}
+
+/** Actions needed to apply file selection to a download based on its current status. */
+export interface ConfirmAction {
+  /** Whether the task must be paused first (required for active tasks). */
+  needsPause: boolean
+  /** Whether the task must be resumed after applying options. */
+  needsResume: boolean
+}
+
+/**
+ * Determines the correct pause/resume actions for applying file selection
+ * to a magnet download based on its current aria2 task status.
+ *
+ * - paused:   standard case with pause-metadata=true — just resume
+ * - active:   defensive case — must pause first, then change options, then resume
+ * - waiting:  queued task — just resume
+ * - complete/removed/error: terminal states — no action needed
+ * - undefined: safe fallback — treat as resumable
+ */
+export function buildStatusAwareConfirmAction(status: string | undefined): ConfirmAction {
+  switch (status) {
+    case 'active':
+      return { needsPause: true, needsResume: true }
+    case 'paused':
+    case 'waiting':
+    case undefined:
+      return { needsPause: false, needsResume: true }
+    case 'complete':
+    case 'removed':
+    case 'error':
+    default:
+      return { needsPause: false, needsResume: false }
+  }
+}

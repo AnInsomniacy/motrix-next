@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'Semua seeding dihentikan',
   'stop-all-seeding-fail': 'Gagal menghentikan seeding',
   'stop-all-seeding-none': 'Tidak ada tugas seeding aktif',
+  'stop-seeding-success': 'Seeding dihentikan',
   'download-fail-message': 'Unduhan {taskName} gagal',
   'download-fail-notify': 'Unduhan gagal',
   'status-active': 'Mengunduh',

@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'Minden seed leállítva',
   'stop-all-seeding-fail': 'Nem sikerült leállítani a seedeket',
   'stop-all-seeding-none': 'Nincsenek aktív seedelési feladatok',
+  'stop-seeding-success': 'Seed leállítva',
   'download-fail-message': '{taskName} letöltése sikertelen',
   'download-fail-notify': 'Letöltés sikertelen',
   'status-active': 'Letöltés',

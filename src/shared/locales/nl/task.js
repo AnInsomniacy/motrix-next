@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'Alle seeding gestopt',
   'stop-all-seeding-fail': 'Seeding stoppen mislukt',
   'stop-all-seeding-none': 'Geen actieve seeding-taken',
+  'stop-seeding-success': 'Seeding gestopt',
   'download-fail-message': 'Download van {taskName} mislukt',
   'download-fail-notify': 'Download mislukt',
   'status-active': 'Downloaden',

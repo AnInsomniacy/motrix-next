@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'Zatrzymano seedowanie',
   'stop-all-seeding-fail': 'Nie udało się zatrzymać seedowania',
   'stop-all-seeding-none': 'Brak aktywnych zadań seedowania',
+  'stop-seeding-success': 'Seedowanie zatrzymano',
   'download-fail-message': 'Pobieranie {taskName} nie powiodło się',
   'download-fail-notify': 'Pobieranie nie powiodło się',
   'status-active': 'Pobieranie',

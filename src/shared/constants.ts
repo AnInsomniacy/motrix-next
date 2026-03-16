@@ -95,7 +95,7 @@ export const DEFAULT_APP_CONFIG = {
   btForceEncryption: false, // qBT default "Allow", not "Force"; forcing reduces peers
   followTorrent: true, // aria2 default=true
   followMetalink: true, // aria2 default=true
-  pauseMetadata: false, // don't pause metadata download
+  pauseMetadata: true, // pause follow-up download after metadata — let user select files first
   continue: true, // aria2 default=true; resume incomplete downloads
 
   // ── Interface & Behavior ──────────────────────────────────────

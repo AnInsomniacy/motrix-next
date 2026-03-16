@@ -10,8 +10,14 @@ import { describe, it, expect } from 'vitest'
 import type { Aria2File } from '@shared/types'
 
 // Dynamic import after module exists
-const { isMagnetUri, buildMetadataOnlyOptions, buildSelectFileOption, parseFilesForSelection } =
-  await import('@/composables/useMagnetFlow')
+const {
+  isMagnetUri,
+  buildMetadataOnlyOptions,
+  buildSelectFileOption,
+  parseFilesForSelection,
+  shouldShowFileSelection,
+  buildStatusAwareConfirmAction,
+} = await import('@/composables/useMagnetFlow')
 
 describe('useMagnetFlow', () => {
   // ── isMagnetUri ─────────────────────────────────────────────────
@@ -122,6 +128,65 @@ describe('useMagnetFlow', () => {
 
     it('returns empty string for empty selection', () => {
       expect(buildSelectFileOption([])).toBe('')
+    })
+  })
+
+  // ── shouldShowFileSelection ───────────────────────────────────────
+
+  describe('shouldShowFileSelection', () => {
+    it('returns true when pauseMetadata is true (user wants file selection)', () => {
+      expect(shouldShowFileSelection({ pauseMetadata: true })).toBe(true)
+    })
+
+    it('returns false when pauseMetadata is false (auto-download mode)', () => {
+      expect(shouldShowFileSelection({ pauseMetadata: false })).toBe(false)
+    })
+
+    it('returns true when pauseMetadata is undefined (safe default)', () => {
+      expect(shouldShowFileSelection({ pauseMetadata: undefined })).toBe(true)
+    })
+
+    it('returns true when config object has no pauseMetadata key', () => {
+      expect(shouldShowFileSelection({})).toBe(true)
+    })
+  })
+
+  // ── buildStatusAwareConfirmAction ──────────────────────────────────
+
+  describe('buildStatusAwareConfirmAction', () => {
+    it('returns resume-only for a paused task (standard pause-metadata flow)', () => {
+      const action = buildStatusAwareConfirmAction('paused')
+      expect(action).toEqual({ needsPause: false, needsResume: true })
+    })
+
+    it('returns pause-then-resume for an active task (defensive handling)', () => {
+      const action = buildStatusAwareConfirmAction('active')
+      expect(action).toEqual({ needsPause: true, needsResume: true })
+    })
+
+    it('returns resume-only for a waiting task', () => {
+      const action = buildStatusAwareConfirmAction('waiting')
+      expect(action).toEqual({ needsPause: false, needsResume: true })
+    })
+
+    it('returns no-op for a complete task', () => {
+      const action = buildStatusAwareConfirmAction('complete')
+      expect(action).toEqual({ needsPause: false, needsResume: false })
+    })
+
+    it('returns no-op for a removed task', () => {
+      const action = buildStatusAwareConfirmAction('removed')
+      expect(action).toEqual({ needsPause: false, needsResume: false })
+    })
+
+    it('returns no-op for an error task', () => {
+      const action = buildStatusAwareConfirmAction('error')
+      expect(action).toEqual({ needsPause: false, needsResume: false })
+    })
+
+    it('returns resume-only for undefined status (safe fallback)', () => {
+      const action = buildStatusAwareConfirmAction(undefined)
+      expect(action).toEqual({ needsPause: false, needsResume: true })
     })
   })
 })

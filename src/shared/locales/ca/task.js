@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'S\u0027ha aturat tot el seedling',
   'stop-all-seeding-fail': 'Error en aturar el seedling',
   'stop-all-seeding-none': 'No hi ha tasques de seedling actives',
+  'stop-seeding-success': 'S\'ha aturat el seedling',
   'download-fail-message': 'Error en descarregar {taskName}',
   'download-fail-notify': 'Descàrrega fallida',
   'status-active': 'Descarregant',

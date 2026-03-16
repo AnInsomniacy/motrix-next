@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'Toate seed-urile oprite',
   'stop-all-seeding-fail': 'Eroare la oprirea seed-urilor',
   'stop-all-seeding-none': 'Nicio sarcină de seed activă',
+  'stop-seeding-success': 'Seed-ul oprit',
   'download-fail-message': 'Descărcarea {taskName} a eșuat',
   'download-fail-notify': 'Descărcarea a eșuat',
   'status-active': 'Se descarcă',

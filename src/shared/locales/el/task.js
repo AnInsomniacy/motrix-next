@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'Όλα τα seeds σταμάτησαν',
   'stop-all-seeding-fail': 'Αποτυχία διακοπής seeds',
   'stop-all-seeding-none': 'Δεν υπάρχουν ενεργά seeds',
+  'stop-seeding-success': 'Το seed σταμάτησε',
   'download-fail-message': 'Η λήψη του {taskName} απέτυχε',
   'download-fail-notify': 'Η λήψη απέτυχε',
   'status-active': 'Λήψη',

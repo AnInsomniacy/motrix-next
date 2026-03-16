@@ -16,6 +16,7 @@ import type {
 } from '@shared/types'
 
 import { historyRecordToTask, buildHistoryRecord } from '@/composables/useTaskLifecycle'
+import { shouldShowFileSelection } from '@/composables/useMagnetFlow'
 import { useHistoryStore } from '@/stores/history'
 
 export type { Aria2Task, Aria2File, Aria2Peer }
@@ -219,11 +220,16 @@ export const useTaskStore = defineStore('task', () => {
     })
     const gid = gids[0]
 
-    // Register this GID for the magnet metadata poller directly.
-    // We do this inside the store to avoid depending on the caller chain.
-    const { useAppStore } = await import('@/stores/app')
-    const appStore = useAppStore()
-    appStore.pendingMagnetGids = [...appStore.pendingMagnetGids, gid]
+    // Only register for file selection polling when pause-metadata is enabled.
+    // When btAutoDownloadContent=true (pauseMetadata=false), aria2 starts the
+    // follow-up download immediately — file selection is not needed.
+    const { usePreferenceStore } = await import('@/stores/preference')
+    const preferenceStore = usePreferenceStore()
+    if (shouldShowFileSelection(preferenceStore.config)) {
+      const { useAppStore } = await import('@/stores/app')
+      const appStore = useAppStore()
+      appStore.pendingMagnetGids = [...appStore.pendingMagnetGids, gid]
+    }
 
     await fetchList()
     return gid
@@ -421,11 +427,15 @@ export const useTaskStore = defineStore('task', () => {
         const newGid = await api.addUriAtomic({ uris: [uri], options })
         createdGids.push(newGid)
         // BT restarts produce magnet URIs — register with the metadata poller
-        // so file selection triggers when pauseMetadata is enabled globally.
+        // only when pause-metadata is enabled (file selection mode).
         if (isBT) {
-          const { useAppStore } = await import('@/stores/app')
-          const appStore = useAppStore()
-          appStore.pendingMagnetGids = [...appStore.pendingMagnetGids, newGid]
+          const { usePreferenceStore } = await import('@/stores/preference')
+          const preferenceStore = usePreferenceStore()
+          if (shouldShowFileSelection(preferenceStore.config)) {
+            const { useAppStore } = await import('@/stores/app')
+            const appStore = useAppStore()
+            appStore.pendingMagnetGids = [...appStore.pendingMagnetGids, newGid]
+          }
         }
       }
     } catch (e) {

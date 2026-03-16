@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'Toda la siembra detenida',
   'stop-all-seeding-fail': 'Error al detener la siembra',
   'stop-all-seeding-none': 'No hay tareas de siembra activas',
+  'stop-seeding-success': 'Siembra detenida',
   'download-fail-message': 'Error al descargar {taskName}',
   'download-fail-notify': 'Descarga fallida',
   'status-active': 'Descargando',

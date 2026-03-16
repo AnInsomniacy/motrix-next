@@ -11,7 +11,11 @@ import { revealItemInDir, openPath } from '@tauri-apps/plugin-opener'
 import { exists, stat } from '@tauri-apps/plugin-fs'
 import { isEngineReady } from '@/api/aria2'
 import { deleteTaskFiles } from '@/composables/useFileDelete'
-import { parseFilesForSelection, buildSelectFileOption } from '@/composables/useMagnetFlow'
+import {
+  parseFilesForSelection,
+  buildSelectFileOption,
+  buildStatusAwareConfirmAction,
+} from '@/composables/useMagnetFlow'
 import { buildHistoryRecord, isMetadataTask } from '@/composables/useTaskLifecycle'
 import { shouldDeleteTorrent, deleteTorrentFile } from '@/composables/useDownloadCleanup'
 import type { MagnetFileItem } from '@/composables/useMagnetFlow'
@@ -120,6 +124,12 @@ onBeforeUnmount(() => {
     clearTimeout(magnetPollTimer)
     magnetPollTimer = null
   }
+  // If file selection dialog is still open when navigating away,
+  // close it cleanly. The task stays paused — user can resume/delete
+  // it from the task list.
+  if (magnetSelectVisible.value) {
+    magnetSelectVisible.value = false
+  }
 })
 
 // ── Magnet metadata monitoring ───────────────────────────────────────
@@ -188,13 +198,17 @@ async function handleMagnetConfirm(selectedIndices: number[]) {
 
   try {
     const selectFile = buildSelectFileOption(selectedIndices)
-    await taskStore.changeTaskOption({
-      gid,
-      options: { 'select-file': selectFile },
-    })
-    // Resume the paused download with selected files
     const task = taskStore.taskList.find((t) => t.gid === gid)
-    if (task) {
+    const action = buildStatusAwareConfirmAction(task?.status)
+
+    // aria2 requires task to be paused before changing select-file on active tasks
+    if (action.needsPause && task) {
+      await taskStore.pauseTask(task)
+    }
+
+    await taskStore.changeTaskOption({ gid, options: { 'select-file': selectFile } })
+
+    if (action.needsResume && task) {
       await taskStore.resumeTask(task)
     }
     message.success(t('task.magnet-files-selected') || 'Files selected, download starting')
@@ -387,7 +401,7 @@ async function handleStopSeeding(task: Aria2Task) {
   try {
     await taskStore.stopSeeding(task)
     stoppingGids.value = stoppingGids.value.filter((g) => g !== task.gid)
-    message.success(t('task.stop-all-seeding-success'))
+    message.success(t('task.stop-seeding-success'))
     // Refresh list immediately so the task vanishes from the active tab
     await taskStore.fetchList()
   } catch (e) {

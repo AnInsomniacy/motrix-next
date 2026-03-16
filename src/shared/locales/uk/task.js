@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'Усі роздачі зупинені',
   'stop-all-seeding-fail': 'Помилка зупинки роздач',
   'stop-all-seeding-none': 'Немає активних роздач',
+  'stop-seeding-success': 'Роздачу зупинено',
   'download-fail-message': 'Завантаження {taskName} не вдалося',
   'download-fail-notify': 'Завантаження не вдалося',
   'status-active': 'Завантаження',

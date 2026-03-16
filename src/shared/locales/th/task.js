@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'หยุดการแชร์ทั้งหมดแล้ว',
   'stop-all-seeding-fail': 'ไม่สามารถหยุดการแชร์',
   'stop-all-seeding-none': 'ไม่มีการแชร์ที่ใช้งานอยู่',
+  'stop-seeding-success': 'หยุดการแชร์แล้ว',
   'download-fail-message': 'ดาวน์โหลด {taskName} ไม่สำเร็จ',
   'download-fail-notify': 'ดาวน์โหลดไม่สำเร็จ',
   'status-active': 'กำลังดาวน์โหลด',

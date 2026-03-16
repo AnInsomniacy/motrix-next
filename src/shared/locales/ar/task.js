@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'تم إيقاف جميع البذر',
   'stop-all-seeding-fail': 'فشل في إيقاف البذر',
   'stop-all-seeding-none': 'لا توجد مهام بذر نشطة',
+  'stop-seeding-success': 'تم إيقاف البذر',
   'download-fail-message': 'فشل تنزيل {taskName}',
   'download-fail-notify': 'فشل التنزيل',
   'status-active': 'جارٍ التنزيل',

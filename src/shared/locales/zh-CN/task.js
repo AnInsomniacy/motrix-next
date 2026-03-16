@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': '已停止所有做种',
   'stop-all-seeding-fail': '停止做种失败',
   'stop-all-seeding-none': '没有正在做种的任务',
+  'stop-seeding-success': '已停止做种',
   'download-fail-message': '{taskName} 下载失败',
   'download-fail-notify': '下载失败',
   'status-active': '下载中',

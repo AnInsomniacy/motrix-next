@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': '모든 시딩 중지 완료',
   'stop-all-seeding-fail': '시딩 중지 실패',
   'stop-all-seeding-none': '활성 시딩 작업 없음',
+  'stop-seeding-success': '시딩 중지 완료',
   'download-fail-message': '{taskName} 다운로드 실패',
   'download-fail-notify': '다운로드 실패',
   'status-active': '다운로드 중',

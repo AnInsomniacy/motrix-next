@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'Đã dừng tất cả seeding',
   'stop-all-seeding-fail': 'Không thể dừng seeding',
   'stop-all-seeding-none': 'Không có tác vụ seeding nào',
+  'stop-seeding-success': 'Đã dừng seeding',
   'download-fail-message': 'Tải {taskName} thất bại',
   'download-fail-notify': 'Tải xuống thất bại',
   'status-active': 'Đang tải',

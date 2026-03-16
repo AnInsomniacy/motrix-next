@@ -29,6 +29,11 @@ describe('buildBasicForm', () => {
     expect(form.continue).toBe(true)
   })
 
+  it('defaults btAutoDownloadContent to false (pause-metadata=true for file selection)', () => {
+    const form = buildBasicForm(emptyConfig)
+    expect(form.btAutoDownloadContent).toBe(false)
+  })
+
   it('uses defaultDir when config.dir is empty', () => {
     const form = buildBasicForm(emptyConfig, '~/Downloads')
     expect(form.dir).toBe('~/Downloads')

@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'همه سیدها متوقف شدند',
   'stop-all-seeding-fail': 'خطا در توقف سیدها',
   'stop-all-seeding-none': 'هیچ سید فعالی وجود ندارد',
+  'stop-seeding-success': 'سید متوقف شد',
   'download-fail-message': 'دانلود {taskName} ناموفق بود',
   'download-fail-notify': 'دانلود ناموفق بود',
   'status-active': 'در حال دانلود',

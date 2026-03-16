@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': '全シード停止完了',
   'stop-all-seeding-fail': 'シード停止に失敗',
   'stop-all-seeding-none': 'アクティブなシードタスクなし',
+  'stop-seeding-success': 'シード停止完了',
   'download-fail-message': '{taskName} のダウンロードに失敗',
   'download-fail-notify': 'ダウンロード失敗',
   'status-active': 'ダウンロード中',

@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'Todos os seeds parados',
   'stop-all-seeding-fail': 'Falha ao parar seeds',
   'stop-all-seeding-none': 'Nenhuma tarefa de seed ativa',
+  'stop-seeding-success': 'Seed parado',
   'download-fail-message': 'Falha ao baixar {taskName}',
   'download-fail-notify': 'Download falhou',
   'status-active': 'Baixando',

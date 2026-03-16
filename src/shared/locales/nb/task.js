@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'All seeding stoppet',
   'stop-all-seeding-fail': 'Kunne ikke stoppe seeding',
   'stop-all-seeding-none': 'Ingen aktive seeding-oppgaver',
+  'stop-seeding-success': 'Seeding stoppet',
   'download-fail-message': 'Nedlasting av {taskName} mislyktes',
   'download-fail-notify': 'Nedlasting mislyktes',
   'status-active': 'Laster ned',

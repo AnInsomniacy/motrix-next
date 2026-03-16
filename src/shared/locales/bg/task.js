@@ -185,6 +185,7 @@ export default {
   'stop-all-seeding-success': 'Всички сийдове спряни',
   'stop-all-seeding-fail': 'Неуспешно спиране на сийдовете',
   'stop-all-seeding-none': 'Няма активни сийдове',
+  'stop-seeding-success': 'Сийдът е спрян',
   'download-fail-message': 'Изтеглянето на {taskName} е неуспешно',
   'download-fail-notify': 'Изтеглянето е неуспешно',
   'status-active': 'Изтегляне',
