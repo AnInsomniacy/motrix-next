@@ -1,7 +1,11 @@
 <script setup lang="ts">
 /** @fileoverview Application update notification dialog with channel support. */
 import { marked } from 'marked'
+import markedAlert from 'marked-alert'
 import DOMPurify from 'dompurify'
+
+// Register GitHub-style alert blocks: [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION]
+marked.use(markedAlert())
 import { ref, computed, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NModal, NButton, NProgress, NIcon, NText, NSpin, NTag } from 'naive-ui'
@@ -60,7 +64,11 @@ const releaseNotes = ref('')
 const renderedNotes = computed(() => {
   if (!releaseNotes.value) return ''
   const raw = marked.parse(releaseNotes.value, { async: false }) as string
-  return DOMPurify.sanitize(raw)
+  // Allow SVG elements used by marked-alert icons
+  return DOMPurify.sanitize(raw, {
+    ADD_TAGS: ['svg', 'path'],
+    ADD_ATTR: ['viewBox', 'aria-hidden', 'd', 'fill', 'class'],
+  })
 })
 const errorMsg = ref('')
 const downloadTotal = ref(0)
@@ -536,6 +544,59 @@ defineExpose({ open })
 }
 .update-notes-text :deep(blockquote p) {
   margin: 2px 0;
+}
+
+/* ── GitHub-style Alerts (marked-alert) ───────────────────────────── */
+.update-notes-text :deep(.markdown-alert) {
+  margin: 6px 0;
+  padding: 8px 12px;
+  border-left: 3px solid;
+  border-radius: 0 4px 4px 0;
+}
+.update-notes-text :deep(.markdown-alert-title) {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.update-notes-text :deep(.markdown-alert-title svg) {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+  flex-shrink: 0;
+}
+.update-notes-text :deep(.markdown-alert p) {
+  margin: 2px 0;
+}
+.update-notes-text :deep(.markdown-alert-note) {
+  border-left-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+  color: var(--color-primary);
+}
+.update-notes-text :deep(.markdown-alert-tip) {
+  border-left-color: var(--m3-success);
+  background: color-mix(in srgb, var(--m3-success) 6%, transparent);
+  color: var(--m3-success);
+}
+.update-notes-text :deep(.markdown-alert-important) {
+  border-left-color: var(--m3-tertiary);
+  background: color-mix(in srgb, var(--m3-tertiary) 6%, transparent);
+  color: var(--m3-tertiary);
+}
+.update-notes-text :deep(.markdown-alert-warning) {
+  border-left-color: var(--m3-warning, #d4a04a);
+  background: color-mix(in srgb, var(--m3-warning, #d4a04a) 6%, transparent);
+  color: var(--m3-warning, #d4a04a);
+}
+.update-notes-text :deep(.markdown-alert-caution) {
+  border-left-color: var(--m3-error);
+  background: color-mix(in srgb, var(--m3-error) 6%, transparent);
+  color: var(--m3-error);
+}
+.update-notes-text :deep(.markdown-alert p:not(.markdown-alert-title)) {
+  color: var(--n-text-color, #ccc);
 }
 
 /* ── Horizontal rule ───────────────────────────────────────────────── */

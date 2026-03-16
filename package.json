@@ -42,6 +42,7 @@
     "dompurify": "^3.3.2",
     "lodash-es": "^4.17.23",
     "marked": "^17.0.4",
+    "marked-alert": "^2.1.2",
     "naive-ui": "^2.43.2",
     "pinia": "^3.0.4",
     "tauri-plugin-locale-api": "^2.0.1",

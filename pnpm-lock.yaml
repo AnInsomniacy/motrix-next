@@ -77,6 +77,9 @@ importers:
       marked:
         specifier: ^17.0.4
         version: 17.0.4
+      marked-alert:
+        specifier: ^2.1.2
+        version: 2.1.2(marked@17.0.4)
       naive-ui:
         specifier: ^2.43.2
         version: 2.43.2(vue@3.5.29(typescript@5.6.3))
@@ -1751,6 +1754,11 @@ packages:
   make-dir@4.0.0:
     resolution: {integrity: sha512-hXdUTZYIVOt1Ex//jAQi+wTZZpUpwBj/0QsOzqegb3rGMMeJiSEu5xLHnYfBrRV4RH2+OCSOO95Is/7x1WJ4bw==}
     engines: {node: '>=10'}
+
+  marked-alert@2.1.2:
+    resolution: {integrity: sha512-EFNRZ08d8L/iEIPLTlQMDjvwIsj03gxWCczYTht6DCiHJIZhMk4NK5gtPY9UqAYb09eV5VGT+jD4lp396E0I+w==}
+    peerDependencies:
+      marked: '>=7.0.0'
 
   marked@17.0.4:
     resolution: {integrity: sha512-NOmVMM+KAokHMvjWmC5N/ZOvgmSWuqJB8FoYI019j4ogb/PeRMKoKIjReZ2w3376kkA8dSJIP8uD993Kxc0iRQ==}
@@ -3917,6 +3925,10 @@ snapshots:
   make-dir@4.0.0:
     dependencies:
       semver: 7.7.4
+
+  marked-alert@2.1.2(marked@17.0.4):
+    dependencies:
+      marked: 17.0.4
 
   marked@17.0.4: {}
 
