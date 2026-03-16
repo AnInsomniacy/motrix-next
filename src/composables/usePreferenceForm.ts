@@ -25,9 +25,10 @@ export interface UsePreferenceFormOptions<T extends Record<string, unknown>> {
 
   /**
    * Optional pre-save hook. Return `false` to abort the save (e.g. validation failure).
+   * May return a Promise for async confirmation dialogs (e.g. security warnings).
    * The hook is responsible for displaying its own error messages.
    */
-  beforeSave?: (form: T) => boolean
+  beforeSave?: (form: T) => boolean | Promise<boolean>
 
   /**
    * Optional post-save hook for side-effects that depend on the saved values
@@ -70,7 +71,7 @@ export function usePreferenceForm<T extends Record<string, unknown>>(options: Us
   // ── Save & Reset ────────────────────────────────────────────────────
 
   async function handleSave(): Promise<void> {
-    if (options.beforeSave && !options.beforeSave(form.value as T)) {
+    if (options.beforeSave && !(await options.beforeSave(form.value as T))) {
       return
     }
 

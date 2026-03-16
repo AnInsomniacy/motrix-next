@@ -78,11 +78,25 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot } = usePreferenceF
   buildForm,
   buildSystemConfig: buildAdvancedSystemConfig,
   transformForStore: transformAdvancedForStore,
-  beforeSave: (f) => {
+  beforeSave: async (f) => {
     const error = validateAdvancedForm(f)
     if (error) {
       message.error(t(error))
       return false
+    }
+    if (!f.rpcSecret) {
+      return new Promise<boolean>((resolve) => {
+        dialog.warning({
+          title: t('preferences.rpc-secret-empty-title'),
+          content: t('preferences.rpc-secret-empty-confirm'),
+          positiveText: t('preferences.rpc-secret-empty-continue'),
+          negativeText: t('preferences.engine-restart-later'),
+          maskClosable: false,
+          onPositiveClick: () => resolve(true),
+          onNegativeClick: () => resolve(false),
+          onClose: () => resolve(false),
+        })
+      })
     }
     return true
   },
@@ -356,7 +370,7 @@ onMounted(() => {
           </NButton>
         </NInputGroup>
       </NFormItem>
-      <NFormItem :label="t('preferences.rpc-secret')" :validation-status="form.rpcSecret ? undefined : 'error'">
+      <NFormItem :label="t('preferences.rpc-secret')" :validation-status="form.rpcSecret ? undefined : 'warning'">
         <NInputGroup>
           <NInput
             v-model:value="form.rpcSecret"
@@ -364,7 +378,7 @@ onMounted(() => {
             show-password-on="click"
             placeholder="RPC Secret"
             style="flex: 1"
-            :status="form.rpcSecret ? undefined : 'error'"
+            :status="form.rpcSecret ? undefined : 'warning'"
           />
           <NButton style="padding: 0 10px" @click="onRpcSecretDice">
             <template #icon>

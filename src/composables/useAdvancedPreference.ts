@@ -115,8 +115,7 @@ export function transformAdvancedForStore(f: AdvancedForm): Record<string, unkno
  * Validates the advanced form before saving.
  * Returns null if valid, or an error key if invalid.
  */
-export function validateAdvancedForm(f: AdvancedForm): string | null {
-  if (!f.rpcSecret) return 'preferences.rpc-secret-empty-warning'
+export function validateAdvancedForm(_f: AdvancedForm): string | null {
   return null
 }
 

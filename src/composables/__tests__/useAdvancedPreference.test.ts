@@ -259,8 +259,8 @@ describe('validateAdvancedForm', () => {
     expect(validateAdvancedForm(validForm)).toBeNull()
   })
 
-  it('returns error key when rpcSecret is empty', () => {
-    expect(validateAdvancedForm({ ...validForm, rpcSecret: '' })).toBe('preferences.rpc-secret-empty-warning')
+  it('returns null when rpcSecret is empty (security warning handled by UI dialog)', () => {
+    expect(validateAdvancedForm({ ...validForm, rpcSecret: '' })).toBeNull()
   })
 })
 
