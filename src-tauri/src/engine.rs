@@ -151,7 +151,7 @@ pub fn start_engine(app: &tauri::AppHandle, config: &serde_json::Value) -> Resul
 
     let sidecar = app
         .shell()
-        .sidecar("aria2c")
+        .sidecar("motrixnext-aria2c")
         .map_err(|e| format!("Failed to create sidecar: {}", e))?
         .args(&args);
 
@@ -325,7 +325,7 @@ pub fn restart_engine(app: &tauri::AppHandle, config: &serde_json::Value) -> Res
 
     let sidecar = app
         .shell()
-        .sidecar("aria2c")
+        .sidecar("motrixnext-aria2c")
         .map_err(|e| format!("Failed to create sidecar: {}", e))?
         .args(&args);
 

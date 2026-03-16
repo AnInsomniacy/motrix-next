@@ -34,7 +34,7 @@
     "targets": "all",
     "createUpdaterArtifacts": true,
     "externalBin": [
-      "binaries/aria2c"
+      "binaries/motrixnext-aria2c"
     ],
     "resources": [
       "binaries/aria2.conf"
