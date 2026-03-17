@@ -6,6 +6,7 @@ import { onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { listen } from '@tauri-apps/api/event'
 import { logger } from '@shared/logger'
 import { throttledResizeHandler, cancelPendingResize } from '@/layouts/resizeThrottle'
 import AsideBar from '@/components/layout/AsideBar.vue'
@@ -52,6 +53,7 @@ let unlistenDeepLink: (() => void) | null = null
 let unlistenSingleInstance: (() => void) | null = null
 let unlistenTrayMenu: (() => void) | null = null
 let unlistenResize: (() => void) | null = null
+let unlistenExitDialog: (() => void) | null = null
 let globalStatTimer: ReturnType<typeof setTimeout> | null = null
 
 import aria2Api, { isEngineReady } from '@/api/aria2'
@@ -231,6 +233,17 @@ onMounted(async () => {
     }
   })
 
+  // Rust emits "show-exit-dialog" when the native close is intercepted
+  // and minimize-to-tray is NOT enabled. This is more reliable than the
+  // JS onCloseRequested listener on Linux/Wayland with decorations:false,
+  // where certain close paths (taskbar close, GNOME overview ×) do not
+  // trigger the webview callback.
+  unlistenExitDialog = await listen('show-exit-dialog', () => {
+    if (!isExiting.value) {
+      showExitDialog.value = true
+    }
+  })
+
   // Sync native menu labels with current locale
   try {
     const { invoke } = await import('@tauri-apps/api/core')
@@ -266,6 +279,7 @@ onUnmounted(() => {
   if (unlistenSingleInstance) unlistenSingleInstance()
   if (unlistenTrayMenu) unlistenTrayMenu()
   if (unlistenResize) unlistenResize()
+  if (unlistenExitDialog) unlistenExitDialog()
   cancelPendingResize()
 })
 </script>

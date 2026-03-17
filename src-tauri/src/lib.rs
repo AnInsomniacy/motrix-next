@@ -244,10 +244,13 @@ fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
                         let _ = app.set_activation_policy(ActivationPolicy::Accessory);
                     }
                 }
+            } else {
+                // Emit event for the frontend to show the exit dialog.
+                // This is more reliable than the JS onCloseRequested listener
+                // which does not fire for certain close paths on Linux/Wayland
+                // with decorations:false (e.g. taskbar close, GNOME overview ×).
+                let _ = app.emit("show-exit-dialog", ());
             }
-            // When should_hide is false, the frontend's onCloseRequested
-            // listener shows the exit dialog.  The user can then choose
-            // to quit (which calls exit(0) → RunEvent::Exit).
         }
         #[cfg(target_os = "macos")]
         tauri::RunEvent::Reopen { .. } => {
