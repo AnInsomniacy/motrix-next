@@ -2776,7 +2776,7 @@ dependencies = [
 
 [[package]]
 name = "motrix-next"
-version = "3.4.2"
+version = "3.4.3"
 dependencies = [
  "chrono",
  "dirs 6.0.0",
