@@ -216,53 +216,110 @@ describe('commands/app.rs — set_dock_visible Rust command', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════
-// Group 4: lib.rs — CloseRequested fallback + Reopen restore
+// Group 4: lib.rs — on_window_event close interception + Reopen restore
+//
+// CloseRequested is handled in Builder::on_window_event() — the FIRST
+// hook in Tauri's event lifecycle — rather than the later RunEvent
+// callback.  This guarantees api.prevent_close() fires before the
+// compositor can destroy the window on all platforms (critical for
+// Linux/Wayland + decorations:false).
 // ═══════════════════════════════════════════════════════════════════
 
-describe('lib.rs — CloseRequested Dock hide fallback', () => {
+describe('lib.rs — on_window_event close interception', () => {
   let source: string
 
   beforeAll(() => {
     source = fs.readFileSync(path.join(TAURI_ROOT, 'src', 'lib.rs'), 'utf-8')
   })
 
-  describe('CloseRequested handler', () => {
-    it('reads minimizeToTrayOnClose from the store', () => {
-      const crBlock = source.slice(source.indexOf('CloseRequested'))
-      expect(crBlock).toContain('"minimizeToTrayOnClose"')
+  describe('Architecture: CloseRequested is in on_window_event, NOT handle_run_event', () => {
+    it('registers .on_window_event() on the Builder chain', () => {
+      expect(source).toContain('.on_window_event(')
     })
 
-    it('reads hideDockOnMinimize from the store', () => {
-      const crBlock = source.slice(source.indexOf('CloseRequested'))
-      expect(crBlock).toContain('"hideDockOnMinimize"')
+    it('handles CloseRequested inside on_window_event', () => {
+      const onWinEventStart = source.indexOf('.on_window_event(')
+      expect(onWinEventStart).toBeGreaterThanOrEqual(0)
+      // Extract on_window_event body
+      const onWinBody = extractFunctionBody(source, '.on_window_event(')
+      expect(onWinBody).toBeTruthy()
+      expect(onWinBody).toContain('CloseRequested')
     })
 
-    it('reads both preferences from a single store access (no redundant reads)', () => {
-      // store_prefs is read once and reused for both preference checks
-      const crStart = source.indexOf('CloseRequested')
-      // Extract until the Reopen handler (next major match arm)
-      const reopenIdx = source.indexOf('RunEvent::Reopen')
-      const crBlock = source.slice(crStart, reopenIdx)
-      // Count occurrences of .store("config.json") — should be exactly 1
-      const storeReads = crBlock.split('.store("config.json")').length - 1
-      expect(storeReads).toBe(1)
-    })
-
-    it('wraps set_activation_policy(Accessory) in cfg(target_os = "macos")', () => {
-      const crStart = source.indexOf('CloseRequested')
-      const reopenIdx = source.indexOf('RunEvent::Reopen')
-      const crBlock = source.slice(crStart, reopenIdx)
-      expect(crBlock).toContain('#[cfg(target_os = "macos")]')
-      expect(crBlock).toContain('ActivationPolicy::Accessory')
-    })
-
-    it('calls api.prevent_close() when should_hide is true', () => {
-      const crBlock = source.slice(source.indexOf('CloseRequested'))
-      expect(crBlock).toContain('api.prevent_close()')
+    it('does NOT handle CloseRequested in handle_run_event', () => {
+      const runEventBody = extractFunctionBody(source, 'fn handle_run_event')
+      expect(runEventBody).toBeTruthy()
+      expect(runEventBody).not.toContain('CloseRequested')
     })
   })
 
-  describe('Reopen handler — Dock icon restore', () => {
+  describe('on_window_event CloseRequested handler', () => {
+    let onWinBody: string
+
+    beforeAll(() => {
+      onWinBody = extractFunctionBody(source, '.on_window_event(')!
+    })
+
+    it('calls api.prevent_close() unconditionally for the main window', () => {
+      expect(onWinBody).toContain('api.prevent_close()')
+    })
+
+    it('only intercepts the "main" window', () => {
+      expect(onWinBody).toContain('window.label() != "main"')
+    })
+
+    it('reads minimizeToTrayOnClose from the persistent store', () => {
+      expect(onWinBody).toContain('"minimizeToTrayOnClose"')
+    })
+
+    it('reads hideDockOnMinimize from the persistent store', () => {
+      expect(onWinBody).toContain('"hideDockOnMinimize"')
+    })
+
+    it('reads both preferences from a single store access (no redundant reads)', () => {
+      const storeReads = onWinBody.split('.store("config.json")').length - 1
+      expect(storeReads).toBe(1)
+    })
+
+    it('hides the window when should_hide is true', () => {
+      expect(onWinBody).toContain('window.hide()')
+    })
+
+    it('wraps set_activation_policy(Accessory) in cfg(target_os = "macos")', () => {
+      expect(onWinBody).toContain('#[cfg(target_os = "macos")]')
+      expect(onWinBody).toContain('ActivationPolicy::Accessory')
+    })
+
+    it('emits show-exit-dialog when minimize-to-tray is disabled', () => {
+      expect(onWinBody).toContain('app.emit("show-exit-dialog"')
+    })
+
+    it('on_window_event is registered BEFORE .setup() in the Builder chain', () => {
+      const onWinIdx = source.indexOf('.on_window_event(')
+      // Use '.setup(|app|' to match the Builder chain call, not the
+      // standalone setup_app function definition earlier in the file.
+      const setupIdx = source.indexOf('.setup(|app|')
+      expect(onWinIdx).toBeGreaterThanOrEqual(0)
+      expect(setupIdx).toBeGreaterThanOrEqual(0)
+      expect(onWinIdx).toBeLessThan(setupIdx)
+    })
+  })
+
+  describe('handle_run_event — cleanup and Reopen', () => {
+    it('documents that CloseRequested is handled by on_window_event', () => {
+      // The doc comment above handle_run_event should reference on_window_event
+      const fnStart = source.indexOf('fn handle_run_event')
+      const docBlock = source.slice(Math.max(0, fnStart - 600), fnStart)
+      expect(docBlock).toContain('on_window_event')
+    })
+
+    it('handles RunEvent::Exit for engine + UPnP cleanup', () => {
+      const runEventBody = extractFunctionBody(source, 'fn handle_run_event')!
+      expect(runEventBody).toContain('RunEvent::Exit')
+      expect(runEventBody).toContain('stop_engine')
+      expect(runEventBody).toContain('stop_mapping')
+    })
+
     it('handles RunEvent::Reopen on macOS', () => {
       expect(source).toContain('tauri::RunEvent::Reopen')
     })

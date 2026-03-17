@@ -180,8 +180,16 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Handles Tauri `RunEvent`s: cleanup on exit, minimize-to-tray on close,
-/// and Dock icon restore on macOS reopen.
+/// Handles Tauri `RunEvent`s: cleanup on exit and Dock icon restore on
+/// macOS reopen.
+///
+/// **Note:** `CloseRequested` is handled by `Builder::on_window_event()`
+/// (registered in [`run()`]), NOT here.  `on_window_event` fires as the
+/// *first* hook in Tauri's event lifecycle, before the JS webview IPC and
+/// before this `RunEvent` callback.  This guarantees `api.prevent_close()`
+/// executes before the compositor can destroy the window — critical for
+/// Linux/Wayland + `decorations: false` where the RunEvent hook fires too
+/// late to prevent the native close.
 fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
     match event {
         tauri::RunEvent::Exit => {
@@ -189,67 +197,6 @@ fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
             // Clean up UPnP port mappings on exit.
             if let Some(state) = app.try_state::<UpnpState>() {
                 tauri::async_runtime::block_on(upnp::stop_mapping(state.inner()));
-            }
-        }
-        // Rust-level defense for minimize-to-tray on close.
-        // On Linux/Wayland with decorations:false, the frontend
-        // onCloseRequested listener may not fire for all close
-        // paths (e.g. Alt+F4, GNOME overview ×, taskbar close).
-        // This handler ensures the main window is hidden rather
-        // than destroyed when the setting is enabled.
-        // Non-main windows are never intercepted.
-        tauri::RunEvent::WindowEvent {
-            event: tauri::WindowEvent::CloseRequested { api, .. },
-            label,
-            ..
-        } => {
-            if label != "main" {
-                return;
-            }
-
-            // ALWAYS prevent the native close — the frontend owns the
-            // exit flow (exit confirmation dialog / minimize-to-tray).
-            // Without this, the window starts closing before the JS
-            // onCloseRequested handler can show the dialog, freezing
-            // the webview on macOS.
-            api.prevent_close();
-
-            // Fast path: if minimize-to-tray is enabled, hide the
-            // window immediately from Rust without waiting for JS.
-            // This covers native close paths that may bypass the
-            // frontend listener (e.g. Alt+F4 on Linux/Wayland).
-            let store_prefs = app
-                .store("config.json")
-                .ok()
-                .and_then(|s| s.get("preferences"));
-
-            let should_hide = store_prefs
-                .as_ref()
-                .and_then(|p| p.get("minimizeToTrayOnClose")?.as_bool())
-                .unwrap_or(false);
-
-            if should_hide {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.hide();
-                }
-
-                #[cfg(target_os = "macos")]
-                {
-                    let hide_dock = store_prefs
-                        .as_ref()
-                        .and_then(|p| p.get("hideDockOnMinimize")?.as_bool())
-                        .unwrap_or(false);
-                    if hide_dock {
-                        use tauri::ActivationPolicy;
-                        let _ = app.set_activation_policy(ActivationPolicy::Accessory);
-                    }
-                }
-            } else {
-                // Emit event for the frontend to show the exit dialog.
-                // This is more reliable than the JS onCloseRequested listener
-                // which does not fire for certain close paths on Linux/Wayland
-                // with decorations:false (e.g. taskbar close, GNOME overview ×).
-                let _ = app.emit("show-exit-dialog", ());
             }
         }
         #[cfg(target_os = "macos")]
@@ -398,6 +345,68 @@ pub fn run() {
             commands::trash_file,
             commands::get_engine_conf_path,
         ])
+        // ── Window close interception ──────────────────────────────────
+        //
+        // Registered via `on_window_event` — the FIRST hook in Tauri's
+        // event lifecycle.  This fires before the JS webview IPC
+        // (`onCloseRequested`) and before the `app.run()` `RunEvent`
+        // callback.  `api.prevent_close()` is guaranteed to execute
+        // before the compositor can destroy the window.
+        //
+        // This is critical on Linux/Wayland + `decorations: false`,
+        // where the later `RunEvent::WindowEvent::CloseRequested` hook
+        // fires too late — the compositor has already begun destroying
+        // the window by that point.
+        //
+        // Ref: https://docs.rs/tauri/latest/tauri/struct.Builder.html#method.on_window_event
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Only intercept the main window; let other windows close freely.
+                if window.label() != "main" {
+                    return;
+                }
+
+                // ALWAYS prevent native close — the app owns the exit flow
+                // (exit confirmation dialog / minimize-to-tray).
+                api.prevent_close();
+
+                let app = window.app_handle();
+
+                // Read minimize-to-tray preference directly from the
+                // persistent store (Rust-side, no IPC round-trip).
+                let store_prefs = app
+                    .store("config.json")
+                    .ok()
+                    .and_then(|s| s.get("preferences"));
+
+                let should_hide = store_prefs
+                    .as_ref()
+                    .and_then(|p| p.get("minimizeToTrayOnClose")?.as_bool())
+                    .unwrap_or(false);
+
+                if should_hide {
+                    let _ = window.hide();
+
+                    #[cfg(target_os = "macos")]
+                    {
+                        let hide_dock = store_prefs
+                            .as_ref()
+                            .and_then(|p| p.get("hideDockOnMinimize")?.as_bool())
+                            .unwrap_or(false);
+                        if hide_dock {
+                            use tauri::ActivationPolicy;
+                            let _ = app.set_activation_policy(ActivationPolicy::Accessory);
+                        }
+                    }
+                } else {
+                    // Emit event for the frontend to show the exit dialog.
+                    // More reliable than the JS onCloseRequested listener
+                    // which may not fire for certain close paths on
+                    // Linux/Wayland with decorations:false.
+                    let _ = app.emit("show-exit-dialog", ());
+                }
+            }
+        })
         .setup(|app| setup_app(app))
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

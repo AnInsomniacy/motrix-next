@@ -1,21 +1,19 @@
 /**
  * @fileoverview Structural tests for the close-to-tray Wayland regression fix.
  *
- * Root cause: Commit f06c6c4 (v3.2.0-beta.1) moved `api.prevent_close()` from
- * inside `if should_hide {}` to unconditional, fixing a macOS webview freeze.
- * However, when `should_hide == false`, the frontend `onCloseRequested` callback
- * does not reliably fire on Linux/Wayland (decorations:false + tao#1046),
- * leaving the window in limbo (Rust prevents close, frontend never shows dialog).
- *
- * Fix: Rust emits "show-exit-dialog" via `app.emit()` when `!should_hide`,
- * which is more reliable than the JS `onCloseRequested` listener on Wayland.
- * The frontend listens for this event and shows the exit dialog.
+ * Root cause: On Linux/Wayland with decorations:false, the window compositor
+ * can bypass both JS `onCloseRequested` and the `RunEvent::WindowEvent`
+ * callback.  The fix registers `CloseRequested` handling in
+ * `Builder::on_window_event()` — the FIRST hook in Tauri's event lifecycle —
+ * where `api.prevent_close()` is guaranteed to execute before the compositor
+ * can destroy the window.
  *
  * Tests verify:
- * 1. lib.rs emits "show-exit-dialog" in the `!should_hide` branch
- * 2. lib.rs still calls api.prevent_close() unconditionally (macOS fix preserved)
- * 3. lib.rs still hides the window in the `should_hide` branch
- * 4. MainLayout.vue listens for "show-exit-dialog" and sets showExitDialog
+ * 1. lib.rs handles CloseRequested in on_window_event (not handle_run_event)
+ * 2. lib.rs calls api.prevent_close() unconditionally (macOS fix preserved)
+ * 3. lib.rs hides the window in the should_hide branch
+ * 4. lib.rs emits "show-exit-dialog" in the !should_hide branch
+ * 5. MainLayout.vue listens for "show-exit-dialog" and sets showExitDialog
  */
 import { describe, it, expect, beforeAll } from 'vitest'
 import * as fs from 'node:fs'
@@ -27,23 +25,25 @@ const TAURI_ROOT = path.resolve(SRC_ROOT, 'src-tauri')
 // ─── Helpers ────────────────────────────────────────────────────────
 
 /**
- * Extract the CloseRequested handler block from lib.rs.
- * Returns the source from "CloseRequested" up to (but not including)
- * the next major match arm (Reopen or the catch-all `_`).
+ * Extracts a function/closure body from source code (brace-balanced extraction).
+ * Returns the content between the opening `{` and its matching `}`.
  */
-function extractCloseRequestedBlock(source: string): string {
-  const crStart = source.indexOf('CloseRequested')
-  expect(crStart, 'CloseRequested must exist in lib.rs').toBeGreaterThanOrEqual(0)
-  // Find the next RunEvent match arm (Reopen or catch-all)
-  const reopenIdx = source.indexOf('RunEvent::Reopen', crStart)
-  const catchAllIdx = source.indexOf('_ =>', crStart)
-  const endIdx = Math.min(reopenIdx > 0 ? reopenIdx : Infinity, catchAllIdx > 0 ? catchAllIdx : Infinity)
-  expect(endIdx, 'must find end of CloseRequested block').toBeLessThan(Infinity)
-  return source.slice(crStart, endIdx)
+function extractBody(source: string, signature: string): string {
+  const start = source.indexOf(signature)
+  expect(start, `${signature} must exist in source`).toBeGreaterThanOrEqual(0)
+  const braceStart = source.indexOf('{', start)
+  if (braceStart === -1) return ''
+  let depth = 0
+  for (let i = braceStart; i < source.length; i++) {
+    if (source[i] === '{') depth++
+    else if (source[i] === '}') depth--
+    if (depth === 0) return source.slice(braceStart, i + 1)
+  }
+  return ''
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Group 1: lib.rs — CloseRequested emits show-exit-dialog
+// Group 1: lib.rs — on_window_event CloseRequested handler
 // ═══════════════════════════════════════════════════════════════════
 
 describe('lib.rs — CloseRequested show-exit-dialog emit', () => {
@@ -52,7 +52,13 @@ describe('lib.rs — CloseRequested show-exit-dialog emit', () => {
 
   beforeAll(() => {
     source = fs.readFileSync(path.join(TAURI_ROOT, 'src', 'lib.rs'), 'utf-8')
-    crBlock = extractCloseRequestedBlock(source)
+    crBlock = extractBody(source, '.on_window_event(')
+  })
+
+  it('handles CloseRequested in on_window_event (not handle_run_event)', () => {
+    expect(crBlock).toContain('CloseRequested')
+    const runEventBody = extractBody(source, 'fn handle_run_event')
+    expect(runEventBody).not.toContain('CloseRequested')
   })
 
   it('calls api.prevent_close() unconditionally (macOS freeze fix preserved)', () => {
@@ -75,10 +81,11 @@ describe('lib.rs — CloseRequested show-exit-dialog emit', () => {
   })
 
   it('emit appears in the else branch (not inside should_hide)', () => {
-    // The emit must be in the `else` block, not inside `if should_hide`
+    // The emit must be in the `else` block after the should_hide check
     const shouldHideIdx = crBlock.indexOf('if should_hide')
     const afterShouldHide = crBlock.slice(shouldHideIdx)
-    const elseIdx = afterShouldHide.indexOf('} else {')
+    // Find the else keyword
+    const elseIdx = afterShouldHide.indexOf('else')
     expect(elseIdx, 'must have an else branch for !should_hide').toBeGreaterThanOrEqual(0)
     const elseBranch = afterShouldHide.slice(elseIdx)
     expect(elseBranch).toContain('show-exit-dialog')

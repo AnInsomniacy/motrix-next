@@ -219,6 +219,14 @@ onMounted(async () => {
   unlistenSingleInstance = listeners.unlistenSingleInstance
 
   const appWindow = getCurrentWindow()
+  // Close prevention is handled by Rust Builder::on_window_event() — the
+  // FIRST hook in Tauri's event lifecycle, which reliably calls
+  // api.prevent_close() before the compositor can destroy the window.
+  // This JS handler fires SECOND (async IPC) and acts as a redundant
+  // fallback for the custom close button in WindowControls.vue.
+  //
+  // Do NOT call event.preventDefault() here — it is redundant with the
+  // Rust hook and causes a webview freeze on macOS (Tauri v2 bug).
   unlistenCloseRequested = await appWindow.onCloseRequested(async (event) => {
     void event
     if (preferenceStore.config.minimizeToTrayOnClose) {
