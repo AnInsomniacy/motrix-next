@@ -11,6 +11,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { downloadDir, appDataDir } from '@tauri-apps/api/path'
 import { save as saveDialog } from '@tauri-apps/plugin-dialog'
+import { exists } from '@tauri-apps/plugin-fs'
 import { NTag, useDialog, type DataTableColumns } from 'naive-ui'
 import { logger } from '@shared/logger'
 import { bytesToSize } from '@shared/utils/format'
@@ -116,8 +117,8 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
 
   function handleSessionReset() {
     dialog.warning({
-      title: t('preferences.session-reset'),
-      content: t('preferences.session-reset-confirm'),
+      title: t('preferences.clear-all-tasks'),
+      content: t('preferences.clear-all-tasks-confirm'),
       positiveText: t('app.yes'),
       negativeText: t('app.no'),
       onPositiveClick: async () => {
@@ -133,7 +134,7 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
           }
           await taskStore.purgeTaskRecord()
           await invoke('clear_session_file')
-          message.success(t('preferences.session-reset'))
+          message.success(t('preferences.clear-all-tasks-success'))
         } catch (e) {
           logger.error('Advanced.sessionReset', e)
         }
@@ -268,7 +269,7 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
           message.success(t('preferences.clear-log-success'))
         } catch (e) {
           logger.error('Advanced.clearLog', e)
-          message.error((e as Error).message)
+          message.error(String(e))
         }
       },
     })
@@ -276,11 +277,22 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
 
   async function handleRevealPath(filePath: string) {
     try {
+      const fileExists = await exists(filePath)
       const { revealItemInDir } = await import('@tauri-apps/plugin-opener')
-      await revealItemInDir(filePath)
+      if (fileExists) {
+        await revealItemInDir(filePath)
+      } else {
+        // File doesn't exist yet — open parent directory instead
+        const parentDir =
+          filePath.substring(0, filePath.lastIndexOf('/')) || filePath.substring(0, filePath.lastIndexOf('\\'))
+        if (parentDir) {
+          const { openPath } = await import('@tauri-apps/plugin-opener')
+          await openPath(parentDir)
+        }
+      }
     } catch (e) {
       logger.error('Advanced.revealPath', e)
-      message.error((e as Error).message)
+      message.error(String(e))
     }
   }
 
@@ -291,7 +303,7 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
       await openPath(dir)
     } catch (e) {
       logger.error('Advanced.openConfigFolder', e)
-      message.error((e as Error).message)
+      message.error(String(e))
     }
   }
 
