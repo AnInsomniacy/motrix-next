@@ -118,7 +118,7 @@ async function open(channel?: string) {
       channel: ch,
       proxy: getUpdateProxy(),
     })
-    preferenceStore.updateAndSave({ lastCheckUpdateTime: Date.now() })
+
     if (update) {
       version.value = update.version
       releaseNotes.value = update.body || ''
@@ -129,6 +129,8 @@ async function open(channel?: string) {
   } catch (e) {
     errorMsg.value = formatUpdateError(e)
     phase.value = 'error'
+  } finally {
+    preferenceStore.updateAndSave({ lastCheckUpdateTime: Date.now() })
   }
 }
 

@@ -141,6 +141,14 @@ const stopLocaleSync = watch(
   },
 )
 
+// refresh lastCheckUpdateTime when detected preferenceStore.config.lastCheckUpdateTime update, so that the displayed time is always up-to-date
+watch(
+  () => preferenceStore.config.lastCheckUpdateTime,
+  (newTime) => {
+    form.value.lastCheckUpdateTime = newTime
+  },
+)
+
 const uploadSpeedValue = ref(0)
 const uploadUnit = ref('K')
 const downloadSpeedValue = ref(0)
