@@ -34,7 +34,6 @@ export interface BasicForm {
   maxConnectionPerServer: number
   maxOverallDownloadLimit: string
   maxOverallUploadLimit: string
-  btSaveMetadata: boolean
   btAutoDownloadContent: boolean
   btForceEncryption: boolean
   keepSeeding: boolean
@@ -81,7 +80,6 @@ export function buildBasicForm(config: AppConfig, defaultDir: string = ''): Basi
     maxConnectionPerServer: config.maxConnectionPerServer ?? D.maxConnectionPerServer,
     maxOverallDownloadLimit: String(config.maxOverallDownloadLimit ?? D.maxOverallDownloadLimit),
     maxOverallUploadLimit: String(config.maxOverallUploadLimit ?? D.maxOverallUploadLimit),
-    btSaveMetadata: config.btSaveMetadata ?? D.btSaveMetadata,
     btAutoDownloadContent,
     btForceEncryption: config.btForceEncryption ?? D.btForceEncryption,
     keepSeeding: config.keepSeeding ?? D.keepSeeding,
@@ -106,7 +104,8 @@ export function buildBasicSystemConfig(f: BasicForm): Record<string, string> {
     split: String(f.maxConnectionPerServer),
     'max-overall-download-limit': f.maxOverallDownloadLimit,
     'max-overall-upload-limit': f.maxOverallUploadLimit,
-    'bt-save-metadata': String(!!f.btSaveMetadata),
+    'bt-save-metadata': 'true',
+    'bt-load-saved-metadata': 'true',
     'bt-force-encryption': String(!!f.btForceEncryption),
     'seed-ratio': String(f.seedRatio),
     'seed-time': String(f.seedTime),

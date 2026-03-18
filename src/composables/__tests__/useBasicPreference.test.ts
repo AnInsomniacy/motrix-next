@@ -136,7 +136,6 @@ describe('buildBasicSystemConfig', () => {
     maxConnectionPerServer: 64,
     maxOverallDownloadLimit: '0',
     maxOverallUploadLimit: '0',
-    btSaveMetadata: false,
     btAutoDownloadContent: true,
     btForceEncryption: false,
     keepSeeding: true,
@@ -182,6 +181,12 @@ describe('buildBasicSystemConfig', () => {
     expect(config['follow-metalink']).toBe('false')
     expect(config['pause-metadata']).toBe('true')
   })
+
+  it('always includes bt-save-metadata=true and bt-load-saved-metadata=true', () => {
+    const config = buildBasicSystemConfig(baseForm)
+    expect(config['bt-save-metadata']).toBe('true')
+    expect(config['bt-load-saved-metadata']).toBe('true')
+  })
 })
 
 // ── transformBasicForStore ──────────────────────────────────────────
@@ -210,7 +215,6 @@ describe('transformBasicForStore', () => {
     maxConnectionPerServer: 16,
     maxOverallDownloadLimit: '0',
     maxOverallUploadLimit: '0',
-    btSaveMetadata: false,
     btAutoDownloadContent: true,
     btForceEncryption: false,
     keepSeeding: true,

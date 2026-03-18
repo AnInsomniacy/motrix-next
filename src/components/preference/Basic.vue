@@ -430,7 +430,6 @@ onMounted(async () => {
       <NDivider title-placement="left">{{ t('preferences.bt-settings') }}</NDivider>
       <NFormItem :show-label="false">
         <NSpace vertical>
-          <NCheckbox v-model:checked="form.btSaveMetadata">{{ t('preferences.bt-save-metadata') }}</NCheckbox>
           <NCheckbox v-model:checked="form.btAutoDownloadContent">
             {{ t('preferences.bt-auto-download-content') }}
           </NCheckbox>

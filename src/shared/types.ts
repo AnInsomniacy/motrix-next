@@ -163,6 +163,7 @@ export interface AppConfig {
   dhtListenPort: number
   btTracker: string
   btSaveMetadata: boolean
+  btLoadSavedMetadata: boolean
   btForceEncryption: boolean
   followTorrent: boolean
   followMetalink: boolean

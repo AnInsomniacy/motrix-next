@@ -165,6 +165,12 @@ pub(crate) fn build_start_args(
                 continue;
             }
 
+            // Metadata persistence: always use conf file values (bt-save-metadata=true,
+            // bt-load-saved-metadata=true) — skip store overrides from legacy configs
+            if key == "bt-save-metadata" || key == "bt-load-saved-metadata" {
+                continue;
+            }
+
             // Handle keep-seeding: skip seed-time if keep_seeding is true
             if keep_seeding && key == "seed-time" {
                 continue;

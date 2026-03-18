@@ -92,7 +92,8 @@ export const DEFAULT_APP_CONFIG = {
   seedRatio: 1, // Deluge=1, Transmission=2; 1:1 is BT community minimum etiquette
   seedTime: 60, // Deluge=180min; 60min is beginner-friendly
   keepSeeding: false, // qBT stops at ratio; safer default for new users
-  btSaveMetadata: false, // most clients don't save metadata by default
+  btSaveMetadata: true, // always save .torrent after metadata resolves for fast session restore
+  btLoadSavedMetadata: true, // load cached .torrent on restart, skip DHT re-download
   btForceEncryption: false, // qBT default "Allow", not "Force"; forcing reduces peers
   followTorrent: true, // aria2 default=true
   followMetalink: true, // aria2 default=true
