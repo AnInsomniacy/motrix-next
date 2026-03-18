@@ -307,6 +307,16 @@ export const THUNDER_RESOURCE_TAGS = ['thunder://']
 
 export const RESOURCE_TAGS = [...COMMON_RESOURCE_TAGS, ...THUNDER_RESOURCE_TAGS]
 
+/**
+ * Matches bare BitTorrent v1 info hashes:
+ * - SHA-1 hex: exactly 40 hex characters (most common format)
+ * - Base32:    exactly 32 uppercase A-Z / 2-7 characters
+ *
+ * SHA-256 (64 hex, BitTorrent v2 / btmh) is intentionally excluded
+ * because aria2 does not support the v2 protocol.
+ */
+export const BARE_INFO_HASH_RE = /^[0-9a-fA-F]{40}$|^[A-Z2-7]{32}$/
+
 export const SUPPORT_RTL_LOCALES = [
   /* 'العربية', Arabic */
   'ar',

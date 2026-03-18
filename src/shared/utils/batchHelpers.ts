@@ -4,6 +4,7 @@
  * BatchItem entries for the unified add-task dialog.
  */
 import type { BatchItemKind, BatchItem } from '@shared/types'
+import { BARE_INFO_HASH_RE } from '@shared/constants'
 
 let nextId = 0
 
@@ -56,15 +57,21 @@ export function resetBatchIdCounter(): void {
 
 // ── URI normalization ───────────────────────────────────────────────
 
+/** If the line is a bare BitTorrent v1 info hash, wrap it as a magnet URI. */
+function normalizeInfoHash(line: string): string {
+  return BARE_INFO_HASH_RE.test(line) ? `magnet:?xt=urn:btih:${line}` : line
+}
+
 /**
  * Split, trim, remove blanks, and deduplicate URI lines by first occurrence.
  * Handles multiline payloads — each line is treated as an independent URI.
+ * Bare info hashes (SHA-1 hex / Base32) are automatically wrapped as magnet URIs.
  */
 export function normalizeUriLines(text: string): string[] {
   const seen = new Set<string>()
   const result: string[] = []
   for (const raw of text.split('\n')) {
-    const line = raw.trim()
+    const line = normalizeInfoHash(raw.trim())
     if (line && !seen.has(line)) {
       seen.add(line)
       result.push(line)

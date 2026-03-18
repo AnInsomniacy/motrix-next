@@ -130,6 +130,42 @@ describe('detectResource', () => {
     })
   })
 
+  // ── Bare BitTorrent info hashes ────────────────────────────────────
+
+  describe('bare info hash detection', () => {
+    it('detects a bare SHA-1 hex hash (40 chars)', () => {
+      expect(detectResource('d8988e034cb5de79d319242e3365bf30a7741a6e')).toBe(true)
+    })
+
+    it('detects an uppercase SHA-1 hex hash (40 chars)', () => {
+      expect(detectResource('D8988E034CB5DE79D319242E3365BF30A7741A6E')).toBe(true)
+    })
+
+    it('detects a bare Base32 hash (32 chars)', () => {
+      expect(detectResource('TCIY4A2MWXPHTUYZEQUOMNS7GCDXOQTG')).toBe(true)
+    })
+
+    it('detects mixed bare hash and magnet URI on separate lines', () => {
+      expect(detectResource('d8988e034cb5de79d319242e3365bf30a7741a6e\nmagnet:?xt=urn:btih:abc')).toBe(true)
+    })
+
+    it('rejects 39-char hex (too short)', () => {
+      expect(detectResource('d8988e034cb5de79d319242e3365bf30a7741a6')).toBe(false)
+    })
+
+    it('rejects 41-char hex (too long)', () => {
+      expect(detectResource('d8988e034cb5de79d319242e3365bf30a7741a6ef')).toBe(false)
+    })
+
+    it('rejects 64-char hex (SHA-256/BT v2 — unsupported by aria2)', () => {
+      expect(detectResource('aabbccddee00112233445566778899aabbccddee00112233445566778899aabb')).toBe(false)
+    })
+
+    it('rejects 32-char lowercase string (not valid Base32)', () => {
+      expect(detectResource('abcdefghijklmnopqrstuvwxyz234567')).toBe(false)
+    })
+  })
+
   // ── Edge cases ─────────────────────────────────────────────────────
 
   describe('edge cases', () => {

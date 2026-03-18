@@ -1,6 +1,6 @@
 /** @fileoverview Download resource detection: Thunder links, protocol tags, copyright. */
 import { compact } from 'lodash-es'
-import { RESOURCE_TAGS } from '@shared/constants'
+import { RESOURCE_TAGS, BARE_INFO_HASH_RE } from '@shared/constants'
 import { splitTextRows } from './format'
 import { isAudioOrVideo } from './file'
 
@@ -26,7 +26,8 @@ export const splitTaskLinks = (links = ''): string[] => {
  * 1. Content length ≤ 2048 characters (long payloads are not URLs).
  * 2. Split into lines; ignore empty/whitespace-only lines.
  * 3. Every remaining line must start with a recognized protocol tag
- *    (`http://`, `https://`, `ftp://`, `magnet:`, `thunder://`).
+ *    (`http://`, `https://`, `ftp://`, `magnet:`, `thunder://`)
+ *    OR be a bare BitTorrent v1 info hash (SHA-1 hex / Base32).
  *
  * This rejects embedded URLs inside prose, code comments, JSON, HTML,
  * log lines, and mixed multi-line content.
@@ -41,7 +42,7 @@ export const detectResource = (content: string): boolean => {
 
   if (lines.length === 0) return false
 
-  return lines.every((line) => RESOURCE_TAGS.some((tag) => line.startsWith(tag)))
+  return lines.every((line) => RESOURCE_TAGS.some((tag) => line.startsWith(tag)) || BARE_INFO_HASH_RE.test(line))
 }
 
 export const needCheckCopyright = (links = ''): boolean => {
