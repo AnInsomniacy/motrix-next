@@ -8,6 +8,7 @@ import {
   checkTaskIsBT,
   checkTaskIsSeeder,
   getFileNameFromFile,
+  getTaskDisplayName,
   buildMagnetLink,
   getTaskUri,
   checkTaskTitleIsEmpty,
@@ -152,6 +153,43 @@ describe('getFileNameFromFile', () => {
   it('returns empty when path and uris are empty', () => {
     const file = createMockFile({ path: '', uris: [] })
     expect(getFileNameFromFile(file)).toBe('')
+  })
+})
+
+// ── getTaskDisplayName ───────────────────────────────────────────────
+
+describe('getTaskDisplayName', () => {
+  it('decodes percent-encoded filename from file path', () => {
+    const task = createMockTask({
+      files: [createMockFile({ path: '/downloads/AAA%20BBB.mp3' })],
+    })
+    expect(getTaskDisplayName(task)).toBe('AAA BBB.mp3')
+  })
+
+  it('decodes UTF-8 percent sequences in filename', () => {
+    const task = createMockTask({
+      files: [createMockFile({ path: '/downloads/file%E4%B8%AD%E6%96%87.txt' })],
+    })
+    expect(getTaskDisplayName(task)).toBe('file中文.txt')
+  })
+
+  it('returns default name for null task', () => {
+    expect(getTaskDisplayName(null, { defaultName: 'Unknown' })).toBe('Unknown')
+  })
+
+  it('passes through BT names unmodified', () => {
+    const task = createMockTask({
+      files: [createMockFile()],
+      bittorrent: { info: { name: 'Ubuntu 24.04' } },
+    })
+    expect(getTaskDisplayName(task)).toBe('Ubuntu 24.04')
+  })
+
+  it('returns original name for malformed percent sequence', () => {
+    const task = createMockTask({
+      files: [createMockFile({ path: '/downloads/bad%ZZname.txt' })],
+    })
+    expect(getTaskDisplayName(task)).toBe('bad%ZZname.txt')
   })
 })
 

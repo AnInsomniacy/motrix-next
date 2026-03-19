@@ -100,3 +100,63 @@ export function mergeUriLines(existingText: string, incoming: string[]): string 
   }
   return existing.join('\n')
 }
+
+// ── Filename extraction and decoding ────────────────────────────────
+
+/** Characters forbidden in filenames across Windows / macOS / Linux. */
+const FS_UNSAFE_RE = /[/\\:*?"<>|]/g
+
+/**
+ * Safely percent-decodes a single path segment.
+ * Returns the original string if decoding fails (malformed % sequence).
+ */
+export function decodePathSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return segment
+  }
+}
+
+/**
+ * Extracts and URL-decodes the filename from a URI, then removes
+ * filesystem-unsafe characters.
+ *
+ * Follows browser-level precedent (Chrome / Firefox / Electron):
+ *   1. Parse URL → isolate pathname
+ *   2. Extract last path segment
+ *   3. Percent-decode via decodeURIComponent
+ *   4. Replace characters forbidden by Windows / macOS / Linux with '_'
+ *
+ * Returns '' if no filename can be extracted (bare domain, trailing slash,
+ * magnet URI, data URI, etc.) — caller should NOT set `out` in that case.
+ *
+ * Security: sanitizes decoded `/`, `\`, `:` etc. to prevent path traversal
+ * (cf. Firefox CVE-2022-31739).
+ */
+export function extractDecodedFilename(uri: string): string {
+  // Skip non-HTTP protocols that don't use URL-path filenames
+  if (/^(magnet|data|blob):/i.test(uri)) return ''
+
+  let pathname: string
+  try {
+    pathname = new URL(uri).pathname
+  } catch {
+    // Malformed URI — attempt simple extraction
+    pathname = uri.split('?')[0].split('#')[0]
+  }
+
+  const segments = pathname.split('/').filter(Boolean)
+  const raw = segments.pop()
+  if (!raw) return ''
+
+  const decoded = decodePathSegment(raw)
+
+  // Sanitize filesystem-unsafe characters (cross-platform safe)
+  const sanitized = decoded.replace(FS_UNSAFE_RE, '_').trim()
+
+  // Reject empty results or pure dots
+  if (!sanitized || /^\.+$/.test(sanitized)) return ''
+
+  return sanitized
+}

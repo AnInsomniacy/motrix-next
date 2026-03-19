@@ -6,7 +6,7 @@
  * i18n, dialog, and message are passed in via the options object.
  */
 import { ref, type Ref, h } from 'vue'
-import { getTaskUri, getTaskName, resolveOpenTarget, canRestart } from '@shared/utils'
+import { getTaskUri, getTaskDisplayName, resolveOpenTarget, canRestart } from '@shared/utils'
 import { revealItemInDir, openPath } from '@tauri-apps/plugin-opener'
 import { exists, stat } from '@tauri-apps/plugin-fs'
 import { deleteTaskFiles } from '@/composables/useFileDelete'
@@ -42,7 +42,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
   const { taskStore, preferenceConfig, t, dialog, message, stoppingGids } = deps
 
   function handlePauseTask(task: Aria2Task) {
-    const taskName = getTaskName(task, { defaultName: 'Unknown' })
+    const taskName = getTaskDisplayName(task, { defaultName: 'Unknown' })
     taskStore
       .pauseTask(task)
       .then(() => message.success(t('task.pause-task-success', { taskName })))
@@ -50,7 +50,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
   }
 
   function handleResumeTask(task: Aria2Task) {
-    const taskName = getTaskName(task, { defaultName: 'Unknown' })
+    const taskName = getTaskDisplayName(task, { defaultName: 'Unknown' })
     const { COMPLETE, ERROR, REMOVED } = TASK_STATUS
     if (task.status === ERROR || task.status === COMPLETE || task.status === REMOVED) {
       if (!canRestart(task)) {
@@ -76,7 +76,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
       return
     }
     const deleteFiles = ref(false)
-    const name = getTaskName(task, { defaultName: 'Unknown' })
+    const name = getTaskDisplayName(task, { defaultName: 'Unknown' })
     const d = dialog.warning({
       title: t('task.delete-task'),
       content: () =>
@@ -121,13 +121,15 @@ export function useTaskActions(deps: TaskActionsDeps) {
       taskStore
         .removeTaskRecord(task)
         .then(() =>
-          message.success(t('task.remove-record-success', { taskName: getTaskName(task, { defaultName: 'Unknown' }) })),
+          message.success(
+            t('task.remove-record-success', { taskName: getTaskDisplayName(task, { defaultName: 'Unknown' }) }),
+          ),
         )
         .catch((e: unknown) => logger.error('TaskView.deleteRecord', e))
       return
     }
     const deleteFiles = ref(false)
-    const name = getTaskName(task, { defaultName: 'Unknown' })
+    const name = getTaskDisplayName(task, { defaultName: 'Unknown' })
     const d = dialog.warning({
       title: t('task.delete-task'),
       content: () =>

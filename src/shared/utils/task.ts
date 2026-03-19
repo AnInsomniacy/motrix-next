@@ -55,6 +55,21 @@ export const getTaskName = (task: Aria2Task | null, options: { defaultName?: str
   return result
 }
 
+/**
+ * Returns a human-readable display name with URL-decoded filenames.
+ *
+ * Use for ALL UI display contexts (TaskItem, TaskDetail, notifications).
+ * For filesystem operations, use getTaskName() instead.
+ */
+export const getTaskDisplayName = (task: Aria2Task | null, options: { defaultName?: string } = {}): string => {
+  const name = getTaskName(task, options)
+  try {
+    return decodeURIComponent(name)
+  } catch {
+    return name
+  }
+}
+
 /** Returns true if the task is a magnet link still resolving metadata. */
 export const isMagnetTask = (task: Aria2Task): boolean => {
   const { bittorrent } = task

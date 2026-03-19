@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { TASK_STATUS } from '@shared/constants'
 import {
   checkTaskIsSeeder,
-  getTaskName,
+  getTaskDisplayName,
   calcProgress,
   bytesToSize,
   timeRemaining,
@@ -43,7 +43,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const taskFullName = computed(() => getTaskName(props.task, { defaultName: t('task.get-task-name') || 'Unknown' }))
+const taskFullName = computed(() =>
+  getTaskDisplayName(props.task, { defaultName: t('task.get-task-name') || 'Unknown' }),
+)
 
 const isSeeder = computed(() => checkTaskIsSeeder(props.task))
 const isBT = computed(() => checkTaskIsBT(props.task))

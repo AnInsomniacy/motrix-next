@@ -6,7 +6,7 @@ import { TASK_STATUS } from '@shared/constants'
 import {
   checkTaskIsBT,
   checkTaskIsSeeder,
-  getTaskName,
+  getTaskDisplayName,
   bytesToSize,
   calcProgress,
   calcRatio,
@@ -18,6 +18,7 @@ import {
   timeRemaining,
   timeFormat,
 } from '@shared/utils'
+import { decodePathSegment } from '@shared/utils/batchHelpers'
 import {
   NDrawer,
   NDrawerContent,
@@ -96,7 +97,7 @@ const taskStatus = computed(() => {
   return translated !== `task.status-${key}` ? translated : key
 })
 const isActive = computed(() => props.task?.status === TASK_STATUS.ACTIVE)
-const taskFullName = computed(() => (props.task ? getTaskName(props.task, { defaultName: 'Unknown' }) : ''))
+const taskFullName = computed(() => (props.task ? getTaskDisplayName(props.task, { defaultName: 'Unknown' }) : ''))
 const percent = computed(() => (props.task ? calcProgress(props.task.totalLength, props.task.completedLength) : 0))
 
 const remaining = computed(() => {
@@ -146,7 +147,7 @@ const statusTagType = computed(() => {
 
 const fileList = computed(() =>
   (props.files || []).map((item: Aria2File) => {
-    const name = getFileName(item.path)
+    const name = decodePathSegment(getFileName(item.path))
     return {
       idx: Number(item.index),
       name,

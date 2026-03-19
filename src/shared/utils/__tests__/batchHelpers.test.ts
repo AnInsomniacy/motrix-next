@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { createBatchItem, mergeUriLines, normalizeUriLines, resetBatchIdCounter } from '../batchHelpers'
+import {
+  createBatchItem,
+  mergeUriLines,
+  normalizeUriLines,
+  resetBatchIdCounter,
+  decodePathSegment,
+  extractDecodedFilename,
+} from '../batchHelpers'
 
 describe('normalizeUriLines', () => {
   it('splits lines, trims whitespace, drops blanks, and preserves first occurrence order', () => {
@@ -120,5 +127,77 @@ describe('createBatchItem', () => {
     const b = createBatchItem('uri', 'https://b.example/file')
     expect(a.id).toBe('batch-1')
     expect(b.id).toBe('batch-2')
+  })
+})
+
+// ── decodePathSegment ─────────────────────────────────────────────────
+
+describe('decodePathSegment', () => {
+  it('decodes percent-encoded spaces', () => {
+    expect(decodePathSegment('AAA%20BBB')).toBe('AAA BBB')
+  })
+
+  it('decodes UTF-8 percent sequences', () => {
+    expect(decodePathSegment('%E4%B8%AD%E6%96%87')).toBe('中文')
+  })
+
+  it('returns original string for malformed percent sequence', () => {
+    expect(decodePathSegment('bad%ZZname')).toBe('bad%ZZname')
+  })
+
+  it('returns unencoded strings unchanged', () => {
+    expect(decodePathSegment('normal.txt')).toBe('normal.txt')
+  })
+})
+
+// ── extractDecodedFilename ────────────────────────────────────────────
+
+describe('extractDecodedFilename', () => {
+  it('decodes percent-encoded spaces in HTTP URIs', () => {
+    expect(extractDecodedFilename('http://example.com/AAA%20BBB.mp3')).toBe('AAA BBB.mp3')
+  })
+
+  it('decodes UTF-8 percent sequences', () => {
+    expect(extractDecodedFilename('http://example.com/file%E4%B8%AD%E6%96%87.txt')).toBe('file中文.txt')
+  })
+
+  it('returns unencoded filename unchanged', () => {
+    expect(extractDecodedFilename('http://example.com/plain.zip')).toBe('plain.zip')
+  })
+
+  it('strips query string and fragment before extracting', () => {
+    expect(extractDecodedFilename('http://example.com/file.zip?v=1&t=2#section')).toBe('file.zip')
+  })
+
+  it('handles deep paths and extracts only the last segment', () => {
+    expect(extractDecodedFilename('https://cdn.example.com/a/b/c/deep%20file.tar.gz')).toBe('deep file.tar.gz')
+  })
+
+  it('sanitizes decoded forward slashes to underscores (path traversal defense)', () => {
+    expect(extractDecodedFilename('http://example.com/a%2Fb.txt')).toBe('a_b.txt')
+  })
+
+  it('sanitizes Windows-unsafe characters to underscores', () => {
+    expect(extractDecodedFilename('http://example.com/a%3Ab%2Ac.txt')).toBe('a_b_c.txt')
+  })
+
+  it('returns empty string for trailing-slash URIs (no filename)', () => {
+    expect(extractDecodedFilename('http://example.com/')).toBe('')
+  })
+
+  it('returns empty string for bare domain URIs', () => {
+    expect(extractDecodedFilename('http://example.com')).toBe('')
+  })
+
+  it('returns empty string for magnet URIs', () => {
+    expect(extractDecodedFilename('magnet:?xt=urn:btih:abc123')).toBe('')
+  })
+
+  it('returns empty string for data URIs', () => {
+    expect(extractDecodedFilename('data:text/plain;base64,SGVsbG8=')).toBe('')
+  })
+
+  it('returns original segment for malformed percent sequence', () => {
+    expect(extractDecodedFilename('http://example.com/bad%ZZname.txt')).toBe('bad%ZZname.txt')
   })
 })

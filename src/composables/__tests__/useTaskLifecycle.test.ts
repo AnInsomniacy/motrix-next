@@ -156,6 +156,40 @@ describe('buildHistoryRecord', () => {
     const record = buildHistoryRecord(task)
     expect(record.meta).toBeUndefined()
   })
+
+  it('decodes percent-encoded path segments in file name', () => {
+    const task = makeTask({
+      files: [
+        {
+          index: '1',
+          path: '/downloads/AAA%20BBB.mp3',
+          length: '100',
+          completedLength: '100',
+          selected: 'true',
+          uris: [],
+        },
+      ],
+    })
+    const record = buildHistoryRecord(task)
+    expect(record.name).toBe('AAA BBB.mp3')
+  })
+
+  it('decodes UTF-8 percent sequences in file name', () => {
+    const task = makeTask({
+      files: [
+        {
+          index: '1',
+          path: '/downloads/%E4%B8%AD%E6%96%87.txt',
+          length: '100',
+          completedLength: '100',
+          selected: 'true',
+          uris: [],
+        },
+      ],
+    })
+    const record = buildHistoryRecord(task)
+    expect(record.name).toBe('中文.txt')
+  })
 })
 
 // ── shouldRunStaleCleanup ────────────────────────────────────────────

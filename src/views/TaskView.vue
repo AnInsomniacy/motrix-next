@@ -16,7 +16,7 @@ import {
 import { buildHistoryRecord, isMetadataTask } from '@/composables/useTaskLifecycle'
 import { shouldDeleteTorrent, trashTorrentFile, cleanupTorrentMetadataFiles } from '@/composables/useDownloadCleanup'
 import type { MagnetFileItem } from '@/composables/useMagnetFlow'
-import { getTaskName } from '@shared/utils'
+import { getTaskDisplayName } from '@shared/utils'
 import { ARIA2_ERROR_CODES } from '@shared/aria2ErrorCodes'
 import { logger } from '@shared/logger'
 import { useDialog } from 'naive-ui'
@@ -113,7 +113,7 @@ onMounted(() => {
     // Show error toast notification
     if (preferenceStore.config?.taskNotification === false) return
     const i18nKey = task.errorCode ? ARIA2_ERROR_CODES[task.errorCode] : undefined
-    const taskName = getTaskName(task, { defaultName: 'Unknown' })
+    const taskName = getTaskDisplayName(task, { defaultName: 'Unknown' })
     const errorText = i18nKey ? t(i18nKey) : task.errorMessage || t('task.error-unknown')
     message.error(`${taskName}: ${errorText}`, { duration: 8000, closable: true })
   })
@@ -133,7 +133,7 @@ onMounted(() => {
     if (sourcePath) {
       const ok = await trashTorrentFile(sourcePath)
       if (ok) {
-        const taskName = getTaskName(task)
+        const taskName = getTaskDisplayName(task)
         message.success(t('task.torrent-trashed', { taskName }))
       }
     }

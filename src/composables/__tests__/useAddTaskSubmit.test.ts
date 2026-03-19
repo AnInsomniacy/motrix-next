@@ -291,12 +291,12 @@ describe('submitManualUris', () => {
     expect(mockTaskStore.addUri).not.toHaveBeenCalled()
   })
 
-  it('submits single URI without outs', async () => {
+  it('submits single URI with auto-decoded outs when out is not specified', async () => {
     await submitManualUris({ ...baseForm, uris: 'http://example.com/file.zip' }, { dir: '/dl' }, mockTaskStore)
 
     expect(mockTaskStore.addUri).toHaveBeenCalledWith({
       uris: ['http://example.com/file.zip'],
-      outs: [],
+      outs: ['file.zip'],
       options: { dir: '/dl' },
     })
   })
@@ -314,8 +314,43 @@ describe('submitManualUris', () => {
     expect(call.outs.length).toBeGreaterThan(0)
   })
 
-  it('submits multi-URI without out as empty outs array', async () => {
-    await submitManualUris({ ...baseForm, uris: 'http://a.com/1\nhttp://b.com/2' }, { dir: '/dl' }, mockTaskStore)
+  it('auto-decodes filenames from URIs when user has not specified out', async () => {
+    await submitManualUris({ ...baseForm, uris: 'http://example.com/AAA%20BBB.mp3' }, { dir: '/dl' }, mockTaskStore)
+
+    const call = (mockTaskStore.addUri as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(call.outs).toEqual(['AAA BBB.mp3'])
+  })
+
+  it('auto-decodes filenames for each URI in multi-URI mode without user-specified out', async () => {
+    await submitManualUris(
+      { ...baseForm, uris: 'http://a.com/file%20one.zip\nhttp://b.com/file%E4%B8%AD.zip' },
+      { dir: '/dl' },
+      mockTaskStore,
+    )
+
+    const call = (mockTaskStore.addUri as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(call.outs).toEqual(['file one.zip', 'file中.zip'])
+  })
+
+  it('does not include magnet URIs in regular addUri call (they use separate addMagnetUri path)', async () => {
+    await submitManualUris(
+      { ...baseForm, uris: 'http://example.com/file%20name.zip\nmagnet:?xt=urn:btih:abc123' },
+      { dir: '/dl' },
+      mockTaskStore,
+    )
+
+    const call = (mockTaskStore.addUri as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    // Only the regular URI should be in the addUri call, with decoded outs
+    expect(call.uris).toEqual(['http://example.com/file%20name.zip'])
+    expect(call.outs).toEqual(['file name.zip'])
+  })
+
+  it('does not auto-generate outs when user has specified out', async () => {
+    await submitManualUris(
+      { ...baseForm, uris: 'http://example.com/AAA%20BBB.mp3', out: 'custom.mp3' },
+      { dir: '/dl', out: 'custom.mp3' },
+      mockTaskStore,
+    )
 
     const call = (mockTaskStore.addUri as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(call.outs).toEqual([])

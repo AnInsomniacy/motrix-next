@@ -4,6 +4,7 @@
  * and cleanup logic. All functions are pure for testability.
  */
 import type { Aria2Task, HistoryRecord } from '@shared/types'
+import { decodePathSegment } from '@shared/utils/batchHelpers'
 
 /** Detect BT metadata-only downloads (the intermediate magnet resolution phase).
  *
@@ -21,7 +22,7 @@ export function buildHistoryRecord(task: Aria2Task): HistoryRecord {
   const btName = task.bittorrent?.info?.name
   const firstFile = task.files?.[0]
   const pathName = firstFile?.path?.split(/[/\\]/).pop()
-  const name = btName || pathName || 'Unknown'
+  const name = btName || (pathName ? decodePathSegment(pathName) : '') || 'Unknown'
 
   const uri = firstFile?.uris?.[0]?.uri
   const taskType = task.bittorrent ? 'bt' : 'uri'
