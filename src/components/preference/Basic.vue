@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** @fileoverview Basic preference form: theme, locale, download dir, speed limits. */
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, h } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usePreferenceStore } from '@/stores/preference'
 import { usePreferenceForm } from '@/composables/usePreferenceForm'
@@ -39,7 +39,7 @@ import { FolderOpenOutline, CloudDownloadOutline } from '@vicons/ionicons5'
 import { NIcon } from 'naive-ui'
 import UpdateDialog from '@/components/preference/UpdateDialog.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const preferenceStore = usePreferenceStore()
 const dialog = useDialog()
 const message = useAppMessage()
@@ -99,11 +99,31 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot, patchSnapshot } =
     // Locale change → restart prompt
     const prevLocale = prevConfig.locale || 'en-US'
     if (f.locale !== prevLocale) {
+      const targetLocale = f.locale
+      const isEn = targetLocale === 'en-US'
+      const tt = (key: string) => t(key, {}, { locale: targetLocale })
       dialog.info({
-        title: 'Language Changed',
-        content: 'Restart the application to apply the new language.',
-        positiveText: 'Restart Now',
-        negativeText: 'Later',
+        style: 'min-width: 520px',
+        title: isEn
+          ? tt('preferences.language-changed-title')
+          : () =>
+              h('div', { style: 'padding-left: 12px' }, [
+                h('div', tt('preferences.language-changed-title')),
+                h('div', 'Language Changed'),
+              ]),
+        content: isEn
+          ? tt('preferences.language-changed-content')
+          : () =>
+              h('div', { style: 'padding: 10px 0' }, [
+                h('p', { style: 'margin: 0' }, tt('preferences.language-changed-content')),
+                h('p', { style: 'margin: 0' }, 'Please restart the application to apply the new language.'),
+              ]),
+        positiveText: isEn
+          ? tt('preferences.language-changed-restart')
+          : `${tt('preferences.language-changed-restart')} · Restart Now`,
+        negativeText: isEn
+          ? tt('preferences.language-changed-later')
+          : `${tt('preferences.language-changed-later')} · Later`,
         onPositiveClick: async () => {
           const { stopEngine } = useIpc()
           await stopEngine()
@@ -153,31 +173,31 @@ const speedUnitOptions = [
 
 const localeOptions = [
   { label: 'English', value: 'en-US' },
-  { label: '简体中文', value: 'zh-CN' },
-  { label: '繁體中文', value: 'zh-TW' },
-  { label: '日本語', value: 'ja' },
-  { label: '한국어', value: 'ko' },
-  { label: 'Français', value: 'fr' },
-  { label: 'Deutsch', value: 'de' },
-  { label: 'Español', value: 'es' },
-  { label: 'Português (Brasil)', value: 'pt-BR' },
-  { label: 'Русский', value: 'ru' },
-  { label: 'Türkçe', value: 'tr' },
-  { label: 'العربية', value: 'ar' },
-  { label: 'Български', value: 'bg' },
-  { label: 'Català', value: 'ca' },
-  { label: 'Ελληνικά', value: 'el' },
-  { label: 'فارسی', value: 'fa' },
-  { label: 'Magyar', value: 'hu' },
-  { label: 'Bahasa Indonesia', value: 'id' },
-  { label: 'Italiano', value: 'it' },
-  { label: 'Norsk Bokmål', value: 'nb' },
-  { label: 'Nederlands', value: 'nl' },
-  { label: 'Polski', value: 'pl' },
-  { label: 'Română', value: 'ro' },
-  { label: 'ไทย', value: 'th' },
-  { label: 'Українська', value: 'uk' },
-  { label: 'Tiếng Việt', value: 'vi' },
+  { label: '简体中文 · Chinese Simplified', value: 'zh-CN' },
+  { label: '繁體中文 · Chinese Traditional', value: 'zh-TW' },
+  { label: '日本語 · Japanese', value: 'ja' },
+  { label: '한국어 · Korean', value: 'ko' },
+  { label: 'Français · French', value: 'fr' },
+  { label: 'Deutsch · German', value: 'de' },
+  { label: 'Español · Spanish', value: 'es' },
+  { label: 'Português · Portuguese (Brazil)', value: 'pt-BR' },
+  { label: 'Русский · Russian', value: 'ru' },
+  { label: 'Türkçe · Turkish', value: 'tr' },
+  { label: 'العربية · Arabic', value: 'ar' },
+  { label: 'Български · Bulgarian', value: 'bg' },
+  { label: 'Català · Catalan', value: 'ca' },
+  { label: 'Ελληνικά · Greek', value: 'el' },
+  { label: 'فارسی · Persian', value: 'fa' },
+  { label: 'Magyar · Hungarian', value: 'hu' },
+  { label: 'Bahasa Indonesia · Indonesian', value: 'id' },
+  { label: 'Italiano · Italian', value: 'it' },
+  { label: 'Norsk Bokmål · Norwegian', value: 'nb' },
+  { label: 'Nederlands · Dutch', value: 'nl' },
+  { label: 'Polski · Polish', value: 'pl' },
+  { label: 'Română · Romanian', value: 'ro' },
+  { label: 'ไทย · Thai', value: 'th' },
+  { label: 'Українська · Ukrainian', value: 'uk' },
+  { label: 'Tiếng Việt · Vietnamese', value: 'vi' },
 ]
 
 const themeOptions = computed(() => [
@@ -291,9 +311,17 @@ onMounted(async () => {
 <template>
   <div class="preference-form-wrapper">
     <NForm label-placement="left" label-align="left" label-width="300px" size="small" class="form-preference">
-      <NDivider title-placement="left">Language</NDivider>
-      <NFormItem label="Select Language">
-        <NSelect v-model:value="form.locale" :options="localeOptions" style="width: 200px" />
+      <NDivider title-placement="left">
+        {{ locale === 'en-US' ? t('preferences.language') : `${t('preferences.language')} · Language` }}
+      </NDivider>
+      <NFormItem
+        :label="
+          locale === 'en-US'
+            ? t('preferences.select-language')
+            : `${t('preferences.select-language')} · Select Language`
+        "
+      >
+        <NSelect v-model:value="form.locale" :options="localeOptions" style="width: 280px" />
       </NFormItem>
 
       <NDivider title-placement="left">{{ t('preferences.auto-update') }}</NDivider>
