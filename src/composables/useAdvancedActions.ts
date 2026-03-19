@@ -245,8 +245,16 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
       })
       if (!savePath) return
 
+      const MIN_LOADING_MS = 400
+      const start = Date.now()
       exportingLogs.value = true
       const zipPath = await invoke<string>('export_diagnostic_logs', { savePath })
+
+      // Guarantee minimum loading duration so NButton's spinner-to-icon
+      // transition completes cleanly without visual stacking.
+      const remaining = MIN_LOADING_MS - (Date.now() - start)
+      if (remaining > 0) await new Promise((r) => setTimeout(r, remaining))
+
       message.success(t('preferences.export-diagnostic-logs-success', { path: zipPath }))
     } catch (e) {
       logger.error('Advanced.exportLogs', e)
