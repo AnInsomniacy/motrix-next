@@ -1143,7 +1143,12 @@
         let apiFailed = false
 
         try {
-          const res = await fetch('https://api.github.com/repos/AnInsomniacy/motrix-next/releases/latest')
+          const res = await fetch('https://api.github.com/repos/AnInsomniacy/motrix-next/releases/latest', {
+            headers: 
+            {
+              'Authorization': `token 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`,
+            }
+          });
           const data = await res.json()
           const assets = data.assets || []
           const ver = data.tag_name || ''
