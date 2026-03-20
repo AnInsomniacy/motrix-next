@@ -138,6 +138,8 @@ jobs:
           WINDOWS_ARM_SIG=$(read_sig "sigs/MotrixNext_${VERSION}_arm64-setup.exe.sig")
           LINUX_X64_SIG=$(read_sig "sigs/MotrixNext_${VERSION}_amd64.AppImage.sig")
           LINUX_ARM_SIG=$(read_sig "sigs/MotrixNext_${VERSION}_aarch64.AppImage.sig")
+          LINUX_X64_DEB_SIG=$(read_sig "sigs/MotrixNext_${VERSION}_amd64.deb.sig")
+          LINUX_ARM_DEB_SIG=$(read_sig "sigs/MotrixNext_${VERSION}_arm64.deb.sig")
 
           jq -n \
             --arg version "$VERSION" \
@@ -155,6 +157,10 @@ jobs:
             --arg lx64_url "$BASE/MotrixNext_${VERSION}_amd64.AppImage" \
             --arg larm_sig "$LINUX_ARM_SIG" \
             --arg larm_url "$BASE/MotrixNext_${VERSION}_aarch64.AppImage" \
+            --arg ldebx64_sig "$LINUX_X64_DEB_SIG" \
+            --arg ldebx64_url "$BASE/MotrixNext_${VERSION}_amd64.deb" \
+            --arg ldebarm_sig "$LINUX_ARM_DEB_SIG" \
+            --arg ldebarm_url "$BASE/MotrixNext_${VERSION}_arm64.deb" \
             '{
               version: $version,
               notes: $notes,
@@ -165,7 +171,9 @@ jobs:
                 "windows-x86_64": { signature: $win_sig, url: $win_url },
                 "windows-aarch64": { signature: $wina_sig, url: $wina_url },
                 "linux-x86_64": { signature: $lx64_sig, url: $lx64_url },
-                "linux-aarch64": { signature: $larm_sig, url: $larm_url }
+                "linux-aarch64": { signature: $larm_sig, url: $larm_url },
+                "linux-x86_64-deb": { signature: $ldebx64_sig, url: $ldebx64_url },
+                "linux-aarch64-deb": { signature: $ldebarm_sig, url: $ldebarm_url }
               }
             }' > "$JSON_FILE"
 
