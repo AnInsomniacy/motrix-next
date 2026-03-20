@@ -154,6 +154,9 @@ const UPDATER_TO_WEBSITE = {
   'linux-aarch64': { key: 'appimage-arm', derive: null },
   'linux-x86_64-deb': { key: 'deb-x64', derive: null },
   'linux-aarch64-deb': { key: 'deb-arm', derive: null },
+  // RPM entries are not in the updater JSON; derive from the AppImage URL.
+  'linux-x86_64:rpm': { key: 'rpm-x64', derive: 'rpm', source: 'linux-x86_64' },
+  'linux-aarch64:rpm': { key: 'rpm-arm', derive: 'rpm', source: 'linux-aarch64' },
 }
 
 /**
@@ -176,12 +179,31 @@ export function deriveDmgUrl(updaterUrl, version) {
 }
 
 /**
+ * Derives a Linux `.rpm` installer URL from a Tauri updater AppImage URL.
+ *
+ * AppImage URL pattern: `BASE/MotrixNext_VERSION_amd64.AppImage`
+ * Derived  RPM pattern: `BASE/MotrixNext-VERSION-1.x86_64.rpm`
+ *
+ * RPM uses different arch naming: `amd64` → `x86_64`, `aarch64` → `aarch64`.
+ *
+ * @param {string} appImageUrl — the `.AppImage` URL from the updater JSON
+ * @param {string} version     — semantic version string
+ * @returns {string} the corresponding `.rpm` download URL
+ */
+export function deriveRpmUrl(appImageUrl, version) {
+  const base = appImageUrl.substring(0, appImageUrl.lastIndexOf('/'))
+  // Map AppImage arch names to RPM arch names
+  const rpmArch = appImageUrl.includes('amd64') ? 'x86_64' : 'aarch64'
+  return `${base}/MotrixNext-${version}-1.${rpmArch}.rpm`
+}
+
+/**
  * Resolves website download URLs from a Tauri updater JSON `platforms` object.
  *
  * This function bridges the updater JSON format to the website's flat
  * `{ platformKey: url }` map. For macOS, it derives the `.dmg` URL from
- * the updater's `.app.tar.gz` URL. For all other platforms, the URL is
- * used as-is.
+ * the updater's `.app.tar.gz` URL. For RPM, it derives the URL from
+ * the AppImage URL. For all other platforms, the URL is used as-is.
  *
  * @param {Record<string, {url: string}>} platforms — the `platforms` object from `latest.json` or `beta.json`
  * @param {string} version — semantic version (e.g. `"3.4.6"`)
@@ -190,10 +212,14 @@ export function deriveDmgUrl(updaterUrl, version) {
 export function resolveFromUpdaterJson(platforms, version) {
   const urls = {}
   for (const [updaterKey, mapping] of Object.entries(UPDATER_TO_WEBSITE)) {
-    const entry = platforms[updaterKey]
+    // For derived entries (e.g. RPM), look up the source platform instead
+    const sourceKey = mapping.source || updaterKey
+    const entry = platforms[sourceKey]
     if (!entry) continue
     if (mapping.derive === 'dmg') {
       urls[mapping.key] = deriveDmgUrl(entry.url, version)
+    } else if (mapping.derive === 'rpm') {
+      urls[mapping.key] = deriveRpmUrl(entry.url, version)
     } else {
       urls[mapping.key] = entry.url
     }

@@ -23,6 +23,7 @@ export declare const PLATFORMS: Platform[]
 export declare function channelJsonUrl(channel: string): string
 export declare function resolveDownloadUrls(assets: Asset[]): Record<string, string>
 export declare function deriveDmgUrl(updaterUrl: string, version: string): string
+export declare function deriveRpmUrl(appImageUrl: string, version: string): string
 export declare function resolveFromUpdaterJson(
   platforms: Record<string, UpdaterPlatformEntry>,
   version: string,
