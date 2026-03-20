@@ -54,6 +54,7 @@ let unlistenSingleInstance: (() => void) | null = null
 let unlistenTrayMenu: (() => void) | null = null
 let unlistenResize: (() => void) | null = null
 let unlistenExitDialog: (() => void) | null = null
+let unlistenRestoreExitDialog: (() => void) | null = null
 let globalStatTimer: ReturnType<typeof setTimeout> | null = null
 
 import aria2Api, { isEngineReady } from '@/api/aria2'
@@ -266,6 +267,21 @@ onMounted(async () => {
     }
   })
 
+  // Linux/Wayland + decorations:false: Rust hides the window BEFORE emitting
+  // this event to prevent the Wayland compositor from destroying it.  We must
+  // re-show the window and set focus before displaying the exit dialog.
+  //
+  // Industry reference: Clash Verge Rev unconditionally hides on all
+  // CloseRequested events; we only do this on Linux to avoid flicker on
+  // macOS/Windows where prevent_close() is reliable.
+  unlistenRestoreExitDialog = await listen('restore-and-show-exit-dialog', async () => {
+    if (!isExiting.value) {
+      await appWindow.show()
+      await appWindow.setFocus()
+      showExitDialog.value = true
+    }
+  })
+
   // Sync native menu labels with current locale
   try {
     const { invoke } = await import('@tauri-apps/api/core')
@@ -324,6 +340,7 @@ onUnmounted(() => {
   if (unlistenTrayMenu) unlistenTrayMenu()
   if (unlistenResize) unlistenResize()
   if (unlistenExitDialog) unlistenExitDialog()
+  if (unlistenRestoreExitDialog) unlistenRestoreExitDialog()
   cancelPendingResize()
 })
 </script>

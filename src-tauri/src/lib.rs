@@ -545,12 +545,30 @@ pub fn run() {
                         }
                     }
                 } else {
-                    log::info!("window:show-exit-dialog label=main");
-                    // Emit event for the frontend to show the exit dialog.
-                    // More reliable than the JS onCloseRequested listener
-                    // which may not fire for certain close paths on
-                    // Linux/Wayland with decorations:false.
-                    let _ = app.emit("show-exit-dialog", ());
+                    // Linux/Wayland + decorations:false: the compositor can
+                    // destroy the window despite prevent_close().  Hide the
+                    // window FIRST to remove it from the compositor's surface
+                    // list, then emit a special event so the frontend can
+                    // re-show the window with the exit dialog.
+                    //
+                    // Industry reference: Clash Verge Rev (100k+ stars)
+                    // unconditionally hides on all CloseRequested events for
+                    // this exact reason.
+                    //
+                    // macOS / Windows: their compositors reliably honour
+                    // prevent_close(), so we emit the standard event without
+                    // hiding first to avoid a visible flicker.
+                    #[cfg(target_os = "linux")]
+                    {
+                        log::info!("window:linux-hide-first label=main");
+                        let _ = window.hide();
+                        let _ = app.emit("restore-and-show-exit-dialog", ());
+                    }
+                    #[cfg(not(target_os = "linux"))]
+                    {
+                        log::info!("window:show-exit-dialog label=main");
+                        let _ = app.emit("show-exit-dialog", ());
+                    }
                 }
             }
             tauri::WindowEvent::Destroyed => {
