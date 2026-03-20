@@ -728,4 +728,3 @@ pub async fn path_is_dir(path: String) -> Result<bool, AppError> {
         Err(_) => Ok(false),
     }
 }
-
