@@ -154,10 +154,10 @@ describe('resolveFromUpdaterJson', () => {
     expect(urls['appimage-x64']).toBeUndefined()
   })
 
-  it('does not include rpm keys (not in updater JSON)', () => {
+  it('derives rpm keys from AppImage URLs', () => {
     const urls = resolveFromUpdaterJson(MOCK_UPDATER_PLATFORMS, '3.4.6')
-    expect(urls['rpm-x64']).toBeUndefined()
-    expect(urls['rpm-arm']).toBeUndefined()
+    expect(urls['rpm-x64']).toBe('https://github.com/example/releases/download/v3.4.6/MotrixNext-3.4.6-1.x86_64.rpm')
+    expect(urls['rpm-arm']).toBe('https://github.com/example/releases/download/v3.4.6/MotrixNext-3.4.6-1.aarch64.rpm')
   })
 })
 
