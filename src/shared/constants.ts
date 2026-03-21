@@ -92,6 +92,7 @@ export const DEFAULT_APP_CONFIG = {
   seedRatio: 2, // old Motrix=2, Transmission=2; 2:1 supports BT ecosystem health
   seedTime: 2880, // old Motrix=2880 (48h); generous default for healthy swarm contribution
   keepSeeding: false, // qBT stops at ratio; safer default for new users
+  forceSave: true, // persist completed/seeding BT tasks in session file (aria2 skips FINISHED tasks without this)
   btSaveMetadata: true, // always save .torrent after metadata resolves for fast session restore
   btLoadSavedMetadata: true, // load cached .torrent on restart, skip DHT re-download
   btForceEncryption: false, // qBT default "Allow", not "Force"; forcing reduces peers

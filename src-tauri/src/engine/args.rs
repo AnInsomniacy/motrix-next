@@ -344,4 +344,28 @@ mod tests {
         // Arrays are not handled by the match — skipped via `_ => continue`
         assert!(!args.iter().any(|a| a.contains("--header=")));
     }
+
+    #[test]
+    fn build_args_force_save_true_persists_seeding_tasks() {
+        // force-save=true is essential for BT seeding persistence.
+        // Without it, aria2's SessionSerializer skips FINISHED (seeding) tasks.
+        let config = json!({ "force-save": true });
+        let args = build_start_args(&config, None, "/tmp/s", false);
+        assert!(args.iter().any(|a| a == "--force-save=true"));
+    }
+
+    #[test]
+    fn build_args_force_save_string_true_also_works() {
+        // Frontend may send String("true") instead of Bool(true)
+        let config = json!({ "force-save": "true" });
+        let args = build_start_args(&config, None, "/tmp/s", false);
+        assert!(args.iter().any(|a| a == "--force-save=true"));
+    }
+
+    #[test]
+    fn build_args_no_force_save_when_absent() {
+        let config = json!({ "dir": "/tmp" });
+        let args = build_start_args(&config, None, "/tmp/s", false);
+        assert!(!args.iter().any(|a| a.contains("force-save")));
+    }
 }

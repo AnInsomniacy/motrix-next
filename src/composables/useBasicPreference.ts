@@ -108,6 +108,7 @@ export function buildBasicSystemConfig(f: BasicForm): Record<string, string> {
     'max-overall-upload-limit': f.maxOverallUploadLimit,
     'bt-save-metadata': 'true',
     'bt-load-saved-metadata': 'true',
+    'force-save': 'true', // persist completed/seeding BT tasks in session file
     'bt-force-encryption': String(!!f.btForceEncryption),
     'seed-ratio': String(f.seedRatio),
     'seed-time': String(f.seedTime),

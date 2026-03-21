@@ -163,6 +163,7 @@ export interface AppConfig {
   listenPort: number
   dhtListenPort: number
   btTracker: string
+  forceSave: boolean
   btSaveMetadata: boolean
   btLoadSavedMetadata: boolean
   btForceEncryption: boolean
