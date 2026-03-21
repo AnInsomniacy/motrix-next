@@ -1,7 +1,7 @@
 {
   "name": "motrix-next",
   "private": true,
-  "version": "3.4.7-beta.5",
+  "version": "3.4.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
