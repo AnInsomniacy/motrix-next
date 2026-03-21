@@ -33,7 +33,10 @@ pub fn save_preference(app: AppHandle, config: Value) -> Result<(), AppError> {
             store.set(key.clone(), value.clone());
         }
     }
-    log::debug!("config:save-preference keys={}", config.as_object().map_or(0, |o| o.len()));
+    log::debug!(
+        "config:save-preference keys={}",
+        config.as_object().map_or(0, |o| o.len())
+    );
     Ok(())
 }
 
@@ -62,7 +65,10 @@ pub fn save_system_config(app: AppHandle, config: Value) -> Result<(), AppError>
             store.set(key.clone(), value.clone());
         }
     }
-    log::debug!("config:save-system keys={}", config.as_object().map_or(0, |o| o.len()));
+    log::debug!(
+        "config:save-system keys={}",
+        config.as_object().map_or(0, |o| o.len())
+    );
     Ok(())
 }
 

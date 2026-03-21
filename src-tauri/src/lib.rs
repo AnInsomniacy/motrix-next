@@ -366,12 +366,14 @@ pub fn run() {
                 ])
                 .format(|out, message, record| {
                     let now = chrono::Local::now();
-                    let source =
-                        if record.target().starts_with(tauri_plugin_log::WEBVIEW_TARGET) {
-                            "webview"
-                        } else {
-                            "rust"
-                        };
+                    let source = if record
+                        .target()
+                        .starts_with(tauri_plugin_log::WEBVIEW_TARGET)
+                    {
+                        "webview"
+                    } else {
+                        "rust"
+                    };
                     out.finish(format_args!(
                         "{} [{:<5}] [{}] {}",
                         now.format("%Y-%m-%dT%H:%M:%S%.3f%:z"),
