@@ -291,8 +291,9 @@ async function handleMagnetCancel() {
   try {
     const task = await taskStore.fetchTaskStatus(gid)
     await taskStore.removeTask(task)
-  } catch {
-    // Task may already be removed — safe to ignore
+  } catch (e) {
+    // Task may already be removed — log at debug level for diagnostics
+    logger.debug('TaskView.magnetCancel', e)
   }
   message.info(t('task.magnet-download-cancelled') || 'Download cancelled')
 
