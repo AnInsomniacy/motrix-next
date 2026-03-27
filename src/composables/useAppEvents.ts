@@ -106,20 +106,33 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
 
     listen<{ source: string }>('engine-recovered', async (event) => {
       logger.info('MainLayout', `engine recovered (source: ${event.payload.source})`)
-      try {
-        const port = Number(preferenceStore.config.rpcListenPort) || 16800
-        const secret = preferenceStore.config.rpcSecret || ''
-        await reconnectClient({ port, secret })
-        setEngineReady(true)
-        appStore.engineReady = true
-        message.success(t('app.engine-recovered'))
-      } catch (e) {
-        logger.error('MainLayout', `engine-recovered reconnect failed: ${e}`)
-        setEngineReady(false)
-        appStore.engineReady = false
-        // Don't show overlay — if engine actually crashed,
-        // the Terminated handler will emit engine-crashed separately.
+      const port = Number(preferenceStore.config.rpcListenPort) || 16800
+      const secret = preferenceStore.config.rpcSecret || ''
+
+      // Exponential backoff reconnect — same pattern as useEngineRestart.ts.
+      // restart_engine() returns after spawn(), before RPC is ready.
+      // Allow up to ~5s for aria2 to open its TCP listener.
+      const maxRetries = 5
+      let lastError: unknown
+      for (let i = 0; i < maxRetries; i++) {
+        const delay = Math.min(200 * 2 ** i, 2000)
+        await new Promise((r) => setTimeout(r, delay))
+        try {
+          await reconnectClient({ port, secret })
+          setEngineReady(true)
+          appStore.engineReady = true
+          message.success(t('app.engine-recovered'))
+          return
+        } catch (e) {
+          lastError = e
+          logger.debug('MainLayout', `engine-recovered reconnect attempt ${i + 1}/${maxRetries} failed: ${e}`)
+        }
       }
+
+      // All retries exhausted — engine process may be running but RPC unreachable
+      logger.error('MainLayout', `engine-recovered: all ${maxRetries} reconnect attempts failed: ${lastError}`)
+      setEngineReady(false)
+      appStore.engineReady = false
     })
 
     listen('engine-stopped', () => {

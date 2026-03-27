@@ -326,6 +326,10 @@ pub async fn apply_update(
                     "engine-crashed",
                     serde_json::json!({ "code": -1, "signal": null }),
                 );
+                return Err(AppError::Updater(format!(
+                    "{}; engine recovery also failed: {}",
+                    e, engine_err
+                )));
             }
             Err(join_err) => {
                 log::error!("updater:apply recovery task panicked: {join_err}");
@@ -333,9 +337,14 @@ pub async fn apply_update(
                     "engine-crashed",
                     serde_json::json!({ "code": -1, "signal": null }),
                 );
+                return Err(AppError::Updater(format!(
+                    "{}; engine recovery panicked: {}",
+                    e, join_err
+                )));
             }
         }
 
+        // Only reached when recovery succeeded — return the original install error
         return Err(AppError::Updater(e.to_string()));
     }
     log::info!("updater:apply phase=installed");

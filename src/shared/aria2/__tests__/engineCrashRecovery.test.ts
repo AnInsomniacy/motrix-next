@@ -419,4 +419,12 @@ describe('useAppEvents.ts — engine-recovered listener', () => {
     // Must be an import, not just a string reference
     expect(eventsSource).toMatch(/import\s+\{[^}]*reconnectClient[^}]*\}\s+from/)
   })
+
+  it('retries reconnect with exponential backoff (not single-shot)', () => {
+    const block = extractListenerBlock(eventsSource, 'engine-recovered')
+    expect(block).toBeTruthy()
+    // Must have a retry loop with maxRetries, not a single try/catch
+    expect(block).toContain('maxRetries')
+    expect(block).toMatch(/for\s*\(/)
+  })
 })
