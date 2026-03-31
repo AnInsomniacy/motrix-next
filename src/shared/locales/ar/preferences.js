@@ -237,4 +237,5 @@ export default {
   'color-scheme-evergreen': 'الخضرة الدائمة',
   'color-scheme-graphite': 'الجرافيت',
   'color-scheme-sakura': 'أزهار الكرز',
+  'color-scheme-switched': 'تم التبديل إلى نظام ألوان {name}',
 }

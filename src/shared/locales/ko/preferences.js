@@ -237,4 +237,5 @@ export default {
   'color-scheme-evergreen': '에버그린',
   'color-scheme-graphite': '그래파이트',
   'color-scheme-sakura': '사쿠라',
+  'color-scheme-switched': '{name} 색상 테마로 전환됨',
 }

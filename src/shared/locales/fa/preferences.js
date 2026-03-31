@@ -237,4 +237,5 @@ export default {
   'color-scheme-evergreen': 'همیشه‌سبز',
   'color-scheme-graphite': 'گرافیت',
   'color-scheme-sakura': 'ساکورا',
+  'color-scheme-switched': 'طرح رنگ به {name} تغییر کرد',
 }

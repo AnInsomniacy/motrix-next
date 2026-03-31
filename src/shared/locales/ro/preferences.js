@@ -237,4 +237,5 @@ export default {
   'color-scheme-evergreen': 'Veșnic verde',
   'color-scheme-graphite': 'Grafit',
   'color-scheme-sakura': 'Sakura',
+  'color-scheme-switched': 'Schema de culori schimbată la {name}',
 }

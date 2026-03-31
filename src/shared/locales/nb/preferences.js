@@ -237,4 +237,5 @@ export default {
   'color-scheme-evergreen': 'Eviggrønn',
   'color-scheme-graphite': 'Grafitt',
   'color-scheme-sakura': 'Sakura',
+  'color-scheme-switched': 'Byttet til fargevalget {name}',
 }

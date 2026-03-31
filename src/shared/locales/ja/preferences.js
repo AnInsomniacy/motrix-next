@@ -237,4 +237,5 @@ export default {
   'color-scheme-evergreen': 'エバーグリーン',
   'color-scheme-graphite': 'グラファイト',
   'color-scheme-sakura': 'サクラ',
+  'color-scheme-switched': 'カラースキームを {name} に変更しました',
 }

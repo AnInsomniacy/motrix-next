@@ -237,4 +237,5 @@ export default {
   'color-scheme-evergreen': 'Her daim yeşil',
   'color-scheme-graphite': 'Grafit',
   'color-scheme-sakura': 'Sakura',
+  'color-scheme-switched': 'Renk şeması {name} olarak değiştirildi',
 }

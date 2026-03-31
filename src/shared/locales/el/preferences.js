@@ -237,4 +237,5 @@ export default {
   'color-scheme-evergreen': 'Αειθαλές',
   'color-scheme-graphite': 'Γραφίτης',
   'color-scheme-sakura': 'Σακούρα',
+  'color-scheme-switched': 'Εναλλαγή σε χρωματικό σχήμα {name}',
 }

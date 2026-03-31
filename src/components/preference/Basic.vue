@@ -44,6 +44,7 @@ import {
   useDialog,
 } from 'naive-ui'
 import PreferenceActionBar from './PreferenceActionBar.vue'
+import MTooltip from '@/components/common/MTooltip.vue'
 import { FolderOpenOutline, CloudDownloadOutline } from '@vicons/ionicons5'
 import { NIcon } from 'naive-ui'
 import UpdateDialog from '@/components/preference/UpdateDialog.vue'
@@ -246,6 +247,34 @@ const stopLocaleSync = watch(
       patchSnapshot({ locale: detected } as Partial<typeof form.value>)
       stopLocaleSync()
     }
+  },
+)
+
+// ── Instant color‑scheme application ─────────────────────────────────
+// Color scheme is a purely visual preference that benefits from instant
+// feedback. Persist directly to the store on click — no Save & Apply needed.
+// The snapshot is also patched so isDirty stays false for this field.
+watch(
+  () => form.value.colorScheme,
+  (newId, oldId) => {
+    if (!newId || newId === oldId) return
+    preferenceStore.updateAndSave({ colorScheme: newId })
+    patchSnapshot({ colorScheme: newId } as Partial<typeof form.value>)
+    const scheme = COLOR_SCHEMES.find((s) => s.id === newId)
+    if (scheme) {
+      message.success(t('preferences.color-scheme-switched', { name: t(scheme.labelKey) }))
+    }
+  },
+)
+
+// ── Instant theme (appearance) application ───────────────────────────
+// Theme is also a purely visual preference — apply immediately.
+watch(
+  () => form.value.theme,
+  (newTheme, oldTheme) => {
+    if (!newTheme || newTheme === oldTheme) return
+    preferenceStore.updateAndSave({ theme: newTheme as 'auto' | 'light' | 'dark' })
+    patchSnapshot({ theme: newTheme } as Partial<typeof form.value>)
   },
 )
 
@@ -561,25 +590,27 @@ onMounted(async () => {
       <!-- ── Color Scheme Picker ────────────────────────────────── -->
       <NFormItem :label="t('preferences.color-scheme')">
         <div class="color-scheme-picker">
-          <button
-            v-for="scheme in COLOR_SCHEMES"
-            :key="scheme.id"
-            class="color-swatch"
-            :class="{ active: form.colorScheme === scheme.id }"
-            :style="{ '--swatch-color': scheme.seed }"
-            :title="t(scheme.labelKey)"
-            @click="form.colorScheme = scheme.id"
-          >
-            <svg v-if="form.colorScheme === scheme.id" class="swatch-check" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M4 8.5L6.5 11L12 5"
-                stroke="white"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </button>
+          <MTooltip v-for="scheme in COLOR_SCHEMES" :key="scheme.id">
+            <template #trigger>
+              <button
+                class="color-swatch"
+                :class="{ active: form.colorScheme === scheme.id }"
+                :style="{ '--swatch-color': scheme.seed }"
+                @click="form.colorScheme = scheme.id"
+              >
+                <svg v-if="form.colorScheme === scheme.id" class="swatch-check" viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M4 8.5L6.5 11L12 5"
+                    stroke="white"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
+            </template>
+            {{ t(scheme.labelKey) }}
+          </MTooltip>
         </div>
       </NFormItem>
       <NFormItem v-if="isMacOrWin" :label="t('preferences.show-progress-bar')">

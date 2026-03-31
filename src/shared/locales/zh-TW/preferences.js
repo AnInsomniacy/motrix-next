@@ -237,4 +237,5 @@ export default {
   'color-scheme-evergreen': '森林綠',
   'color-scheme-graphite': '岩石灰',
   'color-scheme-sakura': '櫻花粉',
+  'color-scheme-switched': '已切換至「{name}」配色',
 }

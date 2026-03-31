@@ -237,4 +237,5 @@ export default {
   'color-scheme-evergreen': 'Sempre-verde',
   'color-scheme-graphite': 'Grafite',
   'color-scheme-sakura': 'Sakura',
+  'color-scheme-switched': 'Esquema de cores alterado para {name}',
 }

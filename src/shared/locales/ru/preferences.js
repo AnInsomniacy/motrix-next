@@ -237,4 +237,5 @@ export default {
   'color-scheme-evergreen': 'Вечнозелёный',
   'color-scheme-graphite': 'Графит',
   'color-scheme-sakura': 'Сакура',
+  'color-scheme-switched': 'Цветовая схема изменена на {name}',
 }

@@ -237,4 +237,5 @@ export default {
   'color-scheme-evergreen': 'Hijau Abadi',
   'color-scheme-graphite': 'Grafit',
   'color-scheme-sakura': 'Sakura',
+  'color-scheme-switched': 'Beralih ke skema warna {name}',
 }

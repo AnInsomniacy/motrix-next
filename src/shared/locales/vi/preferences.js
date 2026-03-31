@@ -237,4 +237,5 @@ export default {
   'color-scheme-evergreen': 'Thường xanh',
   'color-scheme-graphite': 'Than chì',
   'color-scheme-sakura': 'Hoa anh đào',
+  'color-scheme-switched': 'Đã chuyển sang bảng màu {name}',
 }

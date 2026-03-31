@@ -237,4 +237,5 @@ export default {
   'color-scheme-evergreen': 'เอเวอร์กรีน',
   'color-scheme-graphite': 'แกรไฟต์',
   'color-scheme-sakura': 'ซากุระ',
+  'color-scheme-switched': 'เปลี่ยนเป็นชุดสี {name} แล้ว',
 }

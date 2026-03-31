@@ -237,4 +237,5 @@ export default {
   'color-scheme-evergreen': 'Örökzöld',
   'color-scheme-graphite': 'Grafit',
   'color-scheme-sakura': 'Szakura',
+  'color-scheme-switched': 'Színséma átváltva: {name}',
 }
