@@ -382,6 +382,30 @@ describe('stopSeeding', () => {
     expect(mockRemoveByInfoHash).not.toHaveBeenCalled()
     expect(mockAddRecord).toHaveBeenCalledOnce()
   })
+
+  // ── try/finally regression: fetchList + saveSession must run on failure ──
+
+  it('still calls fetchList and saveSession when forcePauseTask throws', async () => {
+    ;(api.forcePauseTask as Mock).mockRejectedValueOnce(new Error('pause failed'))
+    const task = makeTask({ gid: 'fail-pause' })
+
+    await expect(ops.stopSeeding(task)).rejects.toThrow('pause failed')
+
+    // Critical: UI refresh and session persistence must happen even on failure
+    expect(deps.fetchList).toHaveBeenCalledOnce()
+    expect(api.saveSession).toHaveBeenCalledOnce()
+  })
+
+  it('still calls fetchList and saveSession when removeTask throws', async () => {
+    ;(api.removeTask as Mock).mockRejectedValueOnce(new Error('remove failed'))
+    const task = makeTask({ gid: 'fail-remove' })
+
+    await expect(ops.stopSeeding(task)).rejects.toThrow('remove failed')
+
+    // Critical: UI refresh and session persistence must happen even on failure
+    expect(deps.fetchList).toHaveBeenCalledOnce()
+    expect(api.saveSession).toHaveBeenCalledOnce()
+  })
 })
 
 // ═══════════════════════════════════════════════════════════════════
