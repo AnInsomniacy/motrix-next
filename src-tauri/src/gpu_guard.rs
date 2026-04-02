@@ -187,6 +187,7 @@ pub fn is_hardware_rendering_enabled() -> bool {
 // ═════════════════════════════════════════════════════════════════════
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use std::fs;
