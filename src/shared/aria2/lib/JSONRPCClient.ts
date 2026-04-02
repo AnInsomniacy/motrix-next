@@ -85,9 +85,9 @@ export class JSONRPCClient extends EventEmitter {
     })
 
     if (!response.ok) {
-      throw new Error(
-        `aria2 HTTP error ${response.status}: ${response.statusText}`,
-      )
+      const error = new Error(`aria2 HTTP error ${response.status}: ${response.statusText}`)
+      this.emit('error', error)
+      throw error
     }
 
     try {
