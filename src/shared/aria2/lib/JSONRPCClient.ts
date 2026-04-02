@@ -84,10 +84,19 @@ export class JSONRPCClient extends EventEmitter {
       },
     })
 
-    response
-      .json()
-      .then((data) => this._onmessage(data as RPCResponse))
-      .catch((err) => this.emit('error', err))
+    if (!response.ok) {
+      throw new Error(
+        `aria2 HTTP error ${response.status}: ${response.statusText}`,
+      )
+    }
+
+    try {
+      const data = await response.json()
+      this._onmessage(data as RPCResponse)
+    } catch (err) {
+      this.emit('error', err)
+      throw err
+    }
 
     return response
   }

@@ -90,36 +90,40 @@ export function createTaskOperations(deps: TaskOperationsDeps) {
 
   async function stopSeeding(task: Aria2Task) {
     const { gid } = task
-    await api.forcePauseTask({ gid })
-    await api.removeTask({ gid })
-    // Purge from aria2's stopped list so force-save=true won't persist it
-    // in the session file. Without this, the stopped BT task reloads on
-    // restart and enters seeding again (bt-seed-unverified=true).
     try {
-      await api.removeTaskRecord({ gid })
-    } catch {
-      /* best-effort: task may already be gone */
-    }
-    // Also purge the parent metadata task from aria2's stopped list.
-    // For magnet links, the metadata resolution task (GID-A) stays in
-    // tellStopped with followedBy=[this GID] and the same infoHash.
-    // If not cleaned up, its infoHash poisons mergeHistoryIntoTasks
-    // dedup, causing the download task's history record to be discarded.
-    if (task.following) {
+      await api.forcePauseTask({ gid })
+      await api.removeTask({ gid })
+      // Purge from aria2's stopped list so force-save=true won't persist it
+      // in the session file. Without this, the stopped BT task reloads on
+      // restart and enters seeding again (bt-seed-unverified=true).
       try {
-        await api.removeTaskRecord({ gid: task.following })
+        await api.removeTaskRecord({ gid })
       } catch {
-        /* best-effort: metadata task may already be purged */
+        /* best-effort: task may already be gone */
       }
+      // Also purge the parent metadata task from aria2's stopped list.
+      // For magnet links, the metadata resolution task (GID-A) stays in
+      // tellStopped with followedBy=[this GID] and the same infoHash.
+      // If not cleaned up, its infoHash poisons mergeHistoryIntoTasks
+      // dedup, causing the download task's history record to be discarded.
+      if (task.following) {
+        try {
+          await api.removeTaskRecord({ gid: task.following })
+        } catch {
+          /* best-effort: metadata task may already be purged */
+        }
+      }
+      const record = buildBtCompletionRecord(task)
+      const historyStore = useHistoryStore()
+      // Clean up stale DB records from previous sessions (different GID, same infoHash)
+      if (task.infoHash) {
+        await historyStore.removeByInfoHash(task.infoHash, task.gid)
+      }
+      await historyStore.addRecord(record)
+    } finally {
+      await fetchList()
+      await api.saveSession()
     }
-    const record = buildBtCompletionRecord(task)
-    const historyStore = useHistoryStore()
-    // Clean up stale DB records from previous sessions (different GID, same infoHash)
-    if (task.infoHash) {
-      await historyStore.removeByInfoHash(task.infoHash, task.gid)
-    }
-    await historyStore.addRecord(record)
-    await api.saveSession()
   }
 
   async function stopAllSeeding(): Promise<number> {
