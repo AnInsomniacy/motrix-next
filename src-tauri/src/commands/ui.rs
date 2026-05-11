@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::tray::TrayMenuState;
+use crate::tray::TrayState;
 use serde_json::Value;
 #[cfg(not(target_os = "macos"))]
 use tauri::window::ProgressBarState;
@@ -32,7 +32,7 @@ pub fn update_tray_title(app: AppHandle, title: String) -> Result<(), AppError> 
 /// Updates localized labels on tray menu items by their IDs.
 #[tauri::command]
 pub fn update_tray_menu_labels(app: AppHandle, labels: Value) -> Result<(), AppError> {
-    let state = app.state::<TrayMenuState>();
+    let state = app.state::<TrayState>();
     let items = state
         .items
         .lock()

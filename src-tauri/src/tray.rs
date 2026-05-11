@@ -20,6 +20,9 @@ use tauri::{
 pub const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/tray-icon@2x.png");
 #[cfg(not(target_os = "macos"))]
 pub const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/tray-icon-color.png");
+#[cfg(not(target_os = "macos"))]
+pub const TRAY_ICON_DOWNLOADING_BYTES: &[u8] =
+    include_bytes!("../icons/tray-icon-color-downloading.png");
 
 /// Whether the current platform expects the tray icon to be rendered as an
 /// AppKit template image.
@@ -31,7 +34,15 @@ pub const TRAY_ICON_IS_TEMPLATE: bool = cfg!(target_os = "macos");
 /// between initial setup (`setup_tray`) and the `update_tray_title`
 /// workaround that must re-set the icon after `set_title` on macOS.
 pub fn tray_icon_image() -> tauri::image::Image<'static> {
-    tauri::image::Image::from_bytes(TRAY_ICON_BYTES).expect("embedded tray icon is valid PNG")
+    tray_icon_image_for_state(TrayIconState::Normal)
+}
+
+pub fn tray_icon_image_for_state(state: TrayIconState) -> tauri::image::Image<'static> {
+    let icon = match state {
+        TrayIconState::Normal => TRAY_ICON_BYTES,
+        TrayIconState::Downloading => TRAY_ICON_DOWNLOADING_BYTES,
+    };
+    tauri::image::Image::from_bytes(icon).expect("embedded tray icon is valid PNG")
 }
 
 /// Re-applies the tray icon while preserving platform-specific rendering flags.
@@ -41,7 +52,12 @@ pub fn tray_icon_image() -> tauri::image::Image<'static> {
 /// Any path that re-sets the icon must restore that flag immediately afterward,
 /// otherwise AppKit treats the bitmap as a normal white image.
 pub fn refresh_tray_icon(tray: &TrayIcon<tauri::Wry>) -> tauri::Result<()> {
-    let icon = tray_icon_image();
+    let tray_state = tray.app_handle().state::<TrayState>();
+    let icon_state = *tray_state
+        .icon_state
+        .lock()
+        .expect("get tray icon state lock error");
+    let icon = tray_icon_image_for_state(icon_state);
     tray.set_icon(Some(icon))?;
     if TRAY_ICON_IS_TEMPLATE {
         tray.set_icon_as_template(true)?;
@@ -52,8 +68,17 @@ pub fn refresh_tray_icon(tray: &TrayIcon<tauri::Wry>) -> tauri::Result<()> {
 /// Holds references to tray menu items for dynamic label updates (i18n).
 /// Used by the `update_tray_menu_labels` command to set localized text
 /// at runtime without rebuilding the menu.
-pub struct TrayMenuState {
+pub struct TrayState {
     pub items: Mutex<HashMap<String, MenuItem<tauri::Wry>>>,
+    pub icon_state: Mutex<TrayIconState>,
+}
+
+/// Tray icon states for dynamic icon switching.
+#[derive(Default, Clone, Copy)]
+pub enum TrayIconState {
+    #[default]
+    Normal,
+    Downloading,
 }
 
 /// Returns the existing main window, or recreates it if it was destroyed.
@@ -148,7 +173,7 @@ pub fn activate_main_window(app: &AppHandle, source: &'static str) -> WindowActi
     WindowActivationOutcome::Activated
 }
 
-pub fn setup_tray(app: &AppHandle) -> Result<TrayMenuState, Box<dyn std::error::Error>> {
+pub fn setup_tray(app: &AppHandle) -> Result<TrayState, Box<dyn std::error::Error>> {
     // Create MenuItem references for TrayMenuState (used by update_tray_menu_labels).
     // All three platforms use the same native menu — no platform-specific branching.
     let show_item = MenuItem::with_id(app, "show", "Show Motrix Next", true, None::<&str>)?;
@@ -295,8 +320,9 @@ pub fn setup_tray(app: &AppHandle) -> Result<TrayMenuState, Box<dyn std::error::
         });
     }
 
-    Ok(TrayMenuState {
+    Ok(TrayState {
         items: Mutex::new(items_map),
+        icon_state: Mutex::new(TrayIconState::default()),
     })
 }
 

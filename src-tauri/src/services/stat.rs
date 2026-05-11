@@ -8,6 +8,7 @@
 
 use super::config::RuntimeConfigState;
 use crate::aria2::client::Aria2Client;
+use crate::tray::TrayState;
 use keepawake::KeepAwake;
 use std::sync::Arc;
 use std::time::Duration;
@@ -464,7 +465,7 @@ async fn stat_loop(
                 log::info!("keep_awake: assertion released");
             }
 
-            // ── Tray title (macOS menu bar / Linux appindicator label) ──
+            // ── Tray title (macOS menu bar / Linux appindicator label) and dynamic icon ──
             if let Some(tray) = app.tray_by_id("motrix-next") {
                 if cfg.tray_speedometer && (download_speed > 0 || upload_speed > 0) {
                     let title = if download_speed > 0 {
@@ -476,11 +477,25 @@ async fn stat_loop(
                 } else {
                     let _ = tray.set_title(Some(""));
                 }
+                // Determine tray icon state: show downloading icon when active
+                let tray_state = if num_active > 0 {
+                    crate::tray::TrayIconState::Downloading
+                } else {
+                    crate::tray::TrayIconState::Normal
+                };
+                match app.state::<TrayState>().icon_state.lock() {
+                    Ok(mut state) => {
+                        *state = tray_state;
+                    }
+                    Err(e) => {
+                        log::error!("failed to lock TrayMenuState: {e}");
+                    }
+                }
                 // Workaround: re-set icon after set_title to prevent macOS
                 // icon disappearing (Tauri/tao bug). The helper preserves
                 // AppKit template rendering so the menu bar can auto-adapt
                 // the icon color on light and dark backgrounds.
-                #[cfg(target_os = "macos")]
+                // Refresh icon for state change
                 {
                     let _ = crate::tray::refresh_tray_icon(&tray);
                 }
