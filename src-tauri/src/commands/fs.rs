@@ -422,11 +422,11 @@ fn reveal_in_explorer(path: &str) -> Result<(), AppError> {
     // `\\?\UNC\server\share\file` → `\\server\share\file`
     // This is the fix for GitHub issue #3304.
     let path_str = canonical.to_string_lossy();
-    let fixed: PathBuf = if path_str.starts_with(r"\\?\UNC\") {
-        PathBuf::from(format!(r"\\{}", &path_str[r"\\?\UNC\".len()..]))
-    } else if path_str.starts_with(r"\\?\") {
+    let fixed: PathBuf = if let Some(stripped) = path_str.strip_prefix(r"\\?\UNC\") {
+        PathBuf::from(format!(r"\\{stripped}"))
+    } else if let Some(stripped) = path_str.strip_prefix(r"\\?\") {
         // Shouldn't happen (dunce handles this), but defensive
-        PathBuf::from(&path_str[r"\\?\".len()..])
+        PathBuf::from(stripped)
     } else {
         canonical.clone()
     };
@@ -688,6 +688,18 @@ pub fn is_dmabuf_renderer_disabled() -> bool {
 mod tests {
     use super::*;
 
+    fn fs_source() -> String {
+        include_str!("fs.rs").replace("\r\n", "\n")
+    }
+
+    fn native_expected_path(path: &str) -> String {
+        if cfg!(windows) {
+            path.replace('/', "\\")
+        } else {
+            path.to_string()
+        }
+    }
+
     // ── check_path_exists ──────────────────────────────────────────────
 
     #[test]
@@ -755,15 +767,21 @@ mod tests {
     // ── normalize_path ─────────────────────────────────────────────────
 
     #[test]
-    fn normalize_path_preserves_simple_unix_path() {
+    fn normalize_path_uses_native_separators_for_simple_path() {
         let result = normalize_path("/home/user/downloads/file.txt");
-        assert_eq!(result, "/home/user/downloads/file.txt");
+        assert_eq!(
+            result,
+            native_expected_path("/home/user/downloads/file.txt")
+        );
     }
 
     #[test]
-    fn normalize_path_preserves_path_with_spaces() {
+    fn normalize_path_uses_native_separators_for_path_with_spaces() {
         let result = normalize_path("/home/user/my downloads/file name.txt");
-        assert_eq!(result, "/home/user/my downloads/file name.txt");
+        assert_eq!(
+            result,
+            native_expected_path("/home/user/my downloads/file name.txt")
+        );
     }
 
     #[test]
@@ -803,10 +821,9 @@ mod tests {
     }
 
     #[test]
-    fn normalize_path_handles_forward_slash_only() {
-        // Pure forward-slash paths (cross-platform compatible)
+    fn normalize_path_handles_forward_slash_only_with_native_separators() {
         let result = normalize_path("/var/log/app.log");
-        assert_eq!(result, "/var/log/app.log");
+        assert_eq!(result, native_expected_path("/var/log/app.log"));
     }
 
     // ── show_item_in_dir structural tests ──────────────────────────────
@@ -814,7 +831,7 @@ mod tests {
     /// Verifies show_item_in_dir calls normalize_path then reveal_in_explorer.
     #[test]
     fn show_item_in_dir_calls_normalize_then_reveal() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         let fn_start = source
             .find("pub fn show_item_in_dir")
             .expect("show_item_in_dir function must exist");
@@ -834,7 +851,7 @@ mod tests {
     /// Verifies Windows cfg-gate exists and bypasses tauri_plugin_opener.
     #[test]
     fn reveal_in_explorer_has_windows_cfg_gate() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         // Must have #[cfg(windows)] fn reveal_in_explorer
         assert!(
             source.contains("#[cfg(windows)]\nfn reveal_in_explorer"),
@@ -850,7 +867,7 @@ mod tests {
     /// Verifies the Windows implementation uses ILCreateFromPathW (not plugin).
     #[test]
     fn windows_reveal_uses_shell_api() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         let cfg_start = source
             .find("#[cfg(windows)]\nfn reveal_in_explorer")
             .expect("Windows reveal_in_explorer must exist");
@@ -868,13 +885,13 @@ mod tests {
     /// Verifies the Windows implementation strips \\?\UNC\ prefix (issue #3304 fix).
     #[test]
     fn windows_reveal_strips_unc_prefix() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         let cfg_start = source
             .find("#[cfg(windows)]\nfn reveal_in_explorer")
             .expect("Windows reveal_in_explorer must exist");
         let fn_body = &source[cfg_start..cfg_start + 2500];
         assert!(
-            fn_body.contains(r#"starts_with(r"\\?\UNC\")"#),
+            fn_body.contains(r#"strip_prefix(r"\\?\UNC\")"#),
             "Windows reveal must check for \\\\?\\UNC\\ prefix"
         );
     }
@@ -882,7 +899,7 @@ mod tests {
     /// Verifies the Windows implementation has an Electron-style ShellExecuteExW fallback.
     #[test]
     fn windows_reveal_has_shell_execute_fallback() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         let cfg_start = source
             .find("#[cfg(windows)]\nfn reveal_in_explorer")
             .expect("Windows reveal_in_explorer must exist");
@@ -900,7 +917,7 @@ mod tests {
     /// Verifies non-Windows fallback uses tauri_plugin_opener.
     #[test]
     fn non_windows_reveal_uses_plugin_opener() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         let cfg_start = source
             .find("#[cfg(not(windows))]\nfn reveal_in_explorer")
             .expect("non-Windows reveal_in_explorer must exist");
@@ -918,7 +935,7 @@ mod tests {
     /// is unsupported. See: https://github.com/rust-lang/rust/issues/99608
     #[test]
     fn windows_reveal_canonicalize_is_best_effort() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         let cfg_start = source
             .find("#[cfg(windows)]\nfn reveal_in_explorer")
             .expect("Windows reveal_in_explorer must exist");
@@ -946,7 +963,7 @@ mod tests {
     /// Verifies canonicalize fallback logs a debug message for diagnostics.
     #[test]
     fn windows_reveal_canonicalize_fallback_logs_debug() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         let cfg_start = source
             .find("#[cfg(windows)]\nfn reveal_in_explorer")
             .expect("Windows reveal_in_explorer must exist");
@@ -965,7 +982,7 @@ mod tests {
     /// Verifies canonicalize fallback creates PathBuf from the input path.
     #[test]
     fn windows_reveal_canonicalize_fallback_uses_input_path() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         let cfg_start = source
             .find("#[cfg(windows)]\nfn reveal_in_explorer")
             .expect("Windows reveal_in_explorer must exist");
@@ -984,7 +1001,7 @@ mod tests {
     /// ShellExecuteExW requires Win32_System_Registry feature; ShellExecuteW does not.
     #[test]
     fn shell_execute_open_uses_shell_execute_w() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         // Verify the import line exists in the actual function (not test code).
         // The function imports "Shell::ShellExecuteW;" (note the semicolon — not Ex variant).
         assert!(
@@ -996,7 +1013,7 @@ mod tests {
     /// Verifies the to_wide helper function exists with cfg(windows).
     #[test]
     fn to_wide_helper_exists() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         // Check the cfg gate + function signature + utf16 encoding all exist
         assert!(
             source.contains("#[cfg(windows)]\nfn to_wide("),
@@ -1011,7 +1028,7 @@ mod tests {
     /// Verifies show_item_in_dir includes debug logging for traceability.
     #[test]
     fn show_item_in_dir_has_debug_logging() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         // Search within the function body (between pub fn and next fn/doc comment)
         let fn_start = source
             .find("pub fn show_item_in_dir")
@@ -1031,7 +1048,7 @@ mod tests {
     /// Verifies Windows reveal_in_explorer initializes COM before Shell API calls.
     #[test]
     fn windows_reveal_initializes_com() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         let cfg_start = source
             .find("#[cfg(windows)]\nfn reveal_in_explorer")
             .expect("Windows reveal_in_explorer must exist");
@@ -1051,7 +1068,7 @@ mod tests {
     /// Verifies open_path_normalized calls normalize_path before open_path.
     #[test]
     fn open_path_normalized_calls_normalize_path() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         let fn_start = source
             .find("pub fn open_path_normalized")
             .expect("open_path_normalized function must exist");
@@ -1073,7 +1090,7 @@ mod tests {
     /// Verifies normalize_path uses components().collect() for separator normalization.
     #[test]
     fn normalize_path_uses_components_collect() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         let fn_start = source
             .find("pub(crate) fn normalize_path")
             .expect("normalize_path function must exist");
@@ -1092,7 +1109,7 @@ mod tests {
     /// Verifies normalize_path uses dunce::simplified for prefix stripping.
     #[test]
     fn normalize_path_uses_dunce() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         let fn_start = source
             .find("pub(crate) fn normalize_path")
             .expect("normalize_path function must exist");
@@ -1111,7 +1128,7 @@ mod tests {
     /// Verifies normalize_path includes debug logging.
     #[test]
     fn normalize_path_has_debug_logging() {
-        let source = include_str!("fs.rs");
+        let source = fs_source();
         let fn_start = source
             .find("pub(crate) fn normalize_path")
             .expect("normalize_path function must exist");

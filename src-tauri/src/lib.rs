@@ -392,7 +392,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         };
         if let Some(w) = app.get_webview_window("main") {
             if let Ok(hwnd_handle) = w.hwnd() {
-                let hwnd = hwnd_handle.0 as *mut std::ffi::c_void;
+                let hwnd = hwnd_handle.0;
                 // DWMWCP_ROUND = 2: force DWM native rounded corners
                 let preference: u32 = 2;
                 unsafe {

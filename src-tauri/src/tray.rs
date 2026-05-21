@@ -2,9 +2,12 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder,
 };
+
+#[cfg(not(target_os = "windows"))]
+use tauri::tray::TrayIcon;
 
 /// Embedded tray icon bytes.
 ///
@@ -40,6 +43,7 @@ pub fn tray_icon_image() -> tauri::image::Image<'static> {
 /// monochrome mask correctly on light, dark, and highlighted menu bar states.
 /// Any path that re-sets the icon must restore that flag immediately afterward,
 /// otherwise AppKit treats the bitmap as a normal white image.
+#[cfg(not(target_os = "windows"))]
 pub fn refresh_tray_icon(tray: &TrayIcon<tauri::Wry>) -> tauri::Result<()> {
     let icon = tray_icon_image();
     tray.set_icon(Some(icon))?;
