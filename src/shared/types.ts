@@ -159,12 +159,19 @@ export interface Aria2RawGlobalStat {
   [key: string]: string
 }
 
+/** Proxy match mode: blacklist (default) or whitelist. */
+export type ProxyMatchMode = 'blacklist' | 'whitelist'
+
 /** HTTP/SOCKS proxy configuration for aria2 and tracker requests. */
 export interface ProxyConfig {
   enable: boolean
   server: string
   bypass?: string
   scope?: string[]
+  /** Match mode for the bypass/whitelist list.
+   *  'blacklist' (default): matching domains are excluded from proxy.
+   *  'whitelist': only matching domains go through proxy. */
+  matchMode?: ProxyMatchMode
 }
 
 /** Result from the `get_system_proxy` Tauri command.

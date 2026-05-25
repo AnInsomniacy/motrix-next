@@ -199,7 +199,7 @@ export const BUILTIN_CATEGORY_LABELS: ReadonlySet<string> = new Set(BUILTIN_CATE
 export const CURRENT_DB_SCHEMA_VERSION = 3
 
 export const DEFAULT_APP_CONFIG = {
-  configVersion: 5,
+  configVersion: 6,
   dbSchemaVersion: CURRENT_DB_SCHEMA_VERSION,
   // ── Appearance ──────────────────────────────────────────────────
   theme: 'auto' as const,
@@ -293,7 +293,13 @@ export const DEFAULT_APP_CONFIG = {
   ed2kUploadSlots: 3,
   ed2kShareFiles: [] as string[],
   ed2kSearchTimeout: 20,
-  proxy: { enable: false, server: '', bypass: '', scope: ['download', 'update-app', 'update-trackers'] },
+  proxy: {
+    enable: false,
+    server: '',
+    bypass: '',
+    scope: ['download', 'update-app', 'update-trackers'],
+    matchMode: 'blacklist',
+  },
   protocols: { magnet: true, ed2k: true, thunder: false, motrixnext: true },
   clipboard: { enable: true, http: true, ftp: true, magnet: true, ed2k: true, thunder: true, btHash: true },
   autoSubmitFromExtension: true,

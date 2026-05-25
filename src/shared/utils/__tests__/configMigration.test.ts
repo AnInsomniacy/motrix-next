@@ -491,9 +491,74 @@ describe('v5 migration — ED2K protocol and clipboard backfill', () => {
   })
 })
 
-// ── Full v0 → v5 integration ──────────────────────────────────────
+// ── v6 Migration: proxy.matchMode backfill ────────────────────────
 
-describe('v0 → v5 full migration path', () => {
+describe('v6 migration — proxy.matchMode backfill', () => {
+  it('backfills matchMode to blacklist when proxy exists and matchMode is undefined', () => {
+    const config: Partial<AppConfig> = {
+      configVersion: 5,
+      proxy: { enable: true, server: 'http://proxy:8080', bypass: '', scope: ['download'] },
+    }
+    runMigrations(config)
+    expect(config.proxy!.matchMode).toBe('blacklist')
+  })
+
+  it('preserves explicit matchMode whitelist value', () => {
+    const config: Partial<AppConfig> = {
+      configVersion: 5,
+      proxy: {
+        enable: true,
+        server: 'http://proxy:8080',
+        bypass: '*.example.com',
+        scope: ['download'],
+        matchMode: 'whitelist' as const,
+      },
+    }
+    runMigrations(config)
+    expect(config.proxy!.matchMode).toBe('whitelist')
+  })
+
+  it('preserves explicit matchMode blacklist value', () => {
+    const config: Partial<AppConfig> = {
+      configVersion: 5,
+      proxy: {
+        enable: true,
+        server: 'http://proxy:8080',
+        bypass: '',
+        scope: ['download'],
+        matchMode: 'blacklist' as const,
+      },
+    }
+    runMigrations(config)
+    expect(config.proxy!.matchMode).toBe('blacklist')
+  })
+
+  it('does nothing when proxy field is absent entirely', () => {
+    const config: Partial<AppConfig> = { configVersion: 5 }
+    runMigrations(config)
+    expect(config.proxy).toBeUndefined()
+  })
+
+  it('is idempotent — running on already-migrated v6 config is a no-op', () => {
+    const config: Partial<AppConfig> = {
+      configVersion: CONFIG_VERSION,
+      proxy: {
+        enable: true,
+        server: 'http://proxy:8080',
+        bypass: '',
+        scope: ['download'],
+        matchMode: 'blacklist' as const,
+      },
+    }
+    const result = runMigrations(config)
+    expect(result.migrated).toBe(false)
+    expect(config.proxy!.matchMode).toBe('blacklist')
+  })
+})
+
+// ── Full v0 → v6 integration ──────────────────────────────────────
+
+describe('v0 → v6 full migration path', () => {
   it('runs all migrations in sequence on fresh config', () => {
     const config = {
       proxy: { enable: true, server: 'http://proxy:1080', bypass: '', scope: [] },
@@ -524,6 +589,8 @@ describe('v0 → v5 full migration path', () => {
     // v5: ED2K protocol surfaces backfilled
     expect(config.protocols?.ed2k).toBe(true)
     expect(config.clipboard?.ed2k).toBe(true)
+    // v6: proxy.matchMode backfilled
+    expect(config.proxy!.matchMode).toBe('blacklist')
     // Both split and maxConnectionPerServer preserved
     expect(config.split).toBe(64)
     expect(config.maxConnectionPerServer).toBe(64)

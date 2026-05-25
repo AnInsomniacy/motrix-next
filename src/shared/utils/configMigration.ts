@@ -21,7 +21,7 @@ import { logger } from '@shared/logger'
 import type { AppConfig } from '@shared/types'
 
 /** Current schema version. Must equal `migrations.length`. */
-export const CONFIG_VERSION = 5
+export const CONFIG_VERSION = 6
 
 /** Result returned by runMigrations for callers to act on (e.g. toast). */
 export interface MigrationResult {
@@ -178,6 +178,19 @@ const migrations: Migration[] = [
     if (config.clipboard && config.clipboard.ed2k === undefined) {
       config.clipboard.ed2k = true
       logger.info('ConfigMigration', 'v5: backfilled clipboard.ed2k')
+    }
+  },
+
+  // ── v5 → v6 ──────────────────────────────────────────────────────
+  // Add proxy.matchMode field for whitelist/blacklist support.
+  //
+  // Existing users with proxy configured will have matchMode undefined.
+  // Default value is 'blacklist' (preserving existing behavior).
+  function migrateV6(config: Partial<AppConfig>): void {
+    const proxy = config.proxy
+    if (proxy && proxy.matchMode === undefined) {
+      proxy.matchMode = 'blacklist'
+      logger.info('ConfigMigration', 'v6: backfilled proxy.matchMode to blacklist')
     }
   },
 ]
