@@ -1,15 +1,18 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
-const LIB_SOURCE = readFileSync(resolve(__dirname, '../../../src-tauri/src/lib.rs'), 'utf-8')
+const LIB_SOURCE = readFileSync(resolve(process.cwd(), 'src-tauri/src/lib.rs'), 'utf-8')
 
 describe('UPnP shutdown behavior', () => {
   it('wraps stop_mapping in a timeout on app exit', () => {
     const exitIdx = LIB_SOURCE.indexOf('tauri::RunEvent::Exit =>')
     expect(exitIdx).toBeGreaterThanOrEqual(0)
-    const snippet = LIB_SOURCE.slice(exitIdx, exitIdx + 3200)
-    expect(snippet).toContain('timeout(')
-    expect(snippet).toContain('upnp::stop_mapping')
+    const exitSnippet = LIB_SOURCE.slice(exitIdx)
+    const stopMappingIdx = exitSnippet.indexOf('upnp::stop_mapping')
+    expect(stopMappingIdx).toBeGreaterThanOrEqual(0)
+
+    const upnpCleanupSnippet = exitSnippet.slice(Math.max(0, stopMappingIdx - 240), stopMappingIdx + 240)
+    expect(upnpCleanupSnippet).toContain('tokio::time::timeout(')
   })
 })

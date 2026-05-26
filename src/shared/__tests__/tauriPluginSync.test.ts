@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 /**
  * Tauri Plugin Version Sync Tests
@@ -18,7 +18,7 @@ import { resolve } from 'path'
  * in bump-version.sh prevents this, but this test acts as a safety net.
  */
 
-const PROJECT_ROOT = resolve(__dirname, '..', '..', '..')
+const PROJECT_ROOT = process.cwd()
 const CARGO_LOCK = resolve(PROJECT_ROOT, 'src-tauri', 'Cargo.lock')
 const PNPM_LOCK = resolve(PROJECT_ROOT, 'pnpm-lock.yaml')
 
@@ -34,7 +34,7 @@ const PNPM_LOCK = resolve(PROJECT_ROOT, 'pnpm-lock.yaml')
  */
 function parseCargoLockPlugins(content: string): Map<string, string> {
   const plugins = new Map<string, string>()
-  const pattern = /name = "tauri-plugin-([^"]+)"\nversion = "([^"]+)"/g
+  const pattern = /name = "tauri-plugin-([^"]+)"\r?\nversion = "([^"]+)"/g
   let match: RegExpExecArray | null
 
   while ((match = pattern.exec(content)) !== null) {

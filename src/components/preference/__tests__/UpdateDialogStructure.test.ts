@@ -6,10 +6,10 @@
  * runtime while still enforcing code-quality invariants.
  */
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
-const SOURCE = readFileSync(resolve(__dirname, '../UpdateDialog.vue'), 'utf-8')
+const SOURCE = readFileSync(resolve(process.cwd(), 'src/components/preference/UpdateDialog.vue'), 'utf-8')
 
 // ── handleInstallAndRelaunch error handling ─────────────────────────
 

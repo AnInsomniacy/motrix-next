@@ -77,7 +77,7 @@ fn kill_process_by_pid(pid: u32) -> Result<(), String> {
         if status.success() {
             return Ok(());
         }
-        return Err(format!("taskkill failed for PID {pid}: {status}"));
+        Err(format!("taskkill failed for PID {pid}: {status}"))
     }
 
     #[cfg(not(windows))]

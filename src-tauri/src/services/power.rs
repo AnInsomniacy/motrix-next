@@ -8,7 +8,9 @@
 use crate::error::AppError;
 
 const DOWNLOAD_REASON: &str = "Active downloads in progress";
+#[cfg(not(target_os = "windows"))]
 const APP_NAME: &str = "Motrix Next";
+#[cfg(not(target_os = "windows"))]
 const APP_REVERSE_DOMAIN: &str = "com.motrix.next";
 
 pub struct PowerGuard {
