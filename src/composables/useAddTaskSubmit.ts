@@ -21,8 +21,8 @@ import {
   normalizeUriLines,
   extractDecodedFilename,
   extractMagnetDisplayName,
-  hasExtension,
   sanitizeAria2OutHint,
+  shouldProbeRemoteFilename,
 } from '@shared/utils/batchHelpers'
 import { buildOuts } from '@shared/utils/rename'
 import { invoke } from '@tauri-apps/api/core'
@@ -261,8 +261,9 @@ export async function submitManualUris(
       // aria2's native filename resolution only uses Content-Disposition
       // and URL path.  CDNs like Twitter/X serve media from extensionless
       // paths (e.g. /media/HCo_0zsbkAEov7s?format=jpg).  For each URL
-      // whose path lacks an extension, invoke the Rust-side HEAD request
-      // to infer the correct name via Content-Type MIME mapping.
+      // whose path lacks an extension or like CDN-style, invoke the
+      // Rust-side HEAD request to infer the correct name via
+      // Content-Type MIME mapping.
       const outs = await Promise.all(
         regularUris.map(async (uri) => {
           // Extension already provided a filename via options.out — skip HEAD.
@@ -270,8 +271,7 @@ export async function submitManualUris(
           // the CDN's Content-Type (e.g. .xml), and aria2.ts addUri() L108
           // overwrites options.out with the outs[] entry.
           if (options.out) return ''
-          const pathFilename = extractDecodedFilename(uri)
-          if (!pathFilename || hasExtension(pathFilename)) return ''
+          if (!shouldProbeRemoteFilename(uri)) return ''
           try {
             const uriContext = form.uriRequestContexts?.[uri]
             const sanitizedHeaders = sanitizeHttpHeaderOptions({
