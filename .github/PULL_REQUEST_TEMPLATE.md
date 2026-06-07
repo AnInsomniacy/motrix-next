@@ -48,7 +48,7 @@ If AI was used, specify the tool: <!-- e.g., GitHub Copilot, Claude, ChatGPT -->
 
 ### Required — PR will not be reviewed without these
 
-- [ ] I have read [CONTRIBUTING.md](../docs/CONTRIBUTING.md)
+- [ ] I have read [CONTRIBUTING.md](https://github.com/AnInsomniacy/motrix-next/blob/main/docs/CONTRIBUTING.md)
 - [ ] PR changes **fewer than 300 lines** of code (excluding tests and generated files)
 - [ ] PR touches **fewer than 10 files**
 - [ ] PR addresses **one concern only** — no mixed features, config tweaks, or unrelated fixes
