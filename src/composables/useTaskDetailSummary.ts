@@ -3,13 +3,21 @@ import type { Aria2Task, Aria2File, Aria2Peer } from '@shared/types'
 
 export type TaskDetailKind = 'uri' | 'bt' | 'ed2k'
 
+export interface UriSourceGroup {
+  url: string
+  segmentCount: number
+  status: 'used' | 'waiting' | '-'
+}
+
 export interface UriDetailSummary {
   primaryUri: string
   fileCount: number
   selectedFileCount: number
   mirrorCount: number
+  uniqueSourceCount: number
   usedMirrorCount: number
   waitingMirrorCount: number
+  sourceGroups: UriSourceGroup[]
 }
 
 type BtMetadataState = 'downloading' | 'ready' | 'unknown'
@@ -90,13 +98,36 @@ function normalizeBtMetadataState(task: Aria2Task | null | undefined, hasMetadat
 export function buildUriDetailSummary(task: Aria2Task | null | undefined): UriDetailSummary {
   const files = task?.files ?? []
   const uris = files.flatMap((file) => file.uris ?? [])
+
+  // Group URIs by URL to show per-source segment distribution
+  const groupMap = new Map<string, { count: number; hasUsed: boolean; hasWaiting: boolean }>()
+  for (const u of uris) {
+    const existing = groupMap.get(u.uri)
+    if (existing) {
+      existing.count++
+      if (u.status === 'used') existing.hasUsed = true
+      if (u.status === 'waiting') existing.hasWaiting = true
+    } else {
+      groupMap.set(u.uri, { count: 1, hasUsed: u.status === 'used', hasWaiting: u.status === 'waiting' })
+    }
+  }
+  const sourceGroups: UriSourceGroup[] = [...groupMap.entries()]
+    .map(([url, g]) => ({
+      url,
+      segmentCount: g.count,
+      status: (g.hasUsed ? 'used' : g.hasWaiting ? 'waiting' : '-') as UriSourceGroup['status'],
+    }))
+    .sort((a, b) => b.segmentCount - a.segmentCount)
+
   return {
     primaryUri: uris[0]?.uri ?? '',
     fileCount: files.length,
     selectedFileCount: selectedFiles(files).length,
     mirrorCount: uris.length,
+    uniqueSourceCount: groupMap.size,
     usedMirrorCount: uris.filter((uri) => uri.status === 'used').length,
     waitingMirrorCount: uris.filter((uri) => uri.status === 'waiting').length,
+    sourceGroups,
   }
 }
 

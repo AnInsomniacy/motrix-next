@@ -155,7 +155,7 @@ export async function addUri(params: {
 /**
  * Adds a single download with all URIs as mirrors (alternative sources).
  */
-export async function addUriAtomic(params: { uris: string[]; options: Record<string, string> }): Promise<string> {
+export async function addUriAtomic(params: { uris: string[]; options: Aria2EngineOptions }): Promise<string> {
   const { uris, options } = params
   const engineOptions = formatOptionsForEngine(options)
   const gid = await invoke<string>('aria2_add_uri', { uris, options: engineOptions })

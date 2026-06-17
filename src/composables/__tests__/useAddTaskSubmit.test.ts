@@ -112,6 +112,7 @@ describe('buildEngineOptions', () => {
     proxyMode: 'direct',
     customProxy: '',
     requestHeaders: [],
+    multiSource: false,
   }
 
   it('always includes dir and split', () => {
@@ -542,6 +543,7 @@ describe('submitManualUris', () => {
     proxyMode: 'direct',
     customProxy: '',
     requestHeaders: [],
+    multiSource: false,
   }
 
   beforeEach(() => {
@@ -744,6 +746,7 @@ describe('useAddTaskSubmit', () => {
     proxyMode: 'direct',
     customProxy: '',
     requestHeaders: [],
+    multiSource: false,
   }
 
   beforeEach(() => {

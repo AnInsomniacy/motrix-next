@@ -588,7 +588,7 @@ export interface TaskApi {
   fetchTaskItemWithPeers: (params: { gid: string }) => Promise<Aria2Task & { peers: Aria2Peer[] }>
   fetchActiveTaskList: () => Promise<Aria2Task[]>
   addUri: (params: AddUriParams) => Promise<string[]>
-  addUriAtomic: (params: { uris: string[]; options: Record<string, string> }) => Promise<string>
+  addUriAtomic: (params: { uris: string[]; options: Aria2EngineOptions }) => Promise<string>
   addTorrent: (params: AddTorrentParams) => Promise<string>
   getOption: (params: { gid: string }) => Promise<Record<string, string>>
   changeOption: (params: TaskOptionParams) => Promise<void>

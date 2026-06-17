@@ -74,6 +74,8 @@ export interface AddTaskForm {
   userAgentRules?: import('@shared/types').UserAgentRule[]
   requestHeaders: BrowserRequestHeader[]
   uriRequestContexts?: Record<string, ExternalDownloadContext>
+  /** When true, multiple URIs are treated as mirrors for one download. */
+  multiSource: boolean
 }
 
 export interface UseAddTaskSubmitOptions {
@@ -245,7 +247,12 @@ export async function submitManualUris(
 
   // Submit regular URIs using the existing path
   if (regularUris.length > 0) {
-    if (regularUris.length > 1 && form.out) {
+    if (form.multiSource && regularUris.length > 1) {
+      // Multi-source: all URIs serve as mirrors for a single file download
+      const optionsForAtomic = { ...options }
+      await taskStore.addUriAtomic({ uris: regularUris, options: optionsForAtomic })
+      submittedTaskNames.push(resolveSubmittedTaskName(regularUris[0], options.out as string))
+    } else if (regularUris.length > 1 && form.out) {
       const regularOptions = { ...options }
       delete regularOptions.out
       let outs = buildOuts(regularUris, form.out)

@@ -2,6 +2,7 @@
 /** @fileoverview Detailed task view with file list, peers, and BT info. */
 import { ref, computed, watch, defineComponent } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useTaskElapsed } from '@/composables/useTaskElapsed'
 import { logger } from '@shared/logger'
 import {
   checkTaskIsBT,
@@ -73,6 +74,12 @@ const historyStore = useHistoryStore()
 const message = useAppMessage()
 const taskRef = computed(() => props.task)
 const taskPrimaryUrl = computed(() => props.task?.files?.[0]?.uris?.[0]?.uri ?? '')
+const taskAddedAtIso = computed(() => (props.task ? (getAddedAt(props.task.gid) ?? '') : ''))
+const taskCompletedAtIso = ref('')
+const { elapsedText } = useTaskElapsed(taskRef, t, {
+  addedAt: taskAddedAtIso,
+  completedAt: taskCompletedAtIso,
+})
 
 const {
   form: optForm,
@@ -250,18 +257,22 @@ watch(
   async (gid) => {
     if (!gid) {
       taskCompletedAt.value = ''
+      taskCompletedAtIso.value = ''
       return
     }
     try {
       const record = await historyStore.getRecordByGid(gid)
       if (record?.completed_at) {
         taskCompletedAt.value = localeDateTimeFormat(new Date(record.completed_at).getTime(), locale.value)
+        taskCompletedAtIso.value = record.completed_at
       } else {
         taskCompletedAt.value = ''
+        taskCompletedAtIso.value = ''
       }
     } catch (e) {
       logger.debug('TaskDetail.completedAt', `gid=${gid} query failed: ${e}`)
       taskCompletedAt.value = ''
+      taskCompletedAtIso.value = ''
     }
   },
   { immediate: true },
@@ -363,6 +374,9 @@ function handleClose() {
                 </NDescriptionsItem>
                 <NDescriptionsItem v-if="taskCompletedAt" :label="t('task.task-completed-at') || 'Completed At'">
                   {{ taskCompletedAt }}
+                </NDescriptionsItem>
+                <NDescriptionsItem v-if="elapsedText" :label="t('task.task-elapsed') || 'Elapsed'">
+                  {{ elapsedText }}
                 </NDescriptionsItem>
               </NDescriptions>
               <template v-if="isBT && btInfo">

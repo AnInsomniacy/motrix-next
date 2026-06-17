@@ -540,6 +540,7 @@ export const useAppStore = defineStore('app', () => {
       uriRequestContexts: {
         [url]: context,
       },
+      multiSource: false,
     }
   }
 

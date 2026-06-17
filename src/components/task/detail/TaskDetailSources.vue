@@ -123,6 +123,9 @@ const columns = computed(() => [
       <NDescriptionsItem :label="t('task.task-source-mirrors')">
         {{ summary.mirrorCount }}
       </NDescriptionsItem>
+      <NDescriptionsItem :label="t('task.task-source-unique')">
+        {{ summary.uniqueSourceCount }}
+      </NDescriptionsItem>
       <NDescriptionsItem :label="t('task.task-source-used')">
         {{ summary.usedMirrorCount }}
       </NDescriptionsItem>
@@ -145,3 +148,5 @@ const columns = computed(() => [
     </div>
   </template>
 </template>
+
+<style scoped></style>

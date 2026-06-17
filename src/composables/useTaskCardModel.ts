@@ -14,6 +14,7 @@ import {
   timeRemaining,
 } from '@shared/utils'
 import { buildTaskTransferSummary } from '@/composables/useTaskDetailSummary'
+import { useTaskElapsed } from '@/composables/useTaskElapsed'
 import type { Aria2Task } from '@shared/types'
 
 export interface TaskCardStatusBadge {
@@ -40,6 +41,7 @@ interface TaskCardModel {
   uploadSpeed: ComputedRef<string>
   remaining: ComputedRef<number>
   remainingText: ComputedRef<string>
+  elapsedText: ComputedRef<string>
   transferSummary: ComputedRef<ReturnType<typeof buildTaskTransferSummary>>
 }
 
@@ -89,6 +91,7 @@ export function useTaskCardModel(task: ComputedRef<Aria2Task>): TaskCardModel {
   const downloadSpeed = computed(() => bytesToSize(task.value.downloadSpeed))
   const uploadSpeed = computed(() => bytesToSize(task.value.uploadSpeed))
   const transferSummary = computed(() => buildTaskTransferSummary(task.value))
+  const { elapsedText } = useTaskElapsed(task, t)
   const remaining = computed(() => {
     if (!isActive.value) return 0
     return timeRemaining(Number(task.value.totalLength), completedLengthValue.value, Number(task.value.downloadSpeed))
@@ -124,6 +127,7 @@ export function useTaskCardModel(task: ComputedRef<Aria2Task>): TaskCardModel {
     uploadSpeed,
     remaining,
     remainingText,
+    elapsedText,
     transferSummary,
   }
 }

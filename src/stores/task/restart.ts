@@ -9,11 +9,11 @@ import { TASK_STATUS } from '@shared/constants'
 import { checkTaskIsBT, getRestartDescriptors } from '@shared/utils'
 import { shouldShowFileSelection } from '@/composables/useMagnetFlow'
 import { logger } from '@shared/logger'
-import type { Aria2Task } from '@shared/types'
+import type { Aria2Task, Aria2EngineOptions } from '@shared/types'
 
 /** Minimal API surface needed by restartTask. */
 export interface RestartTaskApi {
-  addUriAtomic: (params: { uris: string[]; options: Record<string, string> }) => Promise<string>
+  addUriAtomic: (params: { uris: string[]; options: Aria2EngineOptions }) => Promise<string>
   getOption: (params: { gid: string }) => Promise<Record<string, string>>
   removeTask: (params: { gid: string }) => Promise<string>
   removeTaskRecord: (params: { gid: string }) => Promise<string>

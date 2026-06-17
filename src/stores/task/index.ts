@@ -7,6 +7,7 @@ import { logger } from '@shared/logger'
 import type { Aria2Task, Aria2File, Aria2Peer, Aria2EngineOptions, TaskApi } from '@shared/types'
 
 import { historyRecordToTask, mergeHistoryIntoTasks, isMetadataTask } from '@/composables/useTaskLifecycle'
+import { trackTaskElapsed } from '@/composables/useTaskElapsed'
 import { buildMetadataOnlyOptions, shouldShowFileSelection } from '@/composables/useMagnetFlow'
 import {
   registerAddedAt,
@@ -243,6 +244,7 @@ export const useTaskStore = defineStore('task', () => {
       }
 
       taskList.value = data
+      trackTaskElapsed(data)
       updateCurrentTaskTotal(data.length)
       clampCurrentTaskPage()
       refreshCurrentTaskPageCount()
@@ -385,6 +387,18 @@ export const useTaskStore = defineStore('task', () => {
       historyStore.recordTaskBirth(gid, now).catch((e) => logger.debug('taskBirth.write', e))
     }
     await fetchList()
+  }
+
+  async function addUriAtomic(data: { uris: string[]; options: Aria2EngineOptions }) {
+    const httpAuthStore = useHttpAuthStore()
+    const options = await applySavedHttpAuth(data.uris[0], data.options, httpAuthStore)
+    const gid = await api.addUriAtomic({ uris: data.uris, options })
+    const now = new Date().toISOString()
+    const historyStore = useHistoryStore()
+    registerAddedAt(gid, now)
+    historyStore.recordTaskBirth(gid, now).catch((e) => logger.debug('taskBirth.write', e))
+    await fetchList()
+    return gid
   }
 
   async function applySavedHttpAuth(
@@ -556,6 +570,7 @@ export const useTaskStore = defineStore('task', () => {
     hideTaskDetail,
     updateCurrentTaskItem,
     addUri,
+    addUriAtomic,
     addTorrent,
     addMagnetUri,
     getFiles,
