@@ -271,6 +271,54 @@ export function hasExtension(filename: string): boolean {
   return /\.[a-zA-Z0-9]{1,10}$/.test(filename)
 }
 
+function hasHttpDownloadScheme(uri: string): boolean {
+  try {
+    const protocol = new URL(uri).protocol.toLowerCase()
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return /^https?:\/\//i.test(uri)
+  }
+}
+
+function looksLikeOpaqueRemoteFilename(filename: string): boolean {
+  const dot = filename.lastIndexOf('.')
+  const stem = dot > 0 ? filename.slice(0, dot) : filename
+  if (stem.length < 16) return false
+  if (/^\d{12,}$/.test(stem)) return true
+  if (/^[a-fA-F0-9]{16,}$/.test(stem)) return true
+  return /^[A-Za-z0-9]{16,}$/.test(stem) && /[A-Za-z]/.test(stem) && /\d/.test(stem)
+}
+
+const SERVER_ENDPOINT_EXTENSIONS = new Set(['php', 'asp', 'aspx', 'jsp', 'jspx', 'cfm', 'cgi', 'do', 'action'])
+
+function extractExtension(filename: string): string {
+  const match = /\.([a-zA-Z0-9]{1,10})$/.exec(filename)
+  return match ? match[1].toLowerCase() : ''
+}
+
+function looksLikeServerEndpointFilename(filename: string): boolean {
+  return SERVER_ENDPOINT_EXTENSIONS.has(extractExtension(filename))
+}
+
+/**
+ * Returns whether manual URL submission should ask the backend to probe HTTP
+ * headers for a better filename before handing the task to aria2.
+ *
+ * We probe when the URL path does not provide a trustworthy filename: no
+ * extension or an opaque CDN-style basename such as "080545q06zvvvvag3u3vh6.zip".
+ * Ordinary names like "ubuntu.iso" are left to aria2 to avoid slowing down common
+ * manual adds.
+ */
+export function shouldProbeRemoteFilename(uri: string): boolean {
+  if (!hasHttpDownloadScheme(uri)) return false
+
+  const filename = extractDecodedFilename(uri)
+  if (!filename) return false
+  if (!hasExtension(filename)) return true
+  if (looksLikeServerEndpointFilename(filename)) return true
+  return looksLikeOpaqueRemoteFilename(filename)
+}
+
 // ── External filename hint resolution ───────────────────────────────
 
 const GENERIC_EXTERNAL_FILENAME_HINTS = new Set(['download', 'unresolved-filename'])

@@ -2,6 +2,8 @@
 ///
 /// `resolve_filename` — Resolves trustworthy filenames for extensionless HTTP
 /// URLs before forwarding them to aria2.
+/// It also handles opaque CDN-style path filenames when response headers
+/// expose a better name.
 ///
 /// The command deliberately avoids deriving a filename from URL placeholders
 /// such as `/attachment/u/0/`. Stable URL basenames from media/CDN paths may be
@@ -26,14 +28,15 @@ pub(crate) const UNRESOLVED_FILENAME: &str = "unresolved-filename";
 // ── Filename resolution ─────────────────────────────────────────────────
 
 /// Sends a HEAD request to `url` and infers the correct filename (with
-/// extension) when the URL path segment has none.
+/// extension) from HTTP response metadata.
 ///
 /// Returns `Ok(Some("filename.ext"))` on successful resolution, `Ok(None)`
-/// when the URL already has an extension, or `Ok(Some("unresolved-filename"))`
-/// when the server exposes no trustworthy filename.
+/// when a URL with an existing extension has no better response filename, or
+/// `Ok(Some("unresolved-filename"))` when an extensionless URL exposes no
+/// trustworthy filename.
 ///
-/// The frontend calls this for each extensionless URL before `aria2.addUri`,
-/// setting the returned name as the aria2 `out` option.
+/// The frontend calls this for extensionless URLs and opaque CDN-style
+/// basenames before `aria2.addUri`, setting the returned name as aria2 `out`.
 #[tauri::command]
 pub async fn resolve_filename(
     url: String,
@@ -43,11 +46,15 @@ pub async fn resolve_filename(
 ) -> Result<Option<String>, AppError> {
     // 1. Extract basename from the URL path
     let basename = extract_basename(&url);
-    if basename.is_empty() || has_extension(&basename) {
-        return Ok(None); // aria2 can handle this natively
-    }
+    let basename_has_extension = has_extension(&basename);
 
-    log::debug!("resolve_filename: basename={basename:?} has no extension, sending HEAD");
+    if basename.is_empty() {
+        log::debug!("resolve_filename: no URL basename, sending HEAD");
+    } else if basename_has_extension {
+        log::debug!("resolve_filename: basename={basename:?} has extension, probing headers");
+    } else {
+        log::debug!("resolve_filename: basename={basename:?} has no extension, sending HEAD");
+    }
 
     // 2. HEAD request (follows redirects, respects user proxy settings)
     let builder = reqwest::Client::builder()
@@ -76,7 +83,7 @@ pub async fn resolve_filename(
 
     // 3b. Level 2 — Redirect target URL path extension
     let final_basename = extract_basename(resp.url().as_str());
-    if has_extension(&final_basename) {
+    if !basename.is_empty() && !basename_has_extension && has_extension(&final_basename) {
         if let Some(ext) = final_basename.rsplit('.').next() {
             let resolved = format!("{basename}.{ext}");
             log::debug!("resolve_filename: resolved via redirect URL → {resolved}");
@@ -96,6 +103,11 @@ pub async fn resolve_filename(
     }
 
     // 3d. Level 4 — Content-Type MIME → URL basename plus extension, or neutral fallback.
+    if basename_has_extension || basename.is_empty() {
+        log::debug!("resolve_filename: no better response filename; using aria2 native name");
+        return Ok(None);
+    }
+
     if let Some(ct) = resp.headers().get(reqwest::header::CONTENT_TYPE) {
         let mime_str = ct.to_str().unwrap_or("");
         // Strip parameters: "image/jpeg; charset=utf-8" → "image/jpeg"
