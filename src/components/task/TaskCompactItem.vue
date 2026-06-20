@@ -42,6 +42,7 @@ const {
   uploadSpeed,
   remaining,
   remainingText,
+  elapsedText,
   transferSummary,
 } = useTaskCardModel(taskRef)
 const { fileMissing } = useTaskFileMissing(taskRef)
@@ -196,6 +197,7 @@ onBeforeUnmount(() => {
             {{ uploadSpeed }}/s
           </span>
           <span v-if="remaining > 0">{{ remainingText }}</span>
+          <span v-if="elapsedText" class="compact-speed">{{ elapsedText }}</span>
         </div>
       </div>
     </div>

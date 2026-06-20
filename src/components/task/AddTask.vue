@@ -53,6 +53,7 @@ import {
   NDataTable,
   NTag,
   NEllipsis,
+  NSwitch,
 } from 'naive-ui'
 import { useAppMessage } from '@/composables/useAppMessage'
 import type { DataTableColumns } from 'naive-ui'
@@ -142,6 +143,7 @@ const form = ref<AddTaskForm>({
   appProxy: preferenceStore.config.proxy,
   requestHeaders: [],
   uriRequestContexts: {},
+  multiSource: false,
 })
 
 const maxSplit = ENGINE_MAX_CONNECTION_PER_SERVER
@@ -548,6 +550,7 @@ function handleClose() {
     customProxyPassword: '',
     requestHeaders: [],
     uriRequestContexts: {},
+    multiSource: false,
   })
   syncDefaultTaskProxy()
   userAgentManuallyEdited.value = false
@@ -792,6 +795,13 @@ function kindTagType(kind: string): 'info' | 'success' | 'warning' {
             </div>
           </NTabPane>
         </NTabs>
+
+        <!-- ── Multi-source toggle: URI tab only ──────────────── -->
+        <Transition name="content-fade" mode="out-in">
+          <NFormItem v-if="activeTab === ADD_TASK_TYPE.URI" key="multi-source" :label="t('task.multi-source') + ':'">
+            <NSwitch v-model:value="form.multiSource" />
+          </NFormItem>
+        </Transition>
 
         <!-- ── Download settings: always visible ──────────────── -->
         <div class="download-settings">

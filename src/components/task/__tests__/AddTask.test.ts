@@ -431,7 +431,9 @@ describe('AddTask split preference sync', () => {
     await flushPromises()
     await nextTick()
 
-    expect((wrapper.find('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(false)
+    const checkboxes = wrapper.findAll('input[type="checkbox"]')
+    const proxyCheckbox = checkboxes[checkboxes.length - 1].element as HTMLInputElement
+    expect(proxyCheckbox.checked).toBe(false)
 
     preferenceStore.$patch({
       config: {
@@ -445,7 +447,7 @@ describe('AddTask split preference sync', () => {
     })
     await nextTick()
 
-    expect((wrapper.find('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true)
+    expect((wrapper.findAll('input[type="checkbox"]').pop()!.element as HTMLInputElement).checked).toBe(true)
     const proxyInput = wrapper.find('input[placeholder="http://host:port"]')
     expect((proxyInput.element as HTMLInputElement).value).toBe('http://127.0.0.1:7890')
   })

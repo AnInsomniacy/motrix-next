@@ -53,6 +53,7 @@ const {
   uploadSpeed,
   remaining,
   remainingText,
+  elapsedText,
   transferSummary,
 } = useTaskCardModel(taskRef)
 
@@ -246,6 +247,9 @@ onBeforeUnmount(() => {
           <div class="progress-right" :class="{ 'info-hidden': !isActive }">
             <span class="speed-text" :class="{ 'info-hidden': remaining <= 0 }">
               <span>{{ remainingText }}</span>
+            </span>
+            <span v-if="elapsedText" class="speed-text elapsed-text">
+              <span>{{ elapsedText }}</span>
             </span>
             <span v-if="transferSummary.showUploadMetrics" class="speed-text">
               <NIcon :size="10"><ArrowUpOutline /></NIcon>
