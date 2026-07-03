@@ -52,6 +52,9 @@
         "role": "Viewer"
       }
     ],
+    "macOS": {
+      "signingIdentity": "-"
+    },
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",
