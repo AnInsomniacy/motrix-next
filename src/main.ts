@@ -277,23 +277,30 @@ if (import.meta.env.PROD) {
   /**
    * Sync autostart state with persisted preference.
    *
-   * When `openAtLogin` is true we **always** call `enable()`, even if
-   * `isEnabled()` reports true.  This is a deliberate workaround for
-   * auto-launch crate v0.5.0 bug: on Windows the registry entry under
-   * `HKCU\...\Run` is sometimes removed after the first successful
-   * launch (tauri-apps/plugins-workspace#771).  Re-calling `enable()`
-   * is idempotent and guarantees the entry + `--autostart` args are
-   * present for the next boot.
+   * Windows keeps re-calling `enable()` to self-heal auto-launch crate
+   * v0.5.0 registry loss after first boot (tauri-apps/plugins-workspace#771).
+   * macOS skips redundant `enable()` calls because rewriting the LaunchAgent
+   * can make the OS show "Background Items Added" on every app launch.
    */
   async function syncAutostart(config: typeof preferenceStore.config): Promise<void> {
     try {
       const { isEnabled, enable, disable } = await import('@tauri-apps/plugin-autostart')
       const currentlyEnabled = await isEnabled()
+      let isMac = false
+      try {
+        const { platform } = await import('@tauri-apps/plugin-os')
+        isMac = platform() === 'macos'
+      } catch (e) {
+        logger.debug('main.autostart.platform', e)
+      }
 
       if (config.openAtLogin) {
-        // Always re-enable to self-heal the registry (#771 workaround).
-        await enable()
-        logger.info('main.autostart', `ensured enabled (was=${currentlyEnabled} openAtLogin=${config.openAtLogin})`)
+        if (!isMac || !currentlyEnabled) {
+          await enable()
+          logger.info('main.autostart', `ensured enabled (was=${currentlyEnabled} openAtLogin=${config.openAtLogin})`)
+        } else {
+          logger.info('main.autostart', 'already enabled on macOS')
+        }
       } else if (currentlyEnabled) {
         await disable()
         logger.info('main.autostart', 'disabled (openAtLogin=false)')
