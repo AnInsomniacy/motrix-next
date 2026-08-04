@@ -150,7 +150,7 @@ export function createTaskOperations(deps: TaskOperationsDeps) {
     }
 
     try {
-      await deleteTaskFiles(task, 'trash')
+      await deleteTaskFiles(task, 'trash', taskList.value)
     } catch (e) {
       logger.debug('TaskOps.cancelMagnetSelection', `deleteTaskFiles gid=${task.gid} skipped: ${e}`)
     }

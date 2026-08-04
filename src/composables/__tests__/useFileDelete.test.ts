@@ -38,6 +38,10 @@ function makeTask(overrides: Partial<Aria2Task> = {}): Aria2Task {
   }
 }
 
+function makeFile(path: string, index = '1') {
+  return { index, path, length: '1000', completedLength: '1000', selected: 'true', uris: [] }
+}
+
 describe('deletePath', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -176,6 +180,49 @@ describe('deleteTaskFiles', () => {
 
     await expect(deleteTaskFiles(task, 'trash')).resolves.toBeUndefined()
     expect(mockDeletePath).not.toHaveBeenCalled()
+  })
+
+  it('keeps a file another task is still downloading', async () => {
+    const removed = makeTask({ gid: 'removed', files: [makeFile('/downloads/shared.bin')] })
+    const kept = makeTask({ gid: 'kept', files: [makeFile('/downloads/shared.bin')] })
+    mockResolveOpenTarget.mockImplementation((task: Aria2Task) => Promise.resolve(task.files?.[0]?.path ?? task.dir))
+
+    await deleteTaskFiles(removed, 'trash', [kept])
+
+    expect(mockDeletePath).not.toHaveBeenCalledWith({ path: '/downloads/shared.bin', mode: 'trash' })
+    expect(mockDeletePath).not.toHaveBeenCalledWith({ path: '/downloads/shared.bin.aria2', mode: 'permanent' })
+  })
+
+  it('keeps a folder that contains files of another task', async () => {
+    const removed = makeTask({ gid: 'removed', files: [makeFile('/downloads/Album/track1.mp3')] })
+    const kept = makeTask({ gid: 'kept', files: [makeFile('/downloads/Album/track2.mp3')] })
+    mockResolveOpenTarget.mockImplementation((task: Aria2Task) =>
+      Promise.resolve(task.gid === 'removed' ? '/downloads/Album' : '/downloads/Album/track2.mp3'),
+    )
+
+    await deleteTaskFiles(removed, 'trash', [kept])
+
+    expect(mockDeletePath).not.toHaveBeenCalledWith({ path: '/downloads/Album', mode: 'trash' })
+  })
+
+  it('still deletes when the other tasks point elsewhere', async () => {
+    const removed = makeTask({ gid: 'removed', files: [makeFile('/downloads/mine.bin')] })
+    const other = makeTask({ gid: 'other', files: [makeFile('/downloads/theirs.bin')] })
+    mockResolveOpenTarget.mockImplementation((task: Aria2Task) => Promise.resolve(task.files?.[0]?.path ?? task.dir))
+
+    await deleteTaskFiles(removed, 'trash', [other])
+
+    expect(mockDeletePath).toHaveBeenCalledWith({ path: '/downloads/mine.bin', mode: 'trash' })
+    expect(mockDeletePath).not.toHaveBeenCalledWith({ path: '/downloads/theirs.bin', mode: 'trash' })
+  })
+
+  it('ignores a stale entry for the task being removed', async () => {
+    const removed = makeTask({ gid: 'removed', files: [makeFile('/downloads/mine.bin')] })
+    mockResolveOpenTarget.mockResolvedValue('/downloads/mine.bin')
+
+    await deleteTaskFiles(removed, 'trash', [removed])
+
+    expect(mockDeletePath).toHaveBeenCalledWith({ path: '/downloads/mine.bin', mode: 'trash' })
   })
 })
 

@@ -228,7 +228,7 @@ describe('cancelMagnetSelectionDownload', () => {
     expect(api.removeTaskRecord).toHaveBeenNthCalledWith(2, { gid: 'child-gid' })
     expect(api.removeTaskRecord).toHaveBeenNthCalledWith(3, { gid: 'metadata-gid' })
     expect(mockCleanupAria2ControlFiles).toHaveBeenCalledWith(childTask)
-    expect(mockDeleteTaskFiles).toHaveBeenCalledWith(childTask, 'trash')
+    expect(mockDeleteTaskFiles).toHaveBeenCalledWith(childTask, 'trash', expect.any(Array))
     expect(mockCleanupAria2MetadataFiles).toHaveBeenCalledWith('/downloads', 'abcdef1234567890abcdef1234567890abcdef12')
     expect(mockRemoveRecord).toHaveBeenCalledWith('child-gid')
     expect(mockRemoveRecord).toHaveBeenCalledWith('metadata-gid')

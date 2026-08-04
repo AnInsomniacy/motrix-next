@@ -205,7 +205,7 @@ function onDeleteAll() {
       let fileDeletionFailed = false
       for (const task of tasksToDelete) {
         try {
-          await deleteTaskFiles(task, preferenceStore.config.fileDeletionMode)
+          await deleteTaskFiles(task, preferenceStore.config.fileDeletionMode, taskStore.taskList)
         } catch (error) {
           fileDeletionFailed = true
           logger.warn('TaskActions.onDeleteAllFiles', getErrorMessage(error))
@@ -389,7 +389,7 @@ function purgeRecord() {
       let fileDeletionFailed = false
       for (const task of tasksToClean) {
         try {
-          await deleteTaskFiles(task, preferenceStore.config.fileDeletionMode)
+          await deleteTaskFiles(task, preferenceStore.config.fileDeletionMode, taskStore.taskList)
         } catch (error) {
           fileDeletionFailed = true
           logger.warn('TaskActions.purgeRecordFiles', getErrorMessage(error))

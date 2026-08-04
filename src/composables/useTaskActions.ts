@@ -99,7 +99,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
         .then(async () => {
           if (alsoDeleteFiles) {
             try {
-              await deleteTaskFiles(task, config.fileDeletionMode)
+              await deleteTaskFiles(task, config.fileDeletionMode, taskStore.taskList)
             } catch (error) {
               logger.error('TaskView.deleteTaskFiles', error)
               message.error(t('task.remove-task-file-fail'))
@@ -142,7 +142,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
           await taskStore.removeTask(task)
           if (deleteFiles.value) {
             try {
-              await deleteTaskFiles(task, config.fileDeletionMode)
+              await deleteTaskFiles(task, config.fileDeletionMode, taskStore.taskList)
             } catch (error) {
               logger.error('TaskView.deleteTaskFiles', error)
               message.error(t('task.remove-task-file-fail'))
@@ -169,7 +169,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
         .then(async () => {
           if (alsoDeleteFiles) {
             try {
-              await deleteTaskFiles(taskRef, config.fileDeletionMode)
+              await deleteTaskFiles(taskRef, config.fileDeletionMode, taskStore.taskList)
             } catch (error) {
               logger.error('TaskView.deleteRecordFiles', error)
               message.error(t('task.remove-task-file-fail'))
@@ -212,7 +212,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
         try {
           if (deleteFiles.value) {
             try {
-              await deleteTaskFiles(task, config.fileDeletionMode)
+              await deleteTaskFiles(task, config.fileDeletionMode, taskStore.taskList)
             } catch (error) {
               logger.error('TaskView.deleteRecordFiles', error)
               message.error(t('task.remove-task-file-fail'))
