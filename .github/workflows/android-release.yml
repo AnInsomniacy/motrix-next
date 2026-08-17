@@ -78,70 +78,9 @@ jobs:
 
       - name: Patch AndroidManifest with permissions and deep links
         run: |
-          MANIFEST="src-tauri/gen/android/app/src/main/AndroidManifest.xml"
-          # Inject permissions right after the opening <manifest> tag.
-          python3 - <<'PY'
-          import re
-
-          manifest_path = "src-tauri/gen/android/app/src/main/AndroidManifest.xml"
-          with open(manifest_path, "r", encoding="utf-8") as f:
-              content = f.read()
-
-          perms = """    <uses-permission android:name="android.permission.INTERNET" />
-        <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-        <uses-permission android:name="android.permission.WAKE_LOCK" />
-        <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-        <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-        <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-        <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-"""
-
-          if "android.permission.POST_NOTIFICATIONS" not in content:
-              content = content.replace("<manifest ", perms + "<manifest ", 1)
-
-          # Deep-link intent filters: magnet, ed2k, thunder, motrixnext
-          deep_link_intent = """            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="magnet" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="ed2k" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="thunder" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="motrixnext" />
-            </intent-filter>
-"""
-
-          # Insert intent filters inside the <activity> element right after the
-          # main activity's opening tag.
-          if 'android:scheme="magnet"' not in content:
-              # Find the <activity ...> opening tag (the first one that contains
-              # MAIN launcher intent or just the first activity).
-              match = re.search(r"<activity\b[^>]*>", content)
-              if match:
-                  content = content.replace(match.group(0), match.group(0) + deep_link_intent, 1)
-
-          with open(manifest_path, "w", encoding="utf-8") as f:
-              f.write(content)
-          print("Manifest patched")
-          PY
-
-          echo "=== Manifest (permissions section) ==="
-          grep -n "uses-permission\|scheme=\|intent-filter" "$MANIFEST" || true
+          python3 .github/scripts/patch-android-manifest.py
+          echo "=== Manifest (permissions + intent filters) ==="
+          grep -n "uses-permission\|scheme=\|intent-filter" src-tauri/gen/android/app/src/main/AndroidManifest.xml || true
 
       - name: Build Android APK
         run: pnpm tauri android build --apk --target aarch64
