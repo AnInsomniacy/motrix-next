@@ -53,18 +53,25 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Install Android SDK + NDK
+      - name: Install Android SDK
         uses: android-actions/setup-android@v3
         with:
-          ndk-version: 27.2.12479018
           cmdline-tools-version: 11076708
 
       - name: Resolve NDK home
         id: ndk
         run: |
-          echo "NDK_HOME=${ANDROID_NDK_LATEST_HOME:-$ANDROID_HOME/ndk/27.2.12479018}" >> "$GITHUB_ENV"
+          # GitHub-hosted ubuntu runners ship a recent NDK (29.x) and set
+          # ANDROID_NDK_LATEST_HOME. Fall back to sdkmanager otherwise.
+          if [ -z "${ANDROID_NDK_LATEST_HOME:-}" ]; then
+            echo "Installing NDK via sdkmanager..."
+            "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
+              --install "ndk;27.2.12479018" >/dev/null 2>&1 || true
+          fi
+          NDK_HOME="${ANDROID_NDK_LATEST_HOME:-$ANDROID_HOME/ndk/27.2.12479018}"
+          echo "NDK_HOME=$NDK_HOME" >> "$GITHUB_ENV"
           echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "NDK_HOME set to: ${ANDROID_NDK_LATEST_HOME:-$ANDROID_HOME/ndk/27.2.12479018}"
+          ls "$ANDROID_HOME/ndk/" 2>/dev/null || true
 
       - name: Install Linux system deps (WebKit only needed for checks)
         run: |
