@@ -435,6 +435,7 @@ export default {
   'file-category-url-placeholder': 'Satu aturan per baris, misalnya *://*.example.com/logs/*',
   'file-category-invalid-regex': 'Aturan regex tidak valid pada baris {line}',
   'file-category-invalid-url-rule-too-long': 'Aturan URL pada baris {line} terlalu panjang',
+  'independent-download-window': 'Aktifkan jendela unduhan terpisah',
   'auto-submit-from-extension': 'Lewati konfirmasi untuk unduhan ekstensi',
   'silent-auto-submit-from-extension': 'Jangan fokuskan jendela utama saat menerima unduhan',
   'auto-select-all-bt-files-from-extension': 'Unduh semua file BT secara default',

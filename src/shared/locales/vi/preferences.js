@@ -430,6 +430,7 @@ export default {
   'file-category-url-placeholder': 'Mỗi dòng một quy tắc, ví dụ *://*.example.com/logs/*',
   'file-category-invalid-regex': 'Quy tắc regex không hợp lệ ở dòng {line}',
   'file-category-invalid-url-rule-too-long': 'Quy tắc URL ở dòng {line} quá dài',
+  'independent-download-window': 'Bật cửa sổ tải xuống độc lập',
   'auto-submit-from-extension': 'Bỏ qua xác nhận cho tải xuống từ tiện ích',
   'silent-auto-submit-from-extension': 'Không lấy tiêu điểm cửa sổ chính khi nhận tải xuống',
   'auto-select-all-bt-files-from-extension': 'Mặc định tải xuống mọi tệp BT',

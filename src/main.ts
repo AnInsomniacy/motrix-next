@@ -36,7 +36,9 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getLocale } from 'tauri-plugin-locale-api'
 import { resolveSystemLocale } from '@shared/utils/locale'
 
-const app = createApp(App)
+const currentWindow = getCurrentWindow()
+const windowKind = currentWindow.label === 'download-confirmation' ? 'download-confirmation' : 'main'
+const app = createApp(App, { windowKind })
 const pinia = createPinia()
 app.use(pinia)
 app.use(router)
@@ -303,7 +305,7 @@ if (import.meta.env.PROD) {
     }
   }
 
-  async function bootstrapMainWindow(): Promise<void> {
+  async function bootstrapWindow(): Promise<void> {
     // ── Phase 1: critical path → window visible ASAP ──────────────────────
     await preferenceStore.loadPreference()
 
@@ -350,7 +352,12 @@ if (import.meta.env.PROD) {
     // color-scheme, locale, and layout watchers see stable persisted values
     // on their first run. The native window is still hidden until
     // MainLayout.onMounted explicitly shows it.
+    if (windowKind === 'download-confirmation') {
+      taskStore.setApi(aria2Api)
+    }
     app.mount('#app')
+
+    if (windowKind === 'download-confirmation') return
 
     const config = preferenceStore.config
 
@@ -517,7 +524,7 @@ if (import.meta.env.PROD) {
     })
   }
 
-  void bootstrapMainWindow().catch((e) => {
+  void bootstrapWindow().catch((e) => {
     logger.error('main.bootstrap', e)
     appStore.setEngineRestarting(false)
   })

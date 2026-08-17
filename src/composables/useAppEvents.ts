@@ -17,7 +17,7 @@ import { detectKind, createBatchItem } from '@shared/utils/batchHelpers'
 import { createExternalInputTraceId, summarizeExternalInputBatch } from '@shared/utils/externalInputDiagnostics'
 import { getErrorMessage } from '@shared/utils/errorMessage'
 import { isMotrixNewTaskLink } from '@shared/utils/motrixDeepLink'
-import type { ExternalDownloadInput } from '@shared/types'
+import type { ExternalDownloadInput, PendingExternalInputsPayload } from '@shared/types'
 import { handleTaskStart } from '@/composables/useTaskNotifyHandlers'
 import { onUnmounted, watch, type Ref, type WatchStopHandle } from 'vue'
 
@@ -34,11 +34,6 @@ interface PendingDeepLinksPayload {
 }
 
 type DeepLinkEventPayload = string[] | PendingDeepLinksPayload
-
-interface PendingExternalInputsPayload {
-  inputs: ExternalDownloadInput[]
-  silent: boolean
-}
 
 type PendingFrontendActionChannel = 'menu-event' | 'tray-menu-action'
 

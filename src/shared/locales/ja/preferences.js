@@ -432,6 +432,7 @@ export default {
   'file-category-url-placeholder': '1 行に 1 つのルール。例: *://*.example.com/logs/*',
   'file-category-invalid-regex': '{line} 行目の正規表現ルールが無効です',
   'file-category-invalid-url-rule-too-long': '{line} 行目の URL ルールが長すぎます',
+  'independent-download-window': '独立したダウンロードウィンドウを有効にする',
   'auto-submit-from-extension': '拡張機能からのダウンロード確認をスキップ',
   'silent-auto-submit-from-extension': 'ダウンロード受信時にメインウィンドウへフォーカスしない',
   'auto-select-all-bt-files-from-extension': 'BT の全ファイルを既定でダウンロード',

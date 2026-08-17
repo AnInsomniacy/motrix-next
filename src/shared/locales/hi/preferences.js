@@ -430,6 +430,7 @@ export default {
   'file-category-url-placeholder': 'हर पंक्ति में एक नियम, जैसे *://*.example.com/logs/*',
   'file-category-invalid-regex': 'लाइन {line} पर अमान्य regex नियम',
   'file-category-invalid-url-rule-too-long': 'लाइन {line} पर URL नियम बहुत लंबा है',
+  'independent-download-window': 'स्वतंत्र डाउनलोड विंडो सक्षम करें',
   'auto-submit-from-extension': 'Extension downloads के लिए confirmation छोड़ें',
   'silent-auto-submit-from-extension': 'Downloads receive करते समय main window focus न करें',
   'auto-select-all-bt-files-from-extension': 'BT files default रूप से सभी डाउनलोड करें',

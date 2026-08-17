@@ -437,6 +437,7 @@ export default {
   'file-category-url-placeholder': 'Eén regel per regel, bijvoorbeeld *://*.example.com/logs/*',
   'file-category-invalid-regex': 'Ongeldige regex-regel op regel {line}',
   'file-category-invalid-url-rule-too-long': 'URL-regel op regel {line} is te lang',
+  'independent-download-window': 'Afzonderlijk downloadvenster inschakelen',
   'auto-submit-from-extension': 'Bevestiging voor extensiedownloads overslaan',
   'silent-auto-submit-from-extension': 'Hoofdvenster niet focussen bij ontvangen downloads',
   'auto-select-all-bt-files-from-extension': 'Alle BT-bestanden standaard downloaden',

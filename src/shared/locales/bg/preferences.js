@@ -434,6 +434,7 @@ export default {
   'file-category-url-placeholder': 'Едно правило на ред, например *://*.example.com/logs/*',
   'file-category-invalid-regex': 'Невалидно regex правило на ред {line}',
   'file-category-invalid-url-rule-too-long': 'URL правилото на ред {line} е твърде дълго',
+  'independent-download-window': 'Активиране на независим прозорец за изтегляне',
   'auto-submit-from-extension': 'Пропускай потвърждението за изтегляния от разширението',
   'silent-auto-submit-from-extension': 'Не активирай главния прозорец при получаване на изтегляне',
   'auto-select-all-bt-files-from-extension': 'Изтегляй всички BT файлове по подразбиране',

@@ -437,6 +437,7 @@ export default {
   'file-category-url-placeholder': 'Soronként egy szabály, például *://*.example.com/logs/*',
   'file-category-invalid-regex': 'Érvénytelen regex szabály a(z) {line}. sorban',
   'file-category-invalid-url-rule-too-long': 'A(z) {line}. sor URL-szabálya túl hosszú',
+  'independent-download-window': 'Külön letöltési ablak engedélyezése',
   'auto-submit-from-extension': 'Bővítményletöltések megerősítésének kihagyása',
   'silent-auto-submit-from-extension': 'Letöltések fogadásakor ne kerüljön fókuszba a főablak',
   'auto-select-all-bt-files-from-extension': 'Minden BT-fájl letöltése alapértelmezés szerint',

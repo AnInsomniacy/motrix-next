@@ -441,6 +441,7 @@ export default {
   'file-category-url-placeholder': 'Ένας κανόνας ανά γραμμή, π.χ. *://*.example.com/logs/*',
   'file-category-invalid-regex': 'Μη έγκυρος κανόνας regex στη γραμμή {line}',
   'file-category-invalid-url-rule-too-long': 'Ο κανόνας URL στη γραμμή {line} είναι πολύ μεγάλος',
+  'independent-download-window': 'Ενεργοποίηση ανεξάρτητου παραθύρου λήψης',
   'auto-submit-from-extension': 'Παράκαμψη επιβεβαίωσης για λήψεις επέκτασης',
   'silent-auto-submit-from-extension': 'Να μην ενεργοποιείται το κύριο παράθυρο κατά τη λήψη αιτήματος λήψης',
   'auto-select-all-bt-files-from-extension': 'Λήψη όλων των αρχείων BT από προεπιλογή',

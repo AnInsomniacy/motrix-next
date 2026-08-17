@@ -436,6 +436,7 @@ export default {
   'file-category-url-placeholder': 'Одно правило на строку, например *://*.example.com/logs/*',
   'file-category-invalid-regex': 'Недопустимое regex-правило в строке {line}',
   'file-category-invalid-url-rule-too-long': 'URL-правило в строке {line} слишком длинное',
+  'independent-download-window': 'Включить отдельное окно загрузки',
   'auto-submit-from-extension': 'Пропускать подтверждение для загрузок расширения',
   'silent-auto-submit-from-extension': 'Не переводить фокус на главное окно при получении загрузок',
   'auto-select-all-bt-files-from-extension': 'По умолчанию загружать все файлы BT',

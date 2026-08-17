@@ -349,6 +349,7 @@ export const DEFAULT_APP_CONFIG = {
     scope: ['download', 'update-app', 'update-trackers'],
   },
   clipboard: { enable: true, http: true, ftp: true, magnet: true, ed2k: true, thunder: true, btHash: true },
+  useIndependentDownloadWindow: true,
   autoSubmitFromExtension: true,
   autoSelectAllBtFilesFromExtension: false,
   silentAutoSubmitFromExtension: true,
