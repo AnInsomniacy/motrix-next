@@ -83,6 +83,28 @@ jobs:
       - name: Initialize Tauri Android project
         run: pnpm tauri android init
 
+      - name: Configure Android release signing (fixed keystore)
+        run: |
+          # Copy the fixed signing keystore + generate keystore.properties from
+          # the fixed credentials. The keystore is committed to the repo; the
+          # password can be overridden via the ANDROID_KEY_PASSWORD secret.
+          cp src-tauri/android/motrix-next.keystore src-tauri/gen/android/motrix-next.keystore
+
+          KEY_PASSWORD="${ANDROID_KEY_PASSWORD:-motrixnext123}"
+          KEYSTORE_PATH="$(pwd)/src-tauri/gen/android/motrix-next.keystore"
+          cat > src-tauri/gen/android/keystore.properties <<EOF
+          keyAlias=motrixnext
+          password=${KEY_PASSWORD}
+          storeFile=${KEYSTORE_PATH}
+          EOF
+
+          GRADLE="src-tauri/gen/android/app/build.gradle.kts"
+          python3 .github/scripts/patch-android-signing.py "$GRADLE"
+          echo "=== Patched signing config ==="
+          grep -n "signingConfigs\|signingConfig\|keystore" "$GRADLE" || true
+        env:
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
       - name: Patch AndroidManifest with permissions and deep links
         run: |
           python3 .github/scripts/patch-android-manifest.py
