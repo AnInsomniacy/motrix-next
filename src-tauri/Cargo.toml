@@ -79,7 +79,6 @@ winreg = "0.56"
 tauri = { version = "2.11.2", features = ["tray-icon"] }
 tauri-plugin-window-state = "2.4.1"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
-tauri-plugin-locale = "2.0.1"
 keepawake = "0.6"
 rfd = { version = "0.16", default-features = false }
 trash = "5"

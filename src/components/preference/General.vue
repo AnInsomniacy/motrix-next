@@ -11,7 +11,7 @@ import { arch as osArch, version as osVersion } from '@tauri-apps/plugin-os'
 import { usePlatform } from '@/composables/usePlatform'
 import { getVersion as getAppVersion } from '@tauri-apps/api/app'
 import { getVersion as getAria2Version } from '@/api/aria2'
-import { getLocale } from 'tauri-plugin-locale-api'
+import { locale as getOsLocale } from '@tauri-apps/plugin-os'
 import { resolveSystemLocale } from '@shared/utils/locale'
 import { SUPPORTED_LOCALES, loadLocale } from '@/composables/useLocale'
 import { logger } from '@shared/logger'
@@ -300,7 +300,7 @@ onMounted(async () => {
     logger.debug('General.aria2Version', e)
   }
   try {
-    const raw = (await getLocale()) || 'en-US'
+    const raw = (await getOsLocale()) || navigator.language || 'en-US'
     detectedLocaleCode.value = resolveSystemLocale(raw, SUPPORTED_LOCALES)
   } catch (e) {
     logger.debug('General.detectLocale', e)
