@@ -367,7 +367,7 @@ defineExpose({ open })
 
 <style scoped>
 .update-dialog {
-  width: 460px;
+  width: min(460px, calc(100vw - 24px));
   background: var(--m3-surface-container-high);
   border-radius: 14px;
   overflow: hidden;

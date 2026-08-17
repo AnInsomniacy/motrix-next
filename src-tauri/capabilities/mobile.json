@@ -1,0 +1,49 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "mobile",
+  "description": "Capability for the Android WebView (main window)",
+  "platforms": ["android"],
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "store:default",
+    "dialog:default",
+    "notification:default",
+    "process:default",
+    "os:default",
+    "fs:allow-remove",
+    "fs:allow-exists",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$APPDATA/**" },
+        { "path": "$APPLOG/**" },
+        { "path": "$TEMP/**" },
+        { "path": "$CACHE/**" },
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$PICTURE/**" },
+        { "path": "$MUSIC/**" },
+        { "path": "$MOVIE/**" }
+      ]
+    },
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text",
+    "updater:default",
+    "deep-link:default",
+    "os:allow-locale",
+    "log:default",
+    "sql:default",
+    "sql:allow-execute",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "motrix-next-engine",
+          "sidecar": true
+        }
+      ]
+    }
+  ]
+}

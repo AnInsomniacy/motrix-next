@@ -9,6 +9,7 @@ mod log_policy;
 #[cfg(target_os = "macos")]
 mod menu;
 mod services;
+#[cfg(desktop)]
 mod tray;
 mod upnp;
 
@@ -35,21 +36,31 @@ use upnp::UpnpState;
 /// read the raw JSON file directly. Falls back to `Warn` when no preference
 /// has been persisted yet.
 pub(crate) fn read_log_level() -> log::LevelFilter {
-    (|| -> Option<log::LevelFilter> {
-        let data_dir = dirs::data_dir()?.join("com.motrix.next");
-        let store_path = data_dir.join("config.json");
-        let content = std::fs::read_to_string(store_path).ok()?;
-        let json: serde_json::Value = serde_json::from_str(&content).ok()?;
-        let level_str = json.get("preferences")?.get("logLevel")?.as_str()?;
-        match level_str {
-            "error" => Some(log::LevelFilter::Error),
-            "warn" => Some(log::LevelFilter::Warn),
-            "info" => Some(log::LevelFilter::Info),
-            "debug" => Some(log::LevelFilter::Debug),
-            _ => None,
-        }
-    })()
-    .unwrap_or(log::LevelFilter::Warn)
+    #[cfg(target_os = "android")]
+    {
+        // Android: `dirs::data_dir()` does not point at Tauri's app data dir,
+        // so reading config.json here would always miss. Return the default —
+        // the frontend adjusts log levels at runtime after preference load.
+        return log::LevelFilter::Warn;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        (|| -> Option<log::LevelFilter> {
+            let data_dir = dirs::data_dir()?.join("com.motrix.next");
+            let store_path = data_dir.join("config.json");
+            let content = std::fs::read_to_string(store_path).ok()?;
+            let json: serde_json::Value = serde_json::from_str(&content).ok()?;
+            let level_str = json.get("preferences")?.get("logLevel")?.as_str()?;
+            match level_str {
+                "error" => Some(log::LevelFilter::Error),
+                "warn" => Some(log::LevelFilter::Warn),
+                "info" => Some(log::LevelFilter::Info),
+                "debug" => Some(log::LevelFilter::Debug),
+                _ => None,
+            }
+        })()
+        .unwrap_or(log::LevelFilter::Warn)
+    }
 }
 
 /// Tracks the application lifecycle phase for window visibility decisions.
@@ -99,6 +110,7 @@ impl AppLifecycleState {
     }
 }
 
+#[cfg(desktop)]
 fn window_state_flags() -> tauri_plugin_window_state::StateFlags {
     use tauri_plugin_window_state::StateFlags;
 
@@ -126,6 +138,7 @@ pub(crate) fn read_pref_bool(app: &tauri::AppHandle, key: &str, default: bool) -
         .unwrap_or(default)
 }
 
+#[cfg(desktop)]
 fn keep_window_state_enabled(app: &tauri::AppHandle) -> bool {
     read_pref_bool(app, "keepWindowState", false)
 }
@@ -135,6 +148,7 @@ fn keep_window_state_enabled(app: &tauri::AppHandle) -> bool {
 /// Visibility is intentionally excluded. The app owns visibility through the
 /// autostart silent-mode guard and the frontend show-on-ready flow, so restoring
 /// visibility here would reintroduce startup flashes.
+#[cfg(desktop)]
 pub(crate) fn restore_window_state_if_enabled(
     app: &tauri::AppHandle,
     window: &tauri::WebviewWindow,
@@ -154,6 +168,7 @@ pub(crate) fn restore_window_state_if_enabled(
     }
 }
 
+#[cfg(desktop)]
 fn save_window_state_before_lightweight_destroy(app: &tauri::AppHandle) {
     use tauri_plugin_window_state::AppHandleExt;
 
@@ -168,6 +183,7 @@ fn save_window_state_before_lightweight_destroy(app: &tauri::AppHandle) {
 ///
 /// Shared by `on_window_event(CloseRequested)` and `on_menu_event("close-window")`
 /// to keep the two close paths consistent.
+#[cfg(desktop)]
 pub(crate) fn handle_minimize_to_tray(app: &tauri::AppHandle, window: &tauri::WebviewWindow) {
     // End the cold-start phase on the first window dismissal.
     // After this point, is_autostart_launch() returns false so that
@@ -219,8 +235,11 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let m = menu::build_menu(handle)?;
         app.set_menu(m)?;
     }
-    let tray_state = tray::setup_tray(handle)?;
-    app.manage(tray_state);
+    #[cfg(desktop)]
+    {
+        let tray_state = tray::setup_tray(handle)?;
+        app.manage(tray_state);
+    }
 
     // Aria2 JSON-RPC client — starts with default credentials, updated
     // after engine start via Aria2Client::update_credentials().
@@ -337,6 +356,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // The window-state plugin is registered with skip_initial_state("main"),
     // so initial and lightweight-recreated windows both restore through the
     // same explicit helper.
+    #[cfg(desktop)]
     if let Some(w) = app.get_webview_window("main") {
         restore_window_state_if_enabled(handle, &w);
     }
@@ -429,6 +449,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Logging at INFO level ensures user-submitted logs always contain the
     // data needed to diagnose autostart bugs (e.g. --autostart flag missing
     // from the Windows registry entry — auto-launch crate #771).
+    #[cfg(desktop)]
     {
         let is_autostart =
             std::env::args().any(|a| a == "--autostart" || a.starts_with("--autostart="));
@@ -629,6 +650,10 @@ pub fn run() {
     // Must run BEFORE tauri_plugin_sql to prevent panic on downgrade.
     // Uses the platform-specific app data directory (same path that
     // tauri_plugin_sql's "sqlite:history.db" resolves to).
+    // Android: `dirs::data_dir()` does not match Tauri's app_data_dir and
+    // the native dialog backend (rfd) is desktop-only, so skip the guard —
+    // tauri_plugin_sql handles migration failures gracefully there.
+    #[cfg(not(target_os = "android"))]
     if let Some(dir) = dirs::data_dir().map(|d| d.join("com.motrix.next")) {
         db_guard::check(&dir);
     }
@@ -710,14 +735,17 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_locale::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_autostart::init(
+        .plugin(tauri_plugin_updater::Builder::new().build());
+
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--autostart"]),
         ));
+    }
 
     #[cfg(desktop)]
     {
@@ -744,6 +772,7 @@ pub fn run() {
 
     builder = builder.plugin(tauri_plugin_deep_link::init());
     // Window-state plugin: saves/restores window position and size.
+    // (Desktop-only — Android has no window geometry to persist.)
     //
     // VISIBLE is permanently excluded from the plugin's state flags.
     // Window visibility is managed entirely by the autostart-silent-mode
@@ -755,6 +784,7 @@ pub fn run() {
     // tao where isMaximized() triggers a new resize event, creating an
     // infinite loop (tauri-apps/tauri#5812).  The frontend also skips
     // isMaximized() tracking on macOS (see MainLayout.vue).
+    #[cfg(desktop)]
     builder = builder.plugin({
         use tauri_plugin_window_state::StateFlags;
 
@@ -775,7 +805,7 @@ pub fn run() {
             .build()
     });
 
-    builder
+    builder = builder
         .manage(EngineState::new())
         .manage(UpnpState::new())
         .manage(std::sync::Arc::new(UpdateCancelState::new()))
@@ -792,9 +822,6 @@ pub fn run() {
             commands::resolve_bt_listen_port,
             commands::factory_reset,
             commands::clear_session_file,
-            commands::update_tray_title,
-            commands::update_tray_menu_labels,
-            commands::update_menu_labels,
             commands::update_progress_bar,
             commands::update_dock_badge,
             commands::send_task_start_notification,
@@ -812,7 +839,6 @@ pub fn run() {
             commands::sync_bt_peer_blocklist,
             commands::reconcile_bt_peer_blocklist,
             commands::set_dock_visible,
-            commands::minimize_to_tray,
             commands::probe_trackers,
             commands::fetch_tracker_sources,
             commands::is_autostart_launch,
@@ -880,7 +906,17 @@ pub fn run() {
             commands::wait_for_engine,
             commands::system_shutdown,
             commands::cancel_shutdown,
-        ])
+        ]);
+
+    // Desktop-only commands (tray/menu/window) — unavailable on Android.
+    #[cfg(desktop)]
+    builder = builder.invoke_handler(tauri::generate_handler![
+        commands::update_tray_title,
+        commands::update_tray_menu_labels,
+        commands::update_menu_labels,
+        commands::minimize_to_tray,
+    ]);
+    builder
         // ── Window event interception ─────────────────────────────────
         //
         // Registered via `on_window_event` — the FIRST hook in Tauri's
@@ -920,6 +956,7 @@ pub fn run() {
 
                 log::debug!("window:prefs minimizeToTrayOnClose={}", should_hide);
 
+                #[cfg(desktop)]
                 if should_hide {
                     // Lightweight mode destroys the WebView to reduce memory usage;
                     // standard mode hides it for instant show on tray click.
@@ -928,7 +965,15 @@ pub fn run() {
                     if let Some(wv) = app.get_webview_window(window.label()) {
                         handle_minimize_to_tray(app, &wv);
                     }
-                } else {
+                }
+
+                // Mobile (Android): minimize-to-tray does not exist; on the
+                // (rare) close event, just emit the exit dialog for the
+                // frontend to confirm — matching the desktop non-hide path.
+                #[cfg(not(desktop))]
+                let _ = should_hide;
+
+                if !should_hide || cfg!(not(desktop)) {
                     log::info!("window:show-exit-dialog label=main");
                     // Emit event for the frontend to show the exit dialog.
                     // More reliable than the JS onCloseRequested listener

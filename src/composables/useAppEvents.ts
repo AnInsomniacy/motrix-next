@@ -19,6 +19,7 @@ import { getErrorMessage } from '@shared/utils/errorMessage'
 import { isMotrixNewTaskLink } from '@shared/utils/motrixDeepLink'
 import type { ExternalDownloadInput } from '@shared/types'
 import { handleTaskStart } from '@/composables/useTaskNotifyHandlers'
+import { usePlatform } from '@/composables/usePlatform'
 import { onUnmounted, watch, type Ref, type WatchStopHandle } from 'vue'
 
 interface DeepLinkHandlingResult {
@@ -138,6 +139,7 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
 
   const router = useRouter()
   const route = useRoute()
+  const { isMobile } = usePlatform()
   const cleanupFns: Array<() => void> = []
   let silentCleanupTimer: ReturnType<typeof setTimeout> | null = null
   let engineRecoveredWaitInFlight = false
@@ -764,7 +766,10 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
     setupNavGuard()
 
     const { unlistenDeepLink, unlistenExternalInput, unlistenSingleInstance } = await setupExternalInputListeners()
-    const unlistenDragDrop = await setupDragDropListener()
+    // Mobile: Android WebView has no OS file drag-and-drop — skip that listener.
+    const unlistenDragDrop = isMobile.value ? null : await setupDragDropListener()
+    // menu-event / tray-menu-action are emitted only by desktop Rust (tray + menu
+    // are cfg(desktop)); on Android they never fire, so the listeners are harmless.
     const unlistenMenuEvent = await setupMenuListener()
     const unlistenTrayMenu = await setupTrayListener()
 

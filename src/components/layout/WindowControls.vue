@@ -11,6 +11,8 @@
  * SVG symbols, transparent by default, with hover/unfocused states.
  * The close button uses the official Windows 11 red (#C42B1C) on hover.
  *
+ * On Android there is no desktop window — renders nothing.
+ *
  * Colors derive from --m3-on-surface so they automatically adapt to the
  * active color scheme (10 presets) and light/dark mode without hardcoding.
  */
@@ -22,7 +24,7 @@ import { usePreferenceStore } from '@/stores/preference'
 
 const props = defineProps<{
   isMaximized: boolean
-  /** Current OS platform identifier (e.g. 'macos', 'windows', 'linux'). */
+  /** Current OS platform identifier (e.g. 'macos', 'windows', 'linux', 'android'). */
   platform: string
 }>()
 
@@ -37,6 +39,8 @@ const preferenceStore = usePreferenceStore()
 
 /** macOS uses native traffic lights — hide custom controls entirely. */
 const isMac = computed(() => props.platform === 'macos')
+/** Android has no desktop window chrome — hide custom controls entirely. */
+const isMobile = computed(() => props.platform === 'android')
 
 // ── Window focus state ──────────────────────────────────────────────
 const isFocused = ref(true)
@@ -77,8 +81,8 @@ async function close() {
 </script>
 
 <template>
-  <!-- macOS: native traffic lights provided by OS, render nothing -->
-  <div v-if="!isMac" class="caption-bar" :class="{ unfocused: !isFocused }">
+  <!-- macOS: native traffic lights provided by OS; Android: no desktop chrome — render nothing -->
+  <div v-if="!isMac && !isMobile" class="caption-bar" :class="{ unfocused: !isFocused }">
     <MTooltip placement="bottom">
       <template #trigger>
         <button class="caption-btn" :aria-label="t('app.menu-minimize')" @click="minimize">

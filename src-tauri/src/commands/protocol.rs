@@ -787,12 +787,20 @@ pub async fn is_default_protocol_client(
         let _ = &app; // suppress unused warning
         win_registry::is_protocol_registered(&protocol)
     }
-    #[cfg(not(any(target_os = "macos", windows)))]
+    #[cfg(not(any(target_os = "macos", windows, target_os = "android")))]
     {
         use tauri_plugin_deep_link::DeepLinkExt;
         app.deep_link()
             .is_registered(&protocol)
             .map_err(|e| AppError::Protocol(e.to_string()))
+    }
+    // Android: protocol handling uses manifest-declared Intent filters.
+    // Runtime registration is not supported — report as not registered so
+    // the frontend hides the "set as default" affordance.
+    #[cfg(target_os = "android")]
+    {
+        let _ = (app, protocol);
+        Ok(false)
     }
 }
 
@@ -833,12 +841,18 @@ pub async fn set_default_protocol_client(app: AppHandle, protocol: String) -> Re
             }
         }
     }
-    #[cfg(not(any(target_os = "macos", windows)))]
+    #[cfg(not(any(target_os = "macos", windows, target_os = "android")))]
     {
         use tauri_plugin_deep_link::DeepLinkExt;
         app.deep_link()
             .register(&protocol)
             .map_err(|e| AppError::Protocol(e.to_string()))
+    }
+    // Android: registration is handled via manifest Intent filters.
+    #[cfg(target_os = "android")]
+    {
+        let _ = (app, protocol);
+        Ok(())
     }
 }
 
@@ -872,7 +886,7 @@ pub async fn remove_as_default_protocol_client(
             }
         }
     }
-    #[cfg(not(any(target_os = "macos", windows)))]
+    #[cfg(not(any(target_os = "macos", windows, target_os = "android")))]
     {
         use tauri_plugin_deep_link::DeepLinkExt;
         app.deep_link()
@@ -880,6 +894,12 @@ pub async fn remove_as_default_protocol_client(
             .map_err(|e| AppError::Protocol(e.to_string()))?;
         #[cfg(target_os = "linux")]
         linux_desktop::remove_scheme_from_handler(&app, &protocol)?;
+        Ok(())
+    }
+    // Android: registration is handled via manifest Intent filters.
+    #[cfg(target_os = "android")]
+    {
+        let _ = (app, protocol);
         Ok(())
     }
 }

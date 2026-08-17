@@ -10,6 +10,12 @@ permissions:
 
 jobs:
   build:
+    # Desktop builds only fire for the main branch. Android releases are
+    # handled by android-release.yml (android branch).
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.release.target_commitish == 'main' ||
+      github.event.release.target_commitish == 'dev'
     strategy:
       fail-fast: false
       matrix:
@@ -98,7 +104,6 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'release'
-
     steps:
       - uses: actions/checkout@v6
 

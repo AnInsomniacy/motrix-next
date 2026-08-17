@@ -1,0 +1,149 @@
+name: Android Release
+
+# Builds the Android APK and publishes it to GitHub Releases.
+#
+# Triggered by:
+#   - A `release: published` event with a tag matching the Android prefix
+#   - Manual dispatch (workflow_dispatch)
+#
+# The workflow:
+#   1. Runs `tauri android init` to generate the native Android project (gen/android).
+#   2. Patches the AndroidManifest with the permissions the app needs
+#      (POST_NOTIFICATIONS, INTERNET) and deep-link intent filters.
+#   3. Builds the ARM64 APK with the bundled aria2-next Android sidecar.
+#   4. Uploads the APK to the GitHub Release (or as a workflow artifact
+#      when triggered manually).
+#
+# Only the `android` branch should trigger the release job.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    # Android releases only fire from the `android` branch releases.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.release.target_commitish == 'android' ||
+      startsWith(github.event.release.tag_name, 'android-') ||
+      startsWith(github.event.release.tag_name, 'v')
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Add Android Rust target
+        run: rustup target add aarch64-linux-android
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
+
+      - name: Resolve NDK home
+        id: ndk
+        run: |
+          # GitHub-hosted ubuntu runners ship a recent NDK (29.x) and set
+          # ANDROID_NDK_LATEST_HOME. Fall back to sdkmanager otherwise.
+          if [ -z "${ANDROID_NDK_LATEST_HOME:-}" ]; then
+            echo "Installing NDK via sdkmanager..."
+            "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
+              --install "ndk;27.2.12479018" >/dev/null 2>&1 || true
+          fi
+          NDK_HOME="${ANDROID_NDK_LATEST_HOME:-$ANDROID_HOME/ndk/27.2.12479018}"
+          echo "NDK_HOME=$NDK_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls "$ANDROID_HOME/ndk/" 2>/dev/null || true
+
+      - name: Install Linux system deps (WebKit only needed for checks)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential pkg-config
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Initialize Tauri Android project
+        run: pnpm tauri android init
+
+      - name: Configure Android release signing (fixed keystore)
+        run: |
+          # Copy the fixed signing keystore + generate keystore.properties from
+          # the fixed credentials. The keystore is committed to the repo; the
+          # password can be overridden via the ANDROID_KEY_PASSWORD secret.
+          cp src-tauri/android/motrix-next.keystore src-tauri/gen/android/motrix-next.keystore
+
+          KEY_PASSWORD="${ANDROID_KEY_PASSWORD:-motrixnext123}"
+          KEYSTORE_PATH="$(pwd)/src-tauri/gen/android/motrix-next.keystore"
+          cat > src-tauri/gen/android/keystore.properties <<EOF
+          keyAlias=motrixnext
+          password=${KEY_PASSWORD}
+          storeFile=${KEYSTORE_PATH}
+          EOF
+
+          GRADLE="src-tauri/gen/android/app/build.gradle.kts"
+          python3 .github/scripts/patch-android-signing.py "$GRADLE"
+          echo "=== Patched signing config ==="
+          grep -n "signingConfigs\|signingConfig\|keystore" "$GRADLE" || true
+        env:
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Patch AndroidManifest with permissions and deep links
+        run: |
+          python3 .github/scripts/patch-android-manifest.py
+          echo "=== Manifest (permissions + intent filters) ==="
+          grep -n "uses-permission\|scheme=\|intent-filter" src-tauri/gen/android/app/src/main/AndroidManifest.xml || true
+
+      - name: Build Android APK
+        run: pnpm tauri android build --apk --target aarch64
+        env:
+          NDK_HOME: "$ANDROID_NDK_LATEST_HOME"
+
+      - name: Locate APK artifacts
+        id: apk
+        run: |
+          echo "APK_DIR=src-tauri/gen/android/app/build/outputs/apk/universal/release" >> "$GITHUB_ENV"
+          ls -la src-tauri/gen/android/app/build/outputs/apk/ 2>/dev/null || true
+          find src-tauri/gen/android -name "*.apk" 2>/dev/null | head -20
+
+      - name: Upload APK to Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          # Copy APKs into a flat dir for the upload
+          mkdir -p /tmp/apk-artifacts
+          find src-tauri/gen/android -name "*.apk" -exec cp {} /tmp/apk-artifacts/ \;
+          ls -la /tmp/apk-artifacts/
+          # Upload each APK
+          for apk in /tmp/apk-artifacts/*.apk; do
+            echo "Uploading: $apk"
+            gh release upload "$TAG" "$apk" --clobber
+          done
+
+      - name: Upload APK artifacts (manual trigger only)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v7
+        with:
+          name: motrix-next-android-apk
+          path: |
+            src-tauri/gen/android/**/*.apk
+          retention-days: 14

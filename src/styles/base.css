@@ -15,6 +15,9 @@ html,
 body,
 #app {
   height: 100%;
+  /* dvh accounts for the Android/desktop dynamic viewport (URL bar +
+     soft keyboard), preventing layout jumps when those appear. */
+  height: 100dvh;
   font-family: var(--font-family);
   font-variant: tabular-nums;
   font-size: var(--font-size-base);

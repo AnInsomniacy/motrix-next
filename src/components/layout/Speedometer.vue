@@ -365,6 +365,14 @@ async function handleScheduleToggle(enabled: boolean) {
   background: var(--m3-surface-container);
   overflow: visible;
 }
+
+/* Mobile (Android): hide the floating speed capsule — it overlaps the
+   bottom navigation bar and its right-click popover is desktop-only. */
+@media (max-width: 600px) {
+  .speedometer {
+    display: none;
+  }
+}
 .speedometer:hover {
   border-color: var(--m3-outline);
 }

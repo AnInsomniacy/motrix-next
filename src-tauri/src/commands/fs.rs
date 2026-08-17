@@ -559,9 +559,21 @@ pub fn show_item_in_dir(path: String) -> Result<(), AppError> {
 }
 
 /// Platform-dispatched implementation for revealing files in the explorer.
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "android")))]
 fn reveal_in_explorer(path: &str) -> Result<(), AppError> {
     tauri_plugin_opener::reveal_item_in_dir(path)
+        .map_err(|e| AppError::Io(format!("Failed to reveal: {e}")))
+}
+
+/// Android: there is no file-manager reveal concept — best-effort open the
+/// parent directory so the user can navigate to the file.
+#[cfg(target_os = "android")]
+fn reveal_in_explorer(path: &str) -> Result<(), AppError> {
+    let parent = Path::new(path)
+        .parent()
+        .and_then(|p| p.to_str())
+        .unwrap_or(path);
+    tauri_plugin_opener::reveal_item_in_dir(parent)
         .map_err(|e| AppError::Io(format!("Failed to reveal: {e}")))
 }
 
@@ -729,8 +741,19 @@ pub fn delete_path(path: String, mode: FileDeletionMode) -> Result<bool, AppErro
 
     log::info!("file:delete mode={mode:?} path={path:?}");
     match mode {
+        // Android: the trash crate has no Android backend — fall back to
+        // permanent deletion (Android has no recycle bin for app files).
+        #[cfg(not(target_os = "android"))]
         FileDeletionMode::Trash => {
             trash::delete(target).map_err(|error| AppError::Io(error.to_string()))?
+        }
+        #[cfg(target_os = "android")]
+        FileDeletionMode::Trash => {
+            if metadata.file_type().is_dir() {
+                std::fs::remove_dir_all(target).map_err(|error| AppError::Io(error.to_string()))?;
+            } else {
+                std::fs::remove_file(target).map_err(|error| AppError::Io(error.to_string()))?;
+            }
         }
         FileDeletionMode::Permanent if metadata.file_type().is_dir() => {
             std::fs::remove_dir_all(target).map_err(|error| AppError::Io(error.to_string()))?;

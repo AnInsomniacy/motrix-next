@@ -1,8 +1,9 @@
 /**
  * @fileoverview Centralised platform detection composable.
  *
- * Provides **atomic** boolean flags (`isMac`, `isWindows`, `isLinux`) plus
- * human-readable labels.  Consumers compose flags inline:
+ * Provides **atomic** boolean flags (`isMac`, `isWindows`, `isLinux`,
+ * `isAndroid`, `isMobile`) plus human-readable labels.  Consumers compose
+ * flags inline:
  *
  * ```ts
  * const { isMac, isWindows } = usePlatform()
@@ -34,11 +35,14 @@ function _ensureInit(): void {
 const _isMac = computed(() => _platform.value === 'macos')
 const _isWindows = computed(() => _platform.value === 'windows')
 const _isLinux = computed(() => _platform.value === 'linux')
+const _isAndroid = computed(() => _platform.value === 'android')
+const _isMobile = computed(() => _isAndroid.value)
 
 const PLATFORM_LABELS: Record<string, string> = {
   macos: 'macOS',
   windows: 'Windows',
   linux: 'Linux',
+  android: 'Android',
 }
 
 const _platformLabel = computed(() => PLATFORM_LABELS[_platform.value] ?? _platform.value)
@@ -47,6 +51,8 @@ const _platformLabel = computed(() => PLATFORM_LABELS[_platform.value] ?? _platf
 
 const ARCH_LABELS: Record<string, string> = {
   aarch64: 'ARM64',
+  arm64: 'ARM64',
+  arm64_v8a: 'ARM64',
   x86_64: 'x64',
   x86: 'x86',
 }
@@ -65,7 +71,7 @@ function _archLabel(arch: string): string {
 // ─── Public API ─────────────────────────────────────────────────────────
 
 export interface UsePlatformReturn {
-  /** Raw platform string: `'macos'`, `'windows'`, `'linux'`, or `''`. */
+  /** Raw platform string: `'macos'`, `'windows'`, `'linux'`, `'android'`, or `''`. */
   platform: Ref<string>
   /** `true` when running on macOS. */
   isMac: ComputedRef<boolean>
@@ -73,7 +79,11 @@ export interface UsePlatformReturn {
   isWindows: ComputedRef<boolean>
   /** `true` when running on Linux. */
   isLinux: ComputedRef<boolean>
-  /** Human-readable platform name: `'macOS'`, `'Windows'`, `'Linux'`. */
+  /** `true` when running on Android (mobile). */
+  isAndroid: ComputedRef<boolean>
+  /** `true` on any mobile platform (currently Android). */
+  isMobile: ComputedRef<boolean>
+  /** Human-readable platform name: `'macOS'`, `'Windows'`, `'Linux'`, `'Android'`. */
   platformLabel: ComputedRef<string>
   /** Map an architecture string to a human-readable label. */
   archLabel: (arch: string) => string
@@ -92,6 +102,8 @@ export function usePlatform(): UsePlatformReturn {
     isMac: _isMac,
     isWindows: _isWindows,
     isLinux: _isLinux,
+    isAndroid: _isAndroid,
+    isMobile: _isMobile,
     platformLabel: _platformLabel,
     archLabel: _archLabel,
   }

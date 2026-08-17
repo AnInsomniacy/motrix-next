@@ -8,7 +8,9 @@
 use crate::error::AppError;
 
 const DOWNLOAD_REASON: &str = "Active downloads in progress";
+#[cfg(not(target_os = "android"))]
 const APP_NAME: &str = "Motrix Next";
+#[cfg(not(target_os = "android"))]
 const APP_REVERSE_DOMAIN: &str = "com.motrix.next";
 
 pub struct PowerGuard {
@@ -110,6 +112,7 @@ mod platform {
 }
 
 #[cfg(not(target_os = "windows"))]
+#[cfg(not(target_os = "android"))]
 mod platform {
     use super::{AppError, APP_NAME, APP_REVERSE_DOMAIN, DOWNLOAD_REASON};
 
@@ -131,6 +134,25 @@ mod platform {
 
         pub fn backend_name(&self) -> &'static str {
             "keepawake"
+        }
+    }
+}
+
+// Android: no keepawake backend — a no-op guard keeps the stat service
+// compiling and keeps the "keep awake during downloads" preference harmless.
+#[cfg(target_os = "android")]
+mod platform {
+    use super::AppError;
+
+    pub struct PlatformPowerGuard;
+
+    impl PlatformPowerGuard {
+        pub fn acquire_download() -> Result<Self, AppError> {
+            Ok(Self)
+        }
+
+        pub fn backend_name(&self) -> &'static str {
+            "android-noop"
         }
     }
 }

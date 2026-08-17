@@ -190,4 +190,50 @@ function showAddTask() {
 .bottom-menu {
   margin-bottom: 24px;
 }
+
+/* ── Mobile (Android) — bottom navigation bar ───────────────────────── */
+/* Below 600px the sidebar becomes a fixed bottom tab bar: logo hidden,
+   buttons laid out horizontally across the screen width. */
+@media (max-width: 600px) {
+  .aside {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background-color: var(--aside-bg);
+    border-top: 1px solid var(--m3-outline-variant);
+    z-index: 30;
+  }
+  .aside-inner {
+    flex-flow: row nowrap;
+    align-items: center;
+    height: 56px;
+  }
+  .logo-mini {
+    display: none;
+  }
+  .menu {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: space-around;
+  }
+  .menu > li {
+    margin-top: 0;
+  }
+  .menu-button {
+    width: 44px;
+    height: 44px;
+  }
+  .top-menu {
+    flex: 1;
+  }
+  .bottom-menu {
+    flex: 1;
+    margin-bottom: 0;
+  }
+}
 </style>

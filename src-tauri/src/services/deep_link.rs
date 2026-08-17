@@ -222,15 +222,24 @@ fn schedule_main_window_wake(app: &AppHandle, source: &'static str, silent: bool
 
 fn wake_main_window(app: &AppHandle, source: &'static str, silent: bool) {
     log::debug!("deep_link:wake-start source={source} silent={silent}");
-    let outcome = if silent {
-        crate::tray::ensure_main_window(app, source)
-    } else {
-        crate::tray::activate_main_window(app, source)
-    };
-    if outcome == crate::tray::WindowActivationOutcome::Activated {
-        log::debug!("deep_link:wake-done source={source} silent={silent}");
-    } else {
-        log::error!("deep_link:wake-failed source={source}");
+    #[cfg(desktop)]
+    {
+        let outcome = if silent {
+            crate::tray::ensure_main_window(app, source)
+        } else {
+            crate::tray::activate_main_window(app, source)
+        };
+        if outcome == crate::tray::WindowActivationOutcome::Activated {
+            log::debug!("deep_link:wake-done source={source} silent={silent}");
+        } else {
+            log::error!("deep_link:wake-failed source={source}");
+        }
+    }
+    // On mobile the WebView is never destroyed, so there is no window to wake.
+    #[cfg(not(desktop))]
+    {
+        let _ = (app, silent);
+        log::debug!("deep_link:wake-skipped source={source} (mobile)");
     }
 }
 

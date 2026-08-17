@@ -548,6 +548,16 @@ pub async fn apply_update(
         "updater:apply channel={channel} proxy={}",
         redact_proxy_for_log(&proxy)
     );
+    // Android: the Tauri updater installs NSIS/tar.gz artifacts, not APKs.
+    // Updates must be distributed through the Play Store / APK sideloading.
+    #[cfg(target_os = "android")]
+    {
+        let _ = (app, channel, proxy);
+        return Err(AppError::Updater(
+            "In-app updates are not supported on Android — download the new APK from the release page"
+                .into(),
+        ));
+    }
     // Re-check the update to obtain the Update object for installation.
     // This MUST happen before take() — if check() fails (network flap,
     // JSON changed between download and install), the already-downloaded

@@ -238,7 +238,7 @@ watch(
 
 <style scoped>
 .engine-dialog {
-  width: 420px;
+  width: min(420px, calc(100vw - 24px));
   background: var(--m3-surface-container-high);
   border-radius: 14px;
   overflow: hidden;

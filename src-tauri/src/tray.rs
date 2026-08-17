@@ -1,3 +1,11 @@
+//! System tray setup + native event handling (lightweight mode safe).
+//!
+//! Android has no system tray — this module is only compiled on desktop
+//! platforms. Mobile entry points that would call `activate_main_window`
+//! use an in-mobile stub instead (see `services/deep_link.rs`).
+
+#![cfg(desktop)]
+
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{

@@ -224,12 +224,21 @@ fn schedule_main_window_wake(app: &AppHandle, source: &'static str) {
 
 fn wake_main_window(app: &AppHandle, source: &'static str) {
     log::debug!("frontend_action:wake-start source={source}");
-    if crate::tray::activate_main_window(app, source)
-        == crate::tray::WindowActivationOutcome::Activated
+    #[cfg(desktop)]
     {
-        log::debug!("frontend_action:wake-done source={source}");
-    } else {
-        log::error!("frontend_action:wake-failed source={source}");
+        if crate::tray::activate_main_window(app, source)
+            == crate::tray::WindowActivationOutcome::Activated
+        {
+            log::debug!("frontend_action:wake-done source={source}");
+        } else {
+            log::error!("frontend_action:wake-failed source={source}");
+        }
+    }
+    // On mobile the WebView is never destroyed, so there is no window to wake.
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+        log::debug!("frontend_action:wake-skipped source={source} (mobile)");
     }
 }
 

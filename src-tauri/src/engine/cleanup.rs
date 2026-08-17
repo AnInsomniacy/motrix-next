@@ -11,6 +11,7 @@ fn is_supported_engine_process(comm: &str) -> bool {
 }
 
 #[cfg(unix)]
+#[cfg(not(target_os = "android"))]
 fn process_identity(pid: &str) -> Option<String> {
     let args_output = std::process::Command::new("ps")
         .args(["-p", pid, "-o", "args="])
@@ -45,7 +46,7 @@ pub(crate) fn cleanup_port(port: &str) {
         return;
     }
 
-    #[cfg(unix)]
+    #[cfg(all(unix, not(target_os = "android")))]
     {
         // Direct command invocation — no shell interpolation.
         // The port value is validated as numeric-only above.
@@ -92,6 +93,15 @@ pub(crate) fn cleanup_port(port: &str) {
                 }
             }
         }
+    }
+
+    // Android: external `lsof`/`ps`/`kill` commands are unavailable. The
+    // engine is a child of this process, so stale listeners are impossible
+    // across restarts — nothing to clean up.
+    #[cfg(target_os = "android")]
+    {
+        let _ = port;
+        log::debug!("cleanup_port: skipped on Android (no external commands)");
     }
 
     #[cfg(windows)]
