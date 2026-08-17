@@ -13,10 +13,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.6.2", features = [] }
 
 [dependencies]
-tauri = { version = "2.11.2", features = ["macos-private-api", "tray-icon", "image-png"] }
 tauri-plugin-opener = "2"
 tauri-plugin-store = "2"
-tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2.10.1"
 tauri-plugin-deep-link = "2"
 tauri-plugin-shell = "2"
@@ -32,10 +30,8 @@ semver = "1"
 tokio = { version = "1", features = ["full"] }
 log = "0.4"
 thiserror = "2"
-tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tauri-plugin-locale = "2.0.1"
 url = "2.5.8"
-tauri-plugin-window-state = "2.4.1"
 igd-next = { version = "0.15", features = ["aio_tokio"] }
 ipnet = "2"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
@@ -46,16 +42,13 @@ tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 dirs = "6"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 chrono = "0.4"
-trash = "5"
 dunce = "1"
 os_info = "3"
 sys-locale = "0.3"
 rusqlite = { version = "0.31", features = ["bundled"] }
-rfd = { version = "0.16", default-features = false }
 maxminddb = { version = "0.27", features = ["mmap"] }
 axum = "0.8"
 tower-http = { version = "0.6", features = ["cors"] }
-keepawake = "0.6"
 mime2ext = "0.1"
 urlencoding = "2"
 sanitize-filename = "0.6"
@@ -76,6 +69,20 @@ windows-sys = { version = "0.59", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 winreg = "0.56"
+
+# Desktop-only crates (tray icon, keep-awake, trash, file dialogs, autostart,
+# window state) have no Android backends and would fail to compile on Android.
+[target.'cfg(desktop)'.dependencies]
+tauri = { version = "2.11.2", features = ["macos-private-api", "tray-icon", "image-png"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-window-state = "2.4.1"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+keepawake = "0.6"
+rfd = { version = "0.16", default-features = false }
+trash = "5"
+
+[target.'cfg(not(desktop))'.dependencies]
+tauri = { version = "2.11.2", features = ["image-png"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 notify-rust = "4.14"

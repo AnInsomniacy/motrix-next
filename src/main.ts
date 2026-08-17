@@ -35,12 +35,15 @@ import './styles/naive-overrides.css'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getLocale } from 'tauri-plugin-locale-api'
 import { resolveSystemLocale } from '@shared/utils/locale'
+import { usePlatform } from '@/composables/usePlatform'
 
 const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 app.use(i18n)
+
+const { isMobile } = usePlatform()
 
 // ── Global error boundary — catch all uncaught exceptions to log file ──
 // Register before preference hydration so startup failures do not disappear
@@ -58,7 +61,9 @@ app.config.errorHandler = (err) => {
 // ── Production guard: suppress browser default context menu ─────────
 // In dev mode, keep the context menu for DevTools / Inspect Element.
 // Industry standard for Tauri/Electron desktop apps (Discord, Slack, VS Code).
-if (import.meta.env.PROD) {
+// Mobile (Android): long-press context menu is a native touch interaction —
+// keep it so text selection / copy works.
+if (import.meta.env.PROD && !isMobile.value) {
   document.addEventListener('contextmenu', (e) => e.preventDefault())
 }
 
@@ -286,6 +291,8 @@ if (import.meta.env.PROD) {
    * present for the next boot.
    */
   async function syncAutostart(config: typeof preferenceStore.config): Promise<void> {
+    // Mobile: autostart has no meaning on Android — skip entirely.
+    if (isMobile.value) return
     try {
       const { isEnabled, enable, disable } = await import('@tauri-apps/plugin-autostart')
       const currentlyEnabled = await isEnabled()
@@ -493,8 +500,11 @@ if (import.meta.env.PROD) {
     }
 
     let lastClipboardText = ''
-    getCurrentWindow().onFocusChanged(async ({ payload: focused }) => {
-      if (!focused) return
+
+    // Clipboard auto-detect. Desktop: triggered on window focus (getCurrentWindow
+    // onFocusChanged). Mobile (Android): there is no window-focus concept — use
+    // the document visibility change (app returning to foreground) instead.
+    const handleClipboardDetect = async (): Promise<void> => {
       if (appStore.addTaskVisible) return
       const clipboardConfig = preferenceStore.config.clipboard
       if (!clipboardConfig?.enable) return
@@ -514,7 +524,20 @@ if (import.meta.env.PROD) {
       } catch (e) {
         logger.debug('Main.clipboardMonitor', e)
       }
-    })
+    }
+
+    if (isMobile.value) {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          void handleClipboardDetect()
+        }
+      })
+    } else {
+      getCurrentWindow().onFocusChanged(async ({ payload: focused }) => {
+        if (!focused) return
+        await handleClipboardDetect()
+      })
+    }
   }
 
   void bootstrapMainWindow().catch((e) => {

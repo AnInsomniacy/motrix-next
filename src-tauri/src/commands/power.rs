@@ -103,6 +103,15 @@ pub(crate) fn do_shutdown_internal() -> Result<(), AppError> {
     Ok(())
 }
 
+// Android: no system shutdown command exists. Return an explicit error so the
+// frontend can hide/disable the "shutdown when complete" feature gracefully.
+#[cfg(target_os = "android")]
+pub(crate) fn do_shutdown_internal() -> Result<(), AppError> {
+    Err(AppError::Engine(
+        "System shutdown is not supported on Android".to_string(),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -129,7 +129,16 @@ fn kill_process_by_pid(pid: u32) -> Result<(), String> {
         return Err(format!("taskkill failed for PID {pid}: {status}"));
     }
 
-    #[cfg(not(windows))]
+    // Android: no external `kill` command is available. The sidecar child is
+    // reaped via CommandChild::kill() in stop_engine instead, so this helper
+    // should not be reached; guard it anyway.
+    #[cfg(target_os = "android")]
+    {
+        let _ = pid;
+        Err("kill not available on Android — use CommandChild::kill()".to_string())
+    }
+
+    #[cfg(not(any(windows, target_os = "android")))]
     {
         let status = std::process::Command::new("kill")
             .args(["-TERM", &pid.to_string()])

@@ -52,7 +52,7 @@ const { t, locale } = useI18n()
 const preferenceStore = usePreferenceStore()
 const dialog = useDialog()
 const message = useAppMessage()
-const { isMac, isLinux, platformLabel, archLabel: getArchLabel } = usePlatform()
+const { isMac, isLinux, isMobile, platformLabel, archLabel: getArchLabel } = usePlatform()
 
 // ─── System info card ────────────────────────────────────────────────
 const sysArch = ref('')
@@ -486,7 +486,8 @@ onMounted(async () => {
           <NSwitch v-model:value="form.dockBadgeSpeed" />
         </NFormItem>
 
-        <!-- ⑪ Startup & Tray -->
+        <!-- 11 Startup & Tray (Android hides desktop-only autostart/tray items) -->
+        <template v-if="!isMobile">
         <NDivider title-placement="left">{{ t('preferences.startup-behavior') }}</NDivider>
         <NFormItem :label="t('preferences.open-at-login')">
           <NSwitch v-model:value="form.openAtLogin" />
@@ -524,6 +525,14 @@ onMounted(async () => {
           </template>
           <NSwitch v-model:value="form.lightweightMode" />
         </NFormItem>
+        </template>
+        <template v-else>
+          <!-- Android: auto-resume stays available -->
+          <NDivider title-placement="left">{{ t('preferences.startup-behavior') }}</NDivider>
+          <NFormItem :label="t('preferences.auto-resume-all')">
+            <NSwitch v-model:value="form.resumeAllWhenAppLaunched" />
+          </NFormItem>
+        </template>
       </NForm>
     </div>
     <PreferenceActionBar :is-dirty="isDirty" @save="handleSave" @discard="handleReset" @restart="handleManualRestart" />

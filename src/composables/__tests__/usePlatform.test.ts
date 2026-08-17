@@ -62,6 +62,19 @@ describe('usePlatform', () => {
       expect(isWindows.value).toBe(false)
       expect(isLinux.value).toBe(true)
     })
+
+    it('returns isAndroid=true and isMobile=true on Android', async () => {
+      mockPlatform.mockReturnValue('android')
+      const mod = await import('../usePlatform')
+      usePlatform = mod.usePlatform
+      const { isMac, isWindows, isLinux, isAndroid, isMobile } = usePlatform()
+      expect(isMac.value).toBe(false)
+      expect(isWindows.value).toBe(false)
+      expect(isLinux.value).toBe(false)
+      expect(isAndroid.value).toBe(true)
+      expect(isMobile.value).toBe(true)
+      expect(usePlatform().platformLabel.value).toBe('Android')
+    })
   })
 
   // ─── Platform label ──────────────────────────────────────────────

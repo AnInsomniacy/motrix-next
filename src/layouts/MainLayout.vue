@@ -74,7 +74,7 @@ const isExiting = ref(false)
 const rememberChoice = ref(false)
 const pendingTrayHide = ref(false)
 const isMaximized = ref(false)
-const { platform: currentPlatform, isMac } = usePlatform()
+const { platform: currentPlatform, isMac, isMobile } = usePlatform()
 const showEngineOverlay = ref(false)
 const taskPaginationTab = computed(() =>
   taskStore.currentList === 'stopped' ? 'stopped' : taskStore.currentList === 'all' ? 'all' : 'active',
@@ -618,7 +618,9 @@ onMounted(async () => {
   // setup_app().  Both logs together provide a full diagnostic trace for
   // autostart bugs (e.g. --autostart flag missing on Windows cold boot).
 
-  {
+  // Mobile (Android): the native window is always visible — there is no
+  // autostart/lightweight-mode window hiding. Skip the whole visibility dance.
+  if (!isMobile.value) {
     const { invoke } = await import('@tauri-apps/api/core')
     const isAutostart: boolean = await invoke('is_autostart_launch')
     const silentPendingDeepLinks = await invoke<boolean>('peek_pending_deep_links_silent')
@@ -853,7 +855,8 @@ onMounted(async () => {
   // Track maximize state for WindowControls icon toggle (maximize ↔ restore).
   // macOS: skipped — native traffic lights handle this; isMaximized() inside
   // onResized triggers an infinite loop (tauri-apps/tauri#5812).
-  if (!isMac.value) {
+  // Mobile: no desktop window chrome.
+  if (!isMac.value && !isMobile.value) {
     const appWindow = getCurrentWindow()
     isMaximized.value = await appWindow.isMaximized()
     unlistenResize = await appWindow.onResized(() => {
@@ -876,22 +879,25 @@ onMounted(async () => {
   // Close prevention: both JS event.preventDefault() and Rust
   // api.prevent_close() are needed for reliable interception across
   // all close paths (native traffic light, Cmd+W, taskbar close).
-  unlistenCloseRequested = await appWindow.onCloseRequested(async (event) => {
-    // With native decorations (macOS overlay), the JS handler MUST call
-    // preventDefault() to prevent the native close.  The Rust on_window_event
-    // handler calls api.prevent_close() as a parallel safeguard.
-    event.preventDefault()
-    // Rust on_window_event handles the full close flow:
-    // - minimizeToTrayOnClose=true → handle_minimize_to_tray (hide or destroy)
-    // - minimizeToTrayOnClose=false → emit("show-exit-dialog")
-    // This JS path is a fallback for platforms where the Rust event may
-    // not reliably fire (e.g. macOS traffic-light with overlay titlebar).
-    if (preferenceStore.config.minimizeToTrayOnClose) return
-    if (!isExiting.value) {
-      rememberChoice.value = !!preferenceStore.config.minimizeToTrayOnClose
-      showExitDialog.value = true
-    }
-  })
+  // Mobile: Android has no window-close button — skip the interception.
+  if (!isMobile.value) {
+    unlistenCloseRequested = await appWindow.onCloseRequested(async (event) => {
+      // With native decorations (macOS overlay), the JS handler MUST call
+      // preventDefault() to prevent the native close.  The Rust on_window_event
+      // handler calls api.prevent_close() as a parallel safeguard.
+      event.preventDefault()
+      // Rust on_window_event handles the full close flow:
+      // - minimizeToTrayOnClose=true → handle_minimize_to_tray (hide or destroy)
+      // - minimizeToTrayOnClose=false → emit("show-exit-dialog")
+      // This JS path is a fallback for platforms where the Rust event may
+      // not reliably fire (e.g. macOS traffic-light with overlay titlebar).
+      if (preferenceStore.config.minimizeToTrayOnClose) return
+      if (!isExiting.value) {
+        rememberChoice.value = !!preferenceStore.config.minimizeToTrayOnClose
+        showExitDialog.value = true
+      }
+    })
+  }
 
   // Rust emits "show-exit-dialog" when the native close is intercepted
   // and minimize-to-tray is NOT enabled. This is more reliable than the
@@ -976,7 +982,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div id="container" :class="{ 'native-frame': isMac }">
+  <div id="container" :class="{ 'native-frame': isMac, mobile: isMobile }">
     <!-- Minimal progress bar during engine initialization / restart -->
     <Transition name="engine-slide">
       <div v-if="appStore.engineRestarting" class="engine-banner">
@@ -1102,6 +1108,7 @@ onUnmounted(() => {
 #container {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   position: relative;
   overflow: hidden;
 }
@@ -1214,6 +1221,46 @@ onUnmounted(() => {
   .task-pagination-control {
     left: calc(var(--aside-width) + 24px);
     max-width: calc(100vw - var(--aside-width) - 268px);
+  }
+}
+
+/* ── Mobile (Android) layout ─────────────────────────────────────────── */
+/* The container switches to a column flex: content on top, the AsideBar
+   becomes a fixed bottom navigation bar. Subnav is hidden on phones. */
+#container.mobile {
+  flex-direction: column;
+}
+.mobile .subnav-slot {
+  display: none;
+}
+.mobile .content {
+  padding-bottom: 56px; /* clear the fixed bottom nav */
+  overflow-y: auto;
+}
+.mobile .task-pagination-control {
+  left: 12px;
+  right: 12px;
+  bottom: 64px;
+  max-width: none;
+  justify-content: center;
+  overflow-x: auto;
+}
+.mobile .engine-banner {
+  top: env(safe-area-inset-top, 0px);
+}
+
+/* Exit dialog / shutdown dialogs: fit on narrow phones. */
+.mobile :deep(.n-modal) {
+  width: calc(100vw - 24px) !important;
+  max-width: 480px;
+}
+
+@media (max-width: 600px) {
+  .mobile .content {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+  .mobile .task-pagination-control {
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   }
 }
 

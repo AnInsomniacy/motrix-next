@@ -59,27 +59,40 @@ pub fn check(app_data_dir: &Path) {
         unknown
     );
 
-    let locale = detect_locale(app_data_dir);
-    let (title, body, ok_label, cancel_label) = get_dialog_texts(&locale);
+    // Android: no native message dialog backend (rfd is desktop-only).
+    // Reset the database automatically and log it — the WebView is the
+    // only UI surface on mobile.
+    #[cfg(target_os = "android")]
+    {
+        log::warn!("db_guard: android reset-on-conflict — deleting history.db");
+        delete_db_files(app_data_dir);
+        return;
+    }
 
-    let result = rfd::MessageDialog::new()
-        .set_level(rfd::MessageLevel::Warning)
-        .set_title(title)
-        .set_description(body)
-        .set_buttons(rfd::MessageButtons::OkCancelCustom(
-            ok_label.to_string(),
-            cancel_label.to_string(),
-        ))
-        .show();
+    #[cfg(not(target_os = "android"))]
+    {
+        let locale = detect_locale(app_data_dir);
+        let (title, body, ok_label, cancel_label) = get_dialog_texts(&locale);
 
-    match result {
-        rfd::MessageDialogResult::Custom(ref s) if s == ok_label => {
-            log::info!("db_guard: user chose RESET — deleting history.db");
-            delete_db_files(app_data_dir);
-        }
-        _ => {
-            log::info!("db_guard: user chose QUIT");
-            std::process::exit(0);
+        let result = rfd::MessageDialog::new()
+            .set_level(rfd::MessageLevel::Warning)
+            .set_title(title)
+            .set_description(body)
+            .set_buttons(rfd::MessageButtons::OkCancelCustom(
+                ok_label.to_string(),
+                cancel_label.to_string(),
+            ))
+            .show();
+
+        match result {
+            rfd::MessageDialogResult::Custom(ref s) if s == ok_label => {
+                log::info!("db_guard: user chose RESET — deleting history.db");
+                delete_db_files(app_data_dir);
+            }
+            _ => {
+                log::info!("db_guard: user chose QUIT");
+                std::process::exit(0);
+            }
         }
     }
 }
@@ -152,6 +165,7 @@ fn delete_db_files(app_data_dir: &Path) {
 /// 1. Parse `config.json` (tauri-plugin-store format) → `preferences.locale`
 /// 2. Fall back to `sys_locale::get_locale()` (OS language)
 /// 3. Fall back to `"en-US"`
+#[cfg(any(not(target_os = "android"), test))]
 fn detect_locale(app_data_dir: &Path) -> String {
     // 1. Saved user preference
     let config_path = app_data_dir.join("config.json");
@@ -176,6 +190,7 @@ fn detect_locale(app_data_dir: &Path) -> String {
 // ─── i18n: 27 locale translations ───────────────────────────────────
 
 /// Returns `(title, description, ok_label, cancel_label)` for the conflict dialog.
+#[cfg(any(not(target_os = "android"), test))]
 fn get_dialog_texts(locale: &str) -> (&'static str, &'static str, &'static str, &'static str) {
     match locale {
         "zh-CN" => (

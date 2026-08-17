@@ -250,8 +250,8 @@ function openUrl(url: string) {
 .about-glass {
   position: relative;
   max-width: 440px;
-  min-width: 320px;
-  width: 50vw;
+  min-width: min(320px, calc(100vw - 24px));
+  width: min(50vw, calc(100vw - 24px));
   padding: 32px 28px 24px;
   text-align: center;
   border-radius: 16px;

@@ -403,6 +403,7 @@ async fn stat_loop(
     //   Windows: PowerCreateRequest + PowerSetRequest(SystemRequired)
     //   Linux:   systemd Inhibit("idle") (D-Bus)
     let mut awake_guard: Option<PowerGuard> = None;
+    #[cfg(desktop)]
     let mut last_tray_title: Option<String> = None;
 
     loop {
@@ -496,6 +497,7 @@ async fn stat_loop(
             }
 
             // ── Tray title (macOS menu bar / Linux appindicator label) ──
+            #[cfg(desktop)]
             if let Some(tray) = app.tray_by_id("motrix-next") {
                 let next_title =
                     tray_title_for_speed(cfg.tray_speedometer, download_speed, upload_speed);

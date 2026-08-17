@@ -1,4 +1,5 @@
 use crate::error::AppError;
+#[cfg(desktop)]
 use crate::tray::TrayMenuState;
 use serde_json::Value;
 #[cfg(not(target_os = "macos"))]
@@ -12,6 +13,7 @@ use tauri::Manager;
 /// - **macOS**: renders in the menu bar next to the tray icon
 /// - **Linux**: renders as an appindicator label next to the icon
 /// - **Windows**: no-op (Windows system tray has no title API)
+#[cfg(desktop)]
 #[tauri::command]
 pub fn update_tray_title(app: AppHandle, title: String) -> Result<(), AppError> {
     if let Some(tray) = app.tray_by_id("motrix-next") {
@@ -28,6 +30,7 @@ pub fn update_tray_title(app: AppHandle, title: String) -> Result<(), AppError> 
 }
 
 /// Updates localized labels on tray menu items by their IDs.
+#[cfg(desktop)]
 #[tauri::command]
 pub fn update_tray_menu_labels(app: AppHandle, labels: Value) -> Result<(), AppError> {
     let state = app.state::<TrayMenuState>();
@@ -49,6 +52,7 @@ pub fn update_tray_menu_labels(app: AppHandle, labels: Value) -> Result<(), AppE
 ///
 /// Recursively traverses all submenus so that items nested inside
 /// submenus are found — `Menu::get()` only checks direct children.
+#[cfg(desktop)]
 #[tauri::command]
 pub fn update_menu_labels(app: AppHandle, labels: Value) -> Result<(), AppError> {
     use tauri::menu::MenuItemKind;
@@ -109,7 +113,7 @@ pub fn update_progress_bar(app: AppHandle, progress: f64) -> Result<(), AppError
         }
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(all(desktop, not(target_os = "macos")))]
     if let Some(window) = app.get_webview_window("main") {
         if progress < 0.0 {
             let _ = window.set_progress_bar(ProgressBarState {
@@ -225,6 +229,7 @@ pub fn set_window_alpha(app: AppHandle, alpha: f64) -> Result<(), AppError> {
 /// Cross-platform: macOS Dock hiding (`hideDockOnMinimize`) and the
 /// cold-start phase transition (`end_cold_start`) are handled internally
 /// by `handle_minimize_to_tray` — no platform-specific logic needed here.
+#[cfg(desktop)]
 #[tauri::command]
 pub fn minimize_to_tray(app: AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
