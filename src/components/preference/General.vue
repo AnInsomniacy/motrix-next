@@ -488,43 +488,43 @@ onMounted(async () => {
 
         <!-- 11 Startup & Tray (Android hides desktop-only autostart/tray items) -->
         <template v-if="!isMobile">
-        <NDivider title-placement="left">{{ t('preferences.startup-behavior') }}</NDivider>
-        <NFormItem :label="t('preferences.open-at-login')">
-          <NSwitch v-model:value="form.openAtLogin" />
-        </NFormItem>
-        <NCollapseTransition :show="form.openAtLogin" class="collapse-indent">
-          <NFormItem :label="t('preferences.auto-hide-window')">
-            <NSwitch v-model:value="form.autoHideWindow" />
+          <NDivider title-placement="left">{{ t('preferences.startup-behavior') }}</NDivider>
+          <NFormItem :label="t('preferences.open-at-login')">
+            <NSwitch v-model:value="form.openAtLogin" />
           </NFormItem>
-        </NCollapseTransition>
-        <NFormItem :label="t('preferences.keep-window-state')">
-          <NSwitch v-model:value="form.keepWindowState" />
-        </NFormItem>
-        <NFormItem :label="t('preferences.auto-resume-all')">
-          <NSwitch v-model:value="form.resumeAllWhenAppLaunched" />
-        </NFormItem>
-        <NDivider title-placement="left">{{ t('preferences.tray-and-dock') }}</NDivider>
-        <NFormItem :label="t('preferences.minimize-to-tray-on-close')">
-          <NSwitch v-model:value="form.minimizeToTrayOnClose" />
-        </NFormItem>
-        <NFormItem v-if="isMac" :label="t('preferences.hide-dock-on-minimize')">
-          <NSwitch v-model:value="form.hideDockOnMinimize" />
-        </NFormItem>
-        <NFormItem v-if="isMac || isLinux" :label="t('preferences.tray-speedometer')">
-          <NSwitch v-model:value="form.traySpeedometer" />
-        </NFormItem>
-        <NFormItem :label="t('preferences.show-progress-bar')">
-          <NSwitch v-model:value="form.showProgressBar" />
-        </NFormItem>
-        <NFormItem>
-          <template #label>
-            <PreferenceHintLabel
-              :label="t('preferences.lightweight-mode')"
-              :hint="t('preferences.lightweight-mode-hint')"
-            />
-          </template>
-          <NSwitch v-model:value="form.lightweightMode" />
-        </NFormItem>
+          <NCollapseTransition :show="form.openAtLogin" class="collapse-indent">
+            <NFormItem :label="t('preferences.auto-hide-window')">
+              <NSwitch v-model:value="form.autoHideWindow" />
+            </NFormItem>
+          </NCollapseTransition>
+          <NFormItem :label="t('preferences.keep-window-state')">
+            <NSwitch v-model:value="form.keepWindowState" />
+          </NFormItem>
+          <NFormItem :label="t('preferences.auto-resume-all')">
+            <NSwitch v-model:value="form.resumeAllWhenAppLaunched" />
+          </NFormItem>
+          <NDivider title-placement="left">{{ t('preferences.tray-and-dock') }}</NDivider>
+          <NFormItem :label="t('preferences.minimize-to-tray-on-close')">
+            <NSwitch v-model:value="form.minimizeToTrayOnClose" />
+          </NFormItem>
+          <NFormItem v-if="isMac" :label="t('preferences.hide-dock-on-minimize')">
+            <NSwitch v-model:value="form.hideDockOnMinimize" />
+          </NFormItem>
+          <NFormItem v-if="isMac || isLinux" :label="t('preferences.tray-speedometer')">
+            <NSwitch v-model:value="form.traySpeedometer" />
+          </NFormItem>
+          <NFormItem :label="t('preferences.show-progress-bar')">
+            <NSwitch v-model:value="form.showProgressBar" />
+          </NFormItem>
+          <NFormItem>
+            <template #label>
+              <PreferenceHintLabel
+                :label="t('preferences.lightweight-mode')"
+                :hint="t('preferences.lightweight-mode-hint')"
+              />
+            </template>
+            <NSwitch v-model:value="form.lightweightMode" />
+          </NFormItem>
         </template>
         <template v-else>
           <!-- Android: auto-resume stays available -->
