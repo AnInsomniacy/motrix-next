@@ -32,7 +32,6 @@
     "clipboard-manager:allow-write-text",
     "updater:default",
     "deep-link:default",
-    "locale:default",
     "log:default",
     "sql:default",
     "sql:allow-execute",
