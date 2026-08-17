@@ -30,7 +30,6 @@ semver = "1"
 tokio = { version = "1", features = ["full"] }
 log = "0.4"
 thiserror = "2"
-tauri-plugin-locale = "2.0.1"
 url = "2.5.8"
 igd-next = { version = "0.15", features = ["aio_tokio"] }
 ipnet = "2"
@@ -71,12 +70,13 @@ windows-sys = { version = "0.59", features = [
 winreg = "0.56"
 
 # Desktop-only crates (tray icon, keep-awake, trash, file dialogs, autostart,
-# window state) have no Android backends and would fail to compile on Android.
+# window state, locale) have no Android backends and would fail to compile on Android.
 [target.'cfg(desktop)'.dependencies]
 tauri = { version = "2.11.2", features = ["macos-private-api", "tray-icon", "image-png"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-window-state = "2.4.1"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+tauri-plugin-locale = "2.0.1"
 keepawake = "0.6"
 rfd = { version = "0.16", default-features = false }
 trash = "5"

@@ -33,7 +33,6 @@ import './styles/preferences.css'
 import './styles/naive-overrides.css'
 
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { getLocale } from 'tauri-plugin-locale-api'
 import { resolveSystemLocale } from '@shared/utils/locale'
 import { usePlatform } from '@/composables/usePlatform'
 
@@ -321,7 +320,15 @@ if (import.meta.env.PROD && !isMobile.value) {
       // First install (empty/auto) or explicit Follow System mode:
       // detect the OS locale and resolve to the closest available match.
       try {
-        const raw = (await getLocale()) || 'en-US'
+        // Desktop: tauri-plugin-locale. Mobile (Android): the plugin is
+        // desktop-only — fall back to the WebView's navigator.language.
+        let raw = 'en-US'
+        if (isMobile.value) {
+          raw = navigator.language || 'en-US'
+        } else {
+          const { getLocale } = await import('tauri-plugin-locale-api')
+          raw = (await getLocale()) || 'en-US'
+        }
         resolvedLocale = resolveSystemLocale(raw, SUPPORTED_LOCALES)
       } catch (e) {
         logger.debug('main.locale', e)
