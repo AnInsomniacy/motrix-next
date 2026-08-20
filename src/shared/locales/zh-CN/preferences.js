@@ -419,6 +419,7 @@ export default {
   'file-category-url-placeholder': '每行一条规则，例如 *://*.example.com/logs/*',
   'file-category-invalid-regex': '第 {line} 行正则规则无效',
   'file-category-invalid-url-rule-too-long': '第 {line} 行 URL 规则过长',
+  'independent-download-window': '开启独立下载窗口',
   'auto-submit-from-extension': '扩展下载跳过确认',
   'silent-auto-submit-from-extension': '接收下载时不激活主窗口',
   'auto-select-all-bt-files-from-extension': 'BT 默认下载全部文件',

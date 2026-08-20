@@ -62,7 +62,15 @@ import { vMotionAutoAnimate } from '@/directives/motionAutoAnimate'
 import AdvancedOptions from './addtask/AdvancedOptions.vue'
 import DirectoryPopover from '@/components/common/DirectoryPopover.vue'
 
-const props = defineProps<{ show: boolean }>()
+const props = withDefaults(
+  defineProps<{
+    show: boolean
+    showMask?: boolean
+  }>(),
+  {
+    showMask: true,
+  },
+)
 const emit = defineEmits<{ close: [] }>()
 
 const { t } = useI18n()
@@ -676,6 +684,7 @@ async function handleSubmit() {
 <template>
   <NModal
     :show="props.show"
+    :show-mask="props.showMask"
     :mask-closable="false"
     :close-on-esc="true"
     :auto-focus="false"

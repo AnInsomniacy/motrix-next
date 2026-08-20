@@ -427,6 +427,7 @@ export default {
   'file-category-url-placeholder': 'หนึ่งกฎต่อหนึ่งบรรทัด เช่น *://*.example.com/logs/*',
   'file-category-invalid-regex': 'กฎ regex ในบรรทัด {line} ไม่ถูกต้อง',
   'file-category-invalid-url-rule-too-long': 'กฎ URL ในบรรทัด {line} ยาวเกินไป',
+  'independent-download-window': 'เปิดใช้งานหน้าต่างดาวน์โหลดแยก',
   'auto-submit-from-extension': 'ข้ามการยืนยันสำหรับการดาวน์โหลดจากส่วนขยาย',
   'silent-auto-submit-from-extension': 'ไม่โฟกัสหน้าต่างหลักเมื่อรับการดาวน์โหลด',
   'auto-select-all-bt-files-from-extension': 'ดาวน์โหลดไฟล์ BT ทั้งหมดเป็นค่าเริ่มต้น',

@@ -66,6 +66,7 @@ describe('buildAdvancedForm', () => {
     expect(form.logLevel).toBe('warn')
     expect(form.aria2LogLevel).toBe('warn')
     expect(form.enableUpnp).toBe(true)
+    expect(form.useIndependentDownloadWindow).toBe(true)
   })
 
   it('uses the runtime secrets already created by config hydration', () => {
@@ -108,6 +109,12 @@ describe('buildAdvancedForm', () => {
     const { form } = buildAdvancedForm(config)
     expect(form.enableUpnp).toBe(false)
   })
+
+  it('preserves a disabled independent download window', () => {
+    const config = { useIndependentDownloadWindow: false } as unknown as AppConfig
+    const { form } = buildAdvancedForm(config)
+    expect(form.useIndependentDownloadWindow).toBe(false)
+  })
 })
 
 // ── buildAdvancedSystemConfig ───────────────────────────────────────
@@ -126,6 +133,7 @@ describe('buildAdvancedSystemConfig', () => {
     extensionApiPort: 29110,
     extensionApiSecret: 'test-api-secret',
     allowRemoteAccess: false,
+    useIndependentDownloadWindow: true,
     autoSubmitFromExtension: false,
     autoSelectAllBtFilesFromExtension: false,
     silentAutoSubmitFromExtension: true,
@@ -214,6 +222,7 @@ describe('transformAdvancedForStore', () => {
       extensionApiPort: 29110,
       extensionApiSecret: 'test-api-secret',
       allowRemoteAccess: false,
+      useIndependentDownloadWindow: true,
       autoSubmitFromExtension: false,
       autoSelectAllBtFilesFromExtension: false,
       silentAutoSubmitFromExtension: true,
@@ -352,6 +361,7 @@ describe('validateAdvancedForm', () => {
     extensionApiPort: 29110,
     extensionApiSecret: 'test-api-secret',
     allowRemoteAccess: false,
+    useIndependentDownloadWindow: true,
     autoSubmitFromExtension: false,
     autoSelectAllBtFilesFromExtension: false,
     silentAutoSubmitFromExtension: true,
@@ -504,6 +514,7 @@ describe('proxy configuration invariants', () => {
       extensionApiPort: 29110,
       extensionApiSecret: 'test-api-secret',
       allowRemoteAccess: false,
+      useIndependentDownloadWindow: true,
       autoSubmitFromExtension: false,
       autoSelectAllBtFilesFromExtension: false,
       silentAutoSubmitFromExtension: true,
@@ -544,6 +555,7 @@ describe('proxy configuration invariants', () => {
       extensionApiPort: 29110,
       extensionApiSecret: 'test-api-secret',
       allowRemoteAccess: false,
+      useIndependentDownloadWindow: true,
       autoSubmitFromExtension: false,
       autoSelectAllBtFilesFromExtension: false,
       silentAutoSubmitFromExtension: true,
@@ -583,6 +595,7 @@ describe('proxy configuration invariants', () => {
       extensionApiPort: 29110,
       extensionApiSecret: 'test-api-secret',
       allowRemoteAccess: false,
+      useIndependentDownloadWindow: true,
       autoSubmitFromExtension: false,
       autoSelectAllBtFilesFromExtension: false,
       silentAutoSubmitFromExtension: true,
@@ -641,6 +654,7 @@ describe('transformAdvancedForStore — hardwareRendering', () => {
       extensionApiPort: 29110,
       extensionApiSecret: 'test-api-secret',
       allowRemoteAccess: false,
+      useIndependentDownloadWindow: true,
       autoSubmitFromExtension: false,
       autoSelectAllBtFilesFromExtension: false,
       silentAutoSubmitFromExtension: true,

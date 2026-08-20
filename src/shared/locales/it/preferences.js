@@ -441,6 +441,7 @@ export default {
   'file-category-url-placeholder': 'Una regola per riga, ad esempio *://*.example.com/logs/*',
   'file-category-invalid-regex': 'Regola regex non valida alla riga {line}',
   'file-category-invalid-url-rule-too-long': 'La regola URL alla riga {line} è troppo lunga',
+  'independent-download-window': 'Abilita finestra di download indipendente',
   'auto-submit-from-extension': "Salta la conferma per i download dell'estensione",
   'silent-auto-submit-from-extension': 'Non attivare la finestra principale alla ricezione dei download',
   'auto-select-all-bt-files-from-extension': 'Scarica tutti i file BT per impostazione predefinita',

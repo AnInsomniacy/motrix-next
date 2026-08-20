@@ -383,6 +383,9 @@ watch(protocolHandlers.lastError, (error) => {
     <div class="preference-form-scroll">
       <NForm label-placement="left" label-align="left" label-width="260px" size="small" class="form-preference">
         <NDivider title-placement="left">{{ t('preferences.extension-section') }}</NDivider>
+        <NFormItem :label="t('preferences.independent-download-window')">
+          <NSwitch v-model:value="form.useIndependentDownloadWindow" />
+        </NFormItem>
         <NFormItem :label="t('preferences.auto-submit-from-extension')">
           <NSwitch v-model:value="form.autoSubmitFromExtension" />
         </NFormItem>

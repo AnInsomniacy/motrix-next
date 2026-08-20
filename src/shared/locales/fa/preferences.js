@@ -433,6 +433,7 @@ export default {
   'file-category-url-placeholder': 'هر خط یک قانون، مثلا *://*.example.com/logs/*',
   'file-category-invalid-regex': 'قانون regex در خط {line} نامعتبر است',
   'file-category-invalid-url-rule-too-long': 'قانون URL در خط {line} بیش از حد طولانی است',
+  'independent-download-window': 'فعال‌سازی پنجره دانلود مستقل',
   'auto-submit-from-extension': 'رد کردن تأیید دانلودهای افزونه',
   'silent-auto-submit-from-extension': 'هنگام دریافت دانلود، پنجره اصلی فعال نشود',
   'auto-select-all-bt-files-from-extension': 'دانلود همه فایل‌های BT به‌صورت پیش‌فرض',

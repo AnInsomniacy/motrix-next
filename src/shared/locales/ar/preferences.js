@@ -427,6 +427,7 @@ export default {
   'file-category-url-placeholder': 'قاعدة واحدة في كل سطر، مثل *://*.example.com/logs/*',
   'file-category-invalid-regex': 'قاعدة regex غير صالحة في السطر {line}',
   'file-category-invalid-url-rule-too-long': 'قاعدة URL في السطر {line} طويلة جداً',
+  'independent-download-window': 'تفعيل نافذة التنزيل المستقلة',
   'auto-submit-from-extension': 'تخطي تأكيد تنزيلات الإضافة',
   'silent-auto-submit-from-extension': 'عدم تنشيط النافذة الرئيسية عند استلام تنزيل',
   'auto-select-all-bt-files-from-extension': 'تنزيل كل ملفات BT افتراضيًا',

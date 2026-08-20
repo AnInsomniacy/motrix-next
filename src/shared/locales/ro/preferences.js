@@ -437,6 +437,7 @@ export default {
   'file-category-url-placeholder': 'O regulă pe linie, de exemplu *://*.example.com/logs/*',
   'file-category-invalid-regex': 'Regulă regex nevalidă pe linia {line}',
   'file-category-invalid-url-rule-too-long': 'Regula URL de pe linia {line} este prea lungă',
+  'independent-download-window': 'Activează fereastra de descărcare independentă',
   'auto-submit-from-extension': 'Omite confirmarea pentru descărcările extensiei',
   'silent-auto-submit-from-extension': 'Nu focaliza fereastra principală la primirea descărcărilor',
   'auto-select-all-bt-files-from-extension': 'Descarcă implicit toate fișierele BT',

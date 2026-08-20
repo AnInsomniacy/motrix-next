@@ -51,8 +51,18 @@ import {
 import { useTheme } from './composables/useTheme'
 import { useReducedMotionClass } from './composables/useReducedMotion'
 import { useVisibilityPause } from './composables/useVisibilityPause'
+import DownloadConfirmationView from './views/DownloadConfirmationView.vue'
 
 import { APP_COLOR_TOKENS_KEY, useColorScheme } from './composables/useColorScheme'
+
+const props = withDefaults(
+  defineProps<{
+    windowKind?: 'main' | 'download-confirmation'
+  }>(),
+  {
+    windowKind: 'main',
+  },
+)
 
 const { locale: currentLocale } = useI18n()
 const { isDark } = useTheme()
@@ -119,7 +129,8 @@ const naiveDateLocale = computed(() => naiveDateLocaleMap[currentLocale.value] |
   >
     <NMessageProvider>
       <NDialogProvider>
-        <router-view />
+        <DownloadConfirmationView v-if="props.windowKind === 'download-confirmation'" />
+        <router-view v-else />
       </NDialogProvider>
     </NMessageProvider>
   </NConfigProvider>

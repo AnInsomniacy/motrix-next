@@ -35,6 +35,7 @@ export interface AdvancedForm {
   extensionApiPort: number
   extensionApiSecret: string
   allowRemoteAccess: boolean
+  useIndependentDownloadWindow: boolean
   autoSubmitFromExtension: boolean
   autoSelectAllBtFilesFromExtension: boolean
   silentAutoSubmitFromExtension: boolean
@@ -92,6 +93,7 @@ export function buildAdvancedForm(config: AppConfig): {
       extensionApiPort: config.extensionApiPort ?? D.extensionApiPort,
       extensionApiSecret: config.extensionApiSecret,
       allowRemoteAccess: config.allowRemoteAccess ?? D.allowRemoteAccess,
+      useIndependentDownloadWindow: config.useIndependentDownloadWindow ?? D.useIndependentDownloadWindow,
       autoSubmitFromExtension: config.autoSubmitFromExtension ?? D.autoSubmitFromExtension,
       autoSelectAllBtFilesFromExtension:
         config.autoSelectAllBtFilesFromExtension ?? D.autoSelectAllBtFilesFromExtension,

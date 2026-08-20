@@ -344,6 +344,7 @@ export interface AppConfig {
   cookie: string
   proxy: ProxyConfig
   clipboard: ClipboardConfig
+  useIndependentDownloadWindow: boolean
   /** When true, extension-intercepted URI downloads bypass the AddTask dialog. */
   autoSubmitFromExtension: boolean
   /** When true, extension-intercepted BT tasks skip file selection and download every file. */
@@ -459,6 +460,11 @@ export interface ExternalDownloadInput extends ExternalDownloadContext {
   finalUrl?: string
   filename?: string
   source?: string
+}
+
+export interface PendingExternalInputsPayload {
+  inputs: ExternalDownloadInput[]
+  silent: boolean
 }
 
 /** Saved HTTP Basic authentication credential scoped to a normalized URL origin. */

@@ -438,6 +438,7 @@ export default {
   'file-category-url-placeholder': 'Eine Regel pro Zeile, zum Beispiel *://*.example.com/logs/*',
   'file-category-invalid-regex': 'Ungültige Regex-Regel in Zeile {line}',
   'file-category-invalid-url-rule-too-long': 'URL-Regel in Zeile {line} ist zu lang',
+  'independent-download-window': 'Separates Downloadfenster aktivieren',
   'auto-submit-from-extension': 'Bestätigung für Erweiterungsdownloads überspringen',
   'silent-auto-submit-from-extension': 'Hauptfenster beim Empfangen eines Downloads nicht aktivieren',
   'auto-select-all-bt-files-from-extension': 'Alle BT-Dateien standardmäßig laden',

@@ -429,6 +429,7 @@ export default {
   'file-category-url-placeholder': '한 줄에 규칙 하나, 예: *://*.example.com/logs/*',
   'file-category-invalid-regex': '{line}번째 줄의 정규식 규칙이 올바르지 않습니다',
   'file-category-invalid-url-rule-too-long': '{line}번째 줄의 URL 규칙이 너무 깁니다',
+  'independent-download-window': '독립 다운로드 창 사용',
   'auto-submit-from-extension': '확장 프로그램 다운로드 확인 건너뛰기',
   'silent-auto-submit-from-extension': '다운로드를 받을 때 기본 창에 포커스하지 않기',
   'auto-select-all-bt-files-from-extension': 'BT 파일을 기본적으로 모두 다운로드',

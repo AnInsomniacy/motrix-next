@@ -441,6 +441,7 @@ export default {
   'file-category-url-placeholder': 'Una regla per línia, per exemple *://*.example.com/logs/*',
   'file-category-invalid-regex': 'Regla regex no vàlida a la línia {line}',
   'file-category-invalid-url-rule-too-long': 'La regla URL de la línia {line} és massa llarga',
+  'independent-download-window': 'Activa la finestra de baixada independent',
   'auto-submit-from-extension': "Omet la confirmació de baixades de l'extensió",
   'silent-auto-submit-from-extension': 'No activis la finestra principal en rebre una baixada',
   'auto-select-all-bt-files-from-extension': 'Baixa tots els fitxers BT per defecte',

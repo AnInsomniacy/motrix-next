@@ -6,9 +6,9 @@
 //!
 //! Download requests are routed through the frontend as structured external
 //! inputs. Legacy OS protocol handling still uses the deep-link service.
-//! Rust's role is window lifecycle management (recreate if destroyed in
-//! lightweight mode) + event dispatch.  The frontend decides whether to show
-//! the AddTask dialog (autoSubmit=OFF) or auto-submit (autoSubmit=ON).
+//! Rust selects the destination surface from the extension preferences and
+//! manages its lifecycle. The frontend displays the AddTask dialog when
+//! auto-submit is disabled, or auto-submits through the main window otherwise.
 //!
 //! Endpoints:
 //! - `GET  /ping`       — heartbeat + app version
@@ -202,14 +202,10 @@ async fn handle_add(
         },
     );
 
-    // Route ALL downloads through the frontend — single code path.
-    //
-    // The frontend decides whether to show the AddTask dialog (autoSubmit=OFF)
-    // or auto-submit silently (autoSubmit=ON) based on the user's preference.
-    // Rust's only job: ensure the window exists, then emit.
+    // Route all downloads through a frontend surface.
     //
     // This unified path handles supported URL types (HTTP, magnet, local torrent)
-    // and all window states (normal, hidden, destroyed in lightweight mode).
+    // and all main-window states (normal, hidden, destroyed in lightweight mode).
     route_to_frontend(&ctx.app, &body);
     Ok(Json(AddResponse {
         action: "queued".to_string(),
@@ -366,20 +362,21 @@ fn route_to_frontend(app: &AppHandle, req: &AddRequest) {
         request_headers: req.request_headers.clone(),
         source: Some("http-api".to_string()),
     };
-    if should_silent_route_extension_input(app, req) {
-        external_input::route_external_inputs(app, vec![input], "http-api", true);
-    } else {
-        external_input::route_external_inputs(app, vec![input], "http-api", false);
-    }
+    let route = extension_input_route(app, req);
+    external_input::route_external_inputs(app, vec![input], "http-api", route);
 }
 
-fn should_silent_route_extension_input(app: &AppHandle, req: &AddRequest) -> bool {
+fn extension_input_route(app: &AppHandle, req: &AddRequest) -> external_input::ExternalInputRoute {
     app.store("config.json")
         .ok()
         .and_then(|s| s.get("preferences"))
         .map(|p| {
             let auto_submit = p
                 .get("autoSubmitFromExtension")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(true);
+            let use_independent_window = p
+                .get("useIndependentDownloadWindow")
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(true);
             let silent = p
@@ -395,15 +392,44 @@ fn should_silent_route_extension_input(app: &AppHandle, req: &AddRequest) -> boo
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(true);
             let effective_url = req.final_url.as_deref().unwrap_or(&req.url);
-            should_silent_route_url(
+            extension_input_route_url(
                 effective_url,
                 auto_submit,
+                use_independent_window,
                 silent,
                 auto_select_all,
                 pause_metadata,
             )
         })
-        .unwrap_or(false)
+        .unwrap_or(external_input::ExternalInputRoute::MainWindow)
+}
+
+fn extension_input_route_url(
+    raw_url: &str,
+    auto_submit: bool,
+    use_independent_window: bool,
+    silent: bool,
+    auto_select_all: bool,
+    pause_metadata: bool,
+) -> external_input::ExternalInputRoute {
+    if !auto_submit {
+        return if use_independent_window {
+            external_input::ExternalInputRoute::DownloadConfirmation
+        } else {
+            external_input::ExternalInputRoute::MainWindow
+        };
+    }
+    if should_silent_route_url(
+        raw_url,
+        auto_submit,
+        silent,
+        auto_select_all,
+        pause_metadata,
+    ) {
+        external_input::ExternalInputRoute::Silent
+    } else {
+        external_input::ExternalInputRoute::MainWindow
+    }
 }
 
 fn should_silent_route_url(
@@ -737,6 +763,51 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("authorization", HeaderValue::from_static("Bearer anything"));
         assert!(validate_bearer_token(&headers, "").is_ok());
+    }
+
+    #[test]
+    fn extension_route_requires_confirmation_when_auto_submit_is_disabled() {
+        assert_eq!(
+            extension_input_route_url(
+                "https://example.com/file.zip",
+                false,
+                true,
+                true,
+                false,
+                true,
+            ),
+            external_input::ExternalInputRoute::DownloadConfirmation
+        );
+    }
+
+    #[test]
+    fn extension_route_uses_main_window_when_independent_window_is_disabled() {
+        assert_eq!(
+            extension_input_route_url(
+                "https://example.com/file.zip",
+                false,
+                false,
+                true,
+                false,
+                true,
+            ),
+            external_input::ExternalInputRoute::MainWindow
+        );
+    }
+
+    #[test]
+    fn extension_route_keeps_non_silent_auto_submit_in_main_window() {
+        assert_eq!(
+            extension_input_route_url(
+                "https://example.com/file.zip",
+                true,
+                true,
+                false,
+                false,
+                true,
+            ),
+            external_input::ExternalInputRoute::MainWindow
+        );
     }
 
     // ── AddRequest deserialization ───────────────────────────────────

@@ -434,6 +434,7 @@ export default {
   'file-category-url-placeholder': 'Én regel per linje, for eksempel *://*.example.com/logs/*',
   'file-category-invalid-regex': 'Ugyldig regex-regel på linje {line}',
   'file-category-invalid-url-rule-too-long': 'URL-regelen på linje {line} er for lang',
+  'independent-download-window': 'Aktiver eget nedlastingsvindu',
   'auto-submit-from-extension': 'Hopp over bekreftelse for utvidelsesnedlastinger',
   'silent-auto-submit-from-extension': 'Ikke fokuser hovedvinduet ved mottak av nedlastinger',
   'auto-select-all-bt-files-from-extension': 'Last ned alle BT-filer som standard',

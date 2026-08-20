@@ -434,6 +434,7 @@ export default {
   'file-category-url-placeholder': 'Her satıra bir kural, örneğin *://*.example.com/logs/*',
   'file-category-invalid-regex': '{line}. satırda geçersiz regex kuralı',
   'file-category-invalid-url-rule-too-long': '{line}. satırdaki URL kuralı çok uzun',
+  'independent-download-window': 'Bağımsız indirme penceresini etkinleştir',
   'auto-submit-from-extension': 'Uzantı indirmelerinde onayı atla',
   'silent-auto-submit-from-extension': 'İndirmeler alınırken ana pencereye odaklanma',
   'auto-select-all-bt-files-from-extension': 'BT dosyalarının tümünü varsayılan olarak indir',
