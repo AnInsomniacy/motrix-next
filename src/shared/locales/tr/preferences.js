@@ -215,6 +215,10 @@ export default {
   'aria2-conf-path': 'Motor Yapılandırması',
   'allow-remote-access': 'Uzaktan erişime izin ver',
   'temp-files-dir': 'Geçici Dosyalar Dizini',
+  'ffmpeg-binary-path': 'FFmpeg Yolu',
+  'ffmpeg-binary-path-tips': 'İsteğe bağlı. MPEG-TS HLS\'i MP4\'e remux etmek için kullanılır. PATH üzerindeki ffmpeg\'i kullanmak için boş bırakın.',
+  'ffmpeg-status-found': 'FFmpeg bulundu',
+  'ffmpeg-status-missing': 'FFmpeg bulunamadı; TS oynatma listeleri .ts olarak kaydedilecek',
   'factory-reset': 'Delete Config and Reset',
   'factory-reset-confirm': 'Fabrika ayarlarına dönülsün mü?',
   'lab-warning': '⚠️ Laboratuvar özellikleri çökmelere veya veri kaybına neden olabilir!',
@@ -307,6 +311,7 @@ export default {
   'high-connection-reason': 'Hız sınırlaması veya IP engellemesine yol açabilir',
   'high-bt-peers-reason': 'Çok fazla düğüm bellek tüketimini artırır',
   'engine-section': 'Aria2 Next İndirme Motoru',
+  'ffmpeg-section': 'FFmpeg',
   'hardware-rendering': 'WebKitGTK Donanım Hızlandırma',
   'hardware-rendering-hint':
     'Etkinleştirmek arayüz işleme performansını artırabilir, ancak bazı GPU’lar, sürücüler veya masaüstü ortamları WebKitGTK’nin çökmesine neden olabilir',

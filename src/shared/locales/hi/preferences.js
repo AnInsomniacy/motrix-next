@@ -213,6 +213,10 @@ export default {
   'aria2-conf-path': 'Engine configuration',
   'allow-remote-access': 'Remote Access की अनुमति दें',
   'temp-files-dir': 'Temporary files directory',
+  'ffmpeg-binary-path': 'FFmpeg पथ',
+  'ffmpeg-binary-path-tips': 'वैकल्पिक। MPEG-TS HLS को MP4 में remux करने के लिए। खाली छोड़ें तो PATH में मौजूद ffmpeg उपयोग होगा।',
+  'ffmpeg-status-found': 'FFmpeg मिला',
+  'ffmpeg-status-missing': 'FFmpeg नहीं मिला; TS प्लेलिस्ट .ts के रूप में सहेजी जाएंगी',
   'factory-reset': 'Delete Config and Reset',
   'factory-reset-confirm': 'क्या आप सच में factory settings restore करना चाहते हैं?',
   'lab-warning': '⚠️ Lab features crash या data loss करा सकते हैं। अपने जोखिम पर इस्तेमाल करें!',
@@ -305,6 +309,7 @@ export default {
   'high-connection-reason': 'Server rate limiting या IP ban trigger हो सकता है',
   'high-bt-peers-reason': 'बहुत अधिक peers memory consumption बढ़ाते हैं',
   'engine-section': 'Aria2 Next download engine',
+  'ffmpeg-section': 'FFmpeg',
   'hardware-rendering': 'WebKitGTK hardware acceleration',
   'hardware-rendering-hint':
     'इसे चालू करने से UI rendering performance बेहतर हो सकती है, लेकिन कुछ GPU, drivers या desktop environments WebKitGTK को crash कर सकते हैं',

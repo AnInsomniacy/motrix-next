@@ -364,6 +364,7 @@ export const DEFAULT_APP_CONFIG = {
   runMode: '',
   engineBinPath: '',
   tempFilesDir: '',
+  ffmpegBinaryPath: '',
 
   // ── Tracker ───────────────────────────────────────────────────
   btTrackerAutoSync: true,

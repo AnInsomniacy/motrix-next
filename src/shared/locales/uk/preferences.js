@@ -217,6 +217,10 @@ export default {
   'aria2-conf-path': 'Конфігурація рушія',
   'allow-remote-access': 'Дозволити віддалений доступ',
   'temp-files-dir': 'Каталог тимчасових файлів',
+  'ffmpeg-binary-path': 'Шлях до FFmpeg',
+  'ffmpeg-binary-path-tips': 'Необов\'язково. Використовується для перепакування MPEG-TS HLS у MP4. Залиште порожнім, щоб використати ffmpeg з PATH.',
+  'ffmpeg-status-found': 'FFmpeg знайдено',
+  'ffmpeg-status-missing': 'FFmpeg не знайдено; TS-плейлисти буде збережено як .ts',
   'factory-reset': 'Delete Config and Reset',
   'factory-reset-confirm': 'Відновити заводські налаштування?',
   'lab-warning': '⚠️ Функції лабораторії можуть спричинити збої або втрату даних!',
@@ -309,6 +313,7 @@ export default {
   'high-connection-reason': 'Може призвести до обмеження швидкості або блокування IP',
   'high-bt-peers-reason': "Забагато вузлів збільшує споживання пам'яті",
   'engine-section': 'Рушій завантаження Aria2 Next',
+  'ffmpeg-section': 'FFmpeg',
   'hardware-rendering': 'Апаратне прискорення WebKitGTK',
   'hardware-rendering-hint':
     'Увімкнення може покращити продуктивність рендерингу інтерфейсу, але деякі GPU, драйвери або середовища стільниці можуть спричинити збій WebKitGTK',

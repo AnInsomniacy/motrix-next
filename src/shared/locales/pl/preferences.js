@@ -217,6 +217,10 @@ export default {
   'aria2-conf-path': 'Konfiguracja silnika',
   'allow-remote-access': 'Zezwalaj na dostęp zdalny',
   'temp-files-dir': 'Katalog plików tymczasowych',
+  'ffmpeg-binary-path': 'Ścieżka FFmpeg',
+  'ffmpeg-binary-path-tips': 'Opcjonalne. Służy do remuxowania MPEG-TS HLS do MP4. Pozostaw puste, aby użyć ffmpeg z PATH.',
+  'ffmpeg-status-found': 'Znaleziono FFmpeg',
+  'ffmpeg-status-missing': 'Nie znaleziono FFmpeg; listy TS zostaną zapisane jako .ts',
   'factory-reset': 'Delete Config and Reset',
   'factory-reset-confirm': 'Przywrócić ustawienia fabryczne?',
   'lab-warning': '⚠️ Funkcje laboratorium mogą powodować awarie lub utratę danych!',
@@ -310,6 +314,7 @@ export default {
   'high-connection-reason': 'Może spowodować ograniczenie prędkości lub blokadę IP',
   'high-bt-peers-reason': 'Zbyt wiele węzłów zwiększa zużycie pamięci',
   'engine-section': 'Silnik pobierania Aria2 Next',
+  'ffmpeg-section': 'FFmpeg',
   'hardware-rendering': 'Przyspieszenie sprzętowe WebKitGTK',
   'hardware-rendering-hint':
     'Włączenie może poprawić wydajność renderowania interfejsu, ale niektóre GPU, sterowniki lub środowiska pulpitu mogą powodować awarię WebKitGTK',

@@ -212,6 +212,10 @@ export default {
   'aria2-conf-path': 'Cấu hình công cụ',
   'allow-remote-access': 'Cho phép truy cập từ xa',
   'temp-files-dir': 'Thư mục tệp tạm',
+  'ffmpeg-binary-path': 'Đường dẫn FFmpeg',
+  'ffmpeg-binary-path-tips': 'Tùy chọn. Dùng để remux MPEG-TS HLS sang MP4. Để trống để dùng ffmpeg trong PATH.',
+  'ffmpeg-status-found': 'Đã tìm thấy FFmpeg',
+  'ffmpeg-status-missing': 'Không tìm thấy FFmpeg; danh sách phát TS sẽ được lưu thành .ts',
   'factory-reset': 'Delete Config and Reset',
   'factory-reset-confirm': 'Khôi phục cài đặt gốc?',
   'lab-warning': '⚠️ Tính năng thí nghiệm có thể gây lỗi hoặc mất dữ liệu!',
@@ -304,6 +308,7 @@ export default {
   'high-connection-reason': 'Có thể kích hoạt giới hạn tốc độ hoặc chặn IP',
   'high-bt-peers-reason': 'Quá nhiều nút tăng tiêu thụ bộ nhớ',
   'engine-section': 'Công cụ tải xuống Aria2 Next',
+  'ffmpeg-section': 'FFmpeg',
   'hardware-rendering': 'Tăng tốc phần cứng WebKitGTK',
   'hardware-rendering-hint':
     'Bật tùy chọn này có thể cải thiện hiệu năng kết xuất giao diện, nhưng một số GPU, driver hoặc môi trường desktop có thể làm WebKitGTK bị sập',

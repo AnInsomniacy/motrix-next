@@ -212,6 +212,10 @@ export default {
   'aria2-conf-path': '엔진 설정',
   'allow-remote-access': '원격 접근 허용',
   'temp-files-dir': '임시 파일 디렉터리',
+  'ffmpeg-binary-path': 'FFmpeg 경로',
+  'ffmpeg-binary-path-tips': '선택 사항. MPEG-TS HLS를 MP4로 리먹스할 때 사용합니다. 비워 두면 PATH의 ffmpeg를 사용합니다.',
+  'ffmpeg-status-found': 'FFmpeg를 찾았습니다',
+  'ffmpeg-status-missing': 'FFmpeg를 찾지 못했습니다. TS 재생 목록은 .ts로 저장됩니다',
   'factory-reset': 'Delete Config and Reset',
   'factory-reset-confirm': '초기 설정으로 복원하시겠습니까?',
   'lab-warning': '⚠️ 실험실 기능은 충돌이나 데이터 손실을 초래할 수 있습니다. 본인의 책임하에 사용하세요!',
@@ -304,6 +308,7 @@ export default {
   'high-connection-reason': '서버 속도 제한 또는 IP 차단이 발생할 수 있습니다',
   'high-bt-peers-reason': '피어가 너무 많으면 메모리 소비가 증가합니다',
   'engine-section': 'Aria2 Next 다운로드 엔진',
+  'ffmpeg-section': 'FFmpeg',
   'hardware-rendering': 'WebKitGTK 하드웨어 가속',
   'hardware-rendering-hint':
     '활성화하면 UI 렌더링 성능이 향상될 수 있지만 일부 GPU, 드라이버 또는 데스크톱 환경에서는 WebKitGTK가 충돌할 수 있습니다',

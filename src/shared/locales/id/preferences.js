@@ -216,6 +216,10 @@ export default {
   'aria2-conf-path': 'Konfigurasi Mesin',
   'allow-remote-access': 'Izinkan Akses Jarak Jauh',
   'temp-files-dir': 'Direktori File Sementara',
+  'ffmpeg-binary-path': 'Jalur FFmpeg',
+  'ffmpeg-binary-path-tips': 'Opsional. Digunakan untuk remux MPEG-TS HLS ke MP4. Kosongkan untuk menggunakan ffmpeg di PATH.',
+  'ffmpeg-status-found': 'FFmpeg ditemukan',
+  'ffmpeg-status-missing': 'FFmpeg tidak ditemukan; daftar putar TS akan disimpan sebagai .ts',
   'factory-reset': 'Delete Config and Reset',
   'factory-reset-confirm': 'Pulihkan pengaturan pabrik?',
   'lab-warning': '⚠️ Fitur laboratorium dapat menyebabkan crash atau kehilangan data!',
@@ -309,6 +313,7 @@ export default {
   'high-connection-reason': 'Dapat memicu pembatasan kecepatan atau pemblokiran IP',
   'high-bt-peers-reason': 'Terlalu banyak node meningkatkan penggunaan memori',
   'engine-section': 'Mesin Unduh Aria2 Next',
+  'ffmpeg-section': 'FFmpeg',
   'hardware-rendering': 'Akselerasi Perangkat Keras WebKitGTK',
   'hardware-rendering-hint':
     'Mengaktifkannya dapat meningkatkan performa rendering antarmuka, tetapi beberapa GPU, driver, atau lingkungan desktop dapat membuat WebKitGTK crash',

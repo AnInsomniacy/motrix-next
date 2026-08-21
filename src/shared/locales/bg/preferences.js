@@ -216,6 +216,10 @@ export default {
   'aria2-conf-path': 'Конфигурация на двигателя',
   'allow-remote-access': 'Разрешаване на отдалечен достъп',
   'temp-files-dir': 'Temporary Files Directory',
+  'ffmpeg-binary-path': 'Път към FFmpeg',
+  'ffmpeg-binary-path-tips': 'Незадължително. Използва се за ремукс на MPEG-TS HLS в MP4. Оставете празно, за да се използва ffmpeg от PATH.',
+  'ffmpeg-status-found': 'FFmpeg е намерен',
+  'ffmpeg-status-missing': 'FFmpeg не е намерен; TS плейлистите ще бъдат запазени като .ts',
   'factory-reset': 'Delete Config and Reset',
   'factory-reset-confirm': 'Да се възстановят фабричните настройки?',
   'lab-warning': '⚠️ Функциите на лабораторията могат да причинят сривове или загуба на данни!',
@@ -308,6 +312,7 @@ export default {
   'high-connection-reason': 'Може да предизвика ограничаване или IP забрана',
   'high-bt-peers-reason': 'Много възли увеличават паметта',
   'engine-section': 'Двигател за изтегляне Aria2 Next',
+  'ffmpeg-section': 'FFmpeg',
   'hardware-rendering': 'Хардуерно ускорение на WebKitGTK',
   'hardware-rendering-hint':
     'Включването може да подобри производителността на интерфейса, но някои GPU, драйвери или среди на работния плот може да сринат WebKitGTK',

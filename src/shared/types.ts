@@ -354,6 +354,8 @@ export interface AppConfig {
   engineBinPath: string
   /** Directory for internal temporary engine files. Empty means the OS temporary directory. */
   tempFilesDir: string
+  /** Absolute path to ffmpeg binary for HLS VOD remux. Empty means auto-detect. */
+  ffmpegBinaryPath: string
   cookie: string
   proxy: ProxyConfig
   clipboard: ClipboardConfig

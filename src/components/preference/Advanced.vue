@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** @fileoverview Advanced preference tab: RPC, extension, clipboard, default programs, engine, log, history, diagnostics. */
+/** @fileoverview Advanced preference tab: RPC, extension, clipboard, default programs, engine, FFmpeg, log, history, diagnostics. */
 import { ref, computed, nextTick, onMounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
@@ -12,6 +12,7 @@ import { useTaskStore } from '@/stores/task'
 import { useHistoryStore } from '@/stores/history'
 import { useAdvancedActions } from '@/composables/useAdvancedActions'
 import { useProtocolHandlers, type ProtocolKey } from '@/composables/useProtocolHandlers'
+import { useHlsFfmpegStatus } from '@/composables/useHlsFfmpegStatus'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { appDataDir, appLogDir, join, tempDir } from '@tauri-apps/api/path'
 import { APP_LOG_LEVELS, ARIA2_LOG_LEVELS } from '@shared/constants'
@@ -69,7 +70,8 @@ const protocolHandlers = useProtocolHandlers()
 const protocolStatus = protocolHandlers.status
 const protocolPending = protocolHandlers.pending
 
-const { isLinux } = usePlatform()
+const { isLinux, isWindows } = usePlatform()
+const { status: ffmpegStatus, refresh: refreshFfmpegStatus } = useHlsFfmpegStatus()
 
 import { ENGINE_RPC_PORT } from '@shared/constants'
 import { diffConfig, checkIsNeedRestart } from '@shared/utils/config'
@@ -240,6 +242,15 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot } = usePreferenceF
         logger.warn('Advanced.extensionApi', `restart_http_api port=${newPort} failed: ${e}`)
       }
     }
+
+    // Preference store refreshes RuntimeConfig fire-and-forget; await so the
+    // ffmpeg probe reads the path that was just persisted.
+    try {
+      await invoke('refresh_runtime_config')
+    } catch (e) {
+      logger.warn('Advanced.refreshRuntimeConfig', `refresh_runtime_config failed: ${e}`)
+    }
+    await refreshFfmpegStatus()
   },
 })
 
@@ -312,6 +323,25 @@ function handleClearTempDir() {
   form.value.tempFilesDir = ''
 }
 
+const ffmpegDetectedPath = computed(() => ffmpegStatus.value?.path || '')
+
+const ffmpegStatusText = computed(() => {
+  const current = ffmpegStatus.value
+  if (!current) return ''
+  if (current.kind === 'missing') return t('preferences.ffmpeg-status-missing')
+  const found = t('preferences.ffmpeg-status-found')
+  return current.version ? `${found} ${current.version}` : found
+})
+
+async function handleSelectFfmpeg() {
+  const selected = await openDialog({
+    directory: false,
+    multiple: false,
+    ...(isWindows.value ? { filters: [{ name: 'ffmpeg', extensions: ['exe'] }] } : {}),
+  })
+  if (typeof selected === 'string') form.value.ffmpegBinaryPath = selected
+}
+
 // ─── Advanced Actions (delegated to composable) ─────────────────────
 
 const {
@@ -356,6 +386,7 @@ onMounted(async () => {
   loadForm()
   resetSnapshot()
   loadPaths()
+  await refreshFfmpegStatus()
 
   try {
     await protocolHandlers.refreshAll()
@@ -541,6 +572,41 @@ watch(protocolHandlers.lastError, (error) => {
           <NButton type="error" ghost @click="handleSessionReset">
             {{ t('preferences.clear-all-tasks') }}
           </NButton>
+        </NFormItem>
+
+        <NDivider title-placement="left">{{ t('preferences.ffmpeg-section') }}</NDivider>
+        <NFormItem>
+          <template #label>
+            <PreferenceHintLabel
+              :label="t('preferences.ffmpeg-binary-path')"
+              :hint="t('preferences.ffmpeg-binary-path-tips')"
+            />
+          </template>
+          <div class="ffmpeg-path-field">
+            <NInputGroup>
+              <NInput
+                v-model:value="form.ffmpegBinaryPath"
+                class="pref-control-full"
+                :placeholder="ffmpegDetectedPath"
+              />
+              <NButton
+                class="pref-icon-button"
+                @click="
+                  copyToClipboard(form.ffmpegBinaryPath || ffmpegDetectedPath, t('preferences.ffmpeg-binary-path'))
+                "
+              >
+                <template #icon>
+                  <NIcon :size="14"><CopyOutline /></NIcon>
+                </template>
+              </NButton>
+              <NButton class="pref-icon-button" @click="handleSelectFfmpeg">
+                <template #icon>
+                  <NIcon :size="14"><FolderOpenOutline /></NIcon>
+                </template>
+              </NButton>
+            </NInputGroup>
+            <p v-if="ffmpegStatus" class="ffmpeg-status">{{ ffmpegStatusText }}</p>
+          </div>
         </NFormItem>
 
         <NDivider title-placement="left">{{ t('preferences.log-section') }}</NDivider>
@@ -858,5 +924,16 @@ watch(protocolHandlers.lastError, (error) => {
 }
 .proxy-collapse__inner {
   overflow: hidden;
+}
+.ffmpeg-path-field {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 6px;
+}
+.ffmpeg-status {
+  margin: 0;
+  font-size: 12px;
+  color: var(--m3-on-surface-variant);
 }
 </style>

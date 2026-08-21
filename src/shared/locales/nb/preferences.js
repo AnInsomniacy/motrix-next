@@ -215,6 +215,10 @@ export default {
   'aria2-conf-path': 'Motorkonfigurasjon',
   'allow-remote-access': 'Tillat ekstern tilgang',
   'temp-files-dir': 'Mappe for midlertidige filer',
+  'ffmpeg-binary-path': 'FFmpeg-sti',
+  'ffmpeg-binary-path-tips': 'Valgfritt. Brukes til å remuxe MPEG-TS HLS til MP4. La feltet stå tomt for å bruke ffmpeg fra PATH.',
+  'ffmpeg-status-found': 'FFmpeg funnet',
+  'ffmpeg-status-missing': 'FFmpeg ikke funnet; TS-spillelister lagres som .ts',
   'factory-reset': 'Delete Config and Reset',
   'factory-reset-confirm': 'Gjenopprette fabrikkinnstillinger?',
   'lab-warning': '⚠️ Lab-funksjoner kan forårsake krasj eller datatap!',
@@ -308,6 +312,7 @@ export default {
   'high-connection-reason': 'Kan utløse hastighetsbegrensning eller IP-blokkering',
   'high-bt-peers-reason': 'For mange noder øker minneforbruket',
   'engine-section': 'Aria2 Next-nedlastingsmotor',
+  'ffmpeg-section': 'FFmpeg',
   'hardware-rendering': 'WebKitGTK maskinvareakselerasjon',
   'hardware-rendering-hint':
     'Aktivering kan forbedre gjengivelsesytelsen i grensesnittet, men enkelte GPU-er, drivere eller skrivebordsmiljøer kan få WebKitGTK til å krasje',

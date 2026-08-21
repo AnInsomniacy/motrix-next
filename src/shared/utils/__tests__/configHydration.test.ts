@@ -21,6 +21,7 @@ describe('hydrateAppConfig', () => {
     expect(result.config.locale).toBe('ja')
     expect(result.config.colorScheme).toBe(DEFAULT_APP_CONFIG.colorScheme)
     expect(result.config.maxConcurrentDownloads).toBe(DEFAULT_APP_CONFIG.maxConcurrentDownloads)
+    expect(result.config.ffmpegBinaryPath).toBe('')
   })
 
   it('deep-hydrates fixed nested objects without overwriting saved subfields', () => {

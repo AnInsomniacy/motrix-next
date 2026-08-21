@@ -213,6 +213,10 @@ export default {
   'aria2-conf-path': 'エンジン設定ファイル',
   'allow-remote-access': 'リモートアクセスを許可',
   'temp-files-dir': '一時ファイルディレクトリ',
+  'ffmpeg-binary-path': 'FFmpeg のパス',
+  'ffmpeg-binary-path-tips': '任意。MPEG-TS の HLS を MP4 にリマックスするために使用します。空欄の場合は PATH 上の ffmpeg を使います。',
+  'ffmpeg-status-found': 'FFmpeg が見つかりました',
+  'ffmpeg-status-missing': 'FFmpeg が見つかりません。TS プレイリストは .ts として保存されます',
   'factory-reset': 'Delete Config and Reset',
   'factory-reset-confirm': '出荷時設定に戻しますか？',
   'lab-warning': '⚠️ ラボ機能はクラッシュやデータ損失を引き起こす可能性があります。自己責任でご利用ください！',
@@ -305,6 +309,7 @@ export default {
   'high-connection-reason': 'サーバーの速度制限や IP ブロックを引き起こす可能性があります',
   'high-bt-peers-reason': 'ピア過多はメモリ消費量を増加させます',
   'engine-section': 'Aria2 Next ダウンロードエンジン',
+  'ffmpeg-section': 'FFmpeg',
   'hardware-rendering': 'WebKitGTK ハードウェアアクセラレーション',
   'hardware-rendering-hint':
     '有効にすると UI の描画性能が向上する場合がありますが、一部の GPU、ドライバー、デスクトップ環境では WebKitGTK がクラッシュする可能性があります',

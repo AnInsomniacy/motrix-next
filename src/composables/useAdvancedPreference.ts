@@ -44,6 +44,7 @@ export interface AdvancedForm {
   logLevel: AppLogLevel
   aria2LogLevel: Aria2LogLevel
   tempFilesDir: string
+  ffmpegBinaryPath: string
   hardwareRendering: boolean
   // Clipboard detection (migrated from legacy Basic tab)
   clipboardEnable: boolean
@@ -102,6 +103,7 @@ export function buildAdvancedForm(config: AppConfig): {
       logLevel: config.logLevel ?? D.logLevel,
       aria2LogLevel: config.aria2LogLevel ?? D.aria2LogLevel,
       tempFilesDir: config.tempFilesDir ?? D.tempFilesDir,
+      ffmpegBinaryPath: config.ffmpegBinaryPath ?? D.ffmpegBinaryPath,
       hardwareRendering: config.hardwareRendering ?? D.hardwareRendering,
       // Clipboard detection
       clipboardEnable: config.clipboard?.enable ?? D.clipboard.enable,
