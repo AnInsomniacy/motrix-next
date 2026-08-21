@@ -64,6 +64,12 @@ content_disposition = "0.4"
 rfc2047-decoder = "1.1"
 strip-ansi-escapes = "0.2.1"
 tempfile = "3"
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc"] }
+hex = "0.4"
+base64 = "0.22"
+uuid = { version = "1", features = ["v4"] }
+tokio-util = { version = "0.7", default-features = false, features = ["rt"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [

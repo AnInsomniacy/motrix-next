@@ -150,6 +150,8 @@ pub async fn on_engine_ready(app: &tauri::AppHandle) -> Result<(), AppError> {
     // On first start the handles are None; on restart they hold the old handles.
     spawn_background_services(app).await;
 
+    crate::commands::hls::restore_hls_session(app).await;
+
     Ok(())
 }
 

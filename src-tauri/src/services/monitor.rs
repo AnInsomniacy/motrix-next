@@ -64,6 +64,15 @@ pub struct TaskEventFile {
     pub uris: Vec<String>,
 }
 
+/// HLS fields persisted into `HistoryMeta.hls`.
+#[derive(Debug, Clone, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskEventHls {
+    pub playlist_url: String,
+    pub media_kind: String,
+    pub output_path: Option<String>,
+}
+
 /// Payload for task lifecycle events.
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -81,6 +90,8 @@ pub struct TaskEvent {
     pub ed2k_link: Option<String>,
     pub is_bt: bool,
     pub is_ed2k: bool,
+    #[serde(default)]
+    pub is_hls: bool,
     pub sharing_kind: Option<&'static str>,
     /// Full file list snapshot — required for correct multi-file BT
     /// history records (deletion, open-folder, stale detection).
@@ -90,14 +101,18 @@ pub struct TaskEvent {
     /// from history records after session restart.
     #[serde(skip_serializing)]
     pub announce_list: Vec<Vec<String>>,
+    /// HLS playlist metadata — used when writing history records.
+    #[serde(skip_serializing)]
+    pub hls: Option<TaskEventHls>,
 }
 
 impl TaskEvent {
-    fn from_aria2(task: &Aria2Task) -> Self {
+    pub fn from_aria2(task: &Aria2Task) -> Self {
         let name = Self::extract_name(task);
         let info_hash = task.info_hash.clone().filter(|h| !h.is_empty());
         let is_bt = task.bittorrent.is_some();
         let is_ed2k = task.ed2k.is_some();
+        let is_hls = task.hls.is_some() || task.gid.starts_with("hls-");
         let magnet_link = task
             .bittorrent
             .as_ref()
@@ -108,6 +123,11 @@ impl TaskEvent {
             .as_ref()
             .and_then(|ed2k| ed2k.ed2k_link.clone())
             .filter(|value| !value.is_empty());
+        let hls = task.hls.as_ref().map(|hls| TaskEventHls {
+            playlist_url: hls.playlist_url.clone(),
+            media_kind: hls.media_kind.clone(),
+            output_path: hls.output_path.clone(),
+        });
 
         let files: Vec<TaskEventFile> = task
             .files
@@ -140,9 +160,11 @@ impl TaskEvent {
             ed2k_link,
             is_bt,
             is_ed2k,
+            is_hls,
             sharing_kind: sharing_kind(task).map(SharingKind::as_str),
             files,
             announce_list,
+            hls,
         }
     }
 
@@ -236,6 +258,27 @@ fn build_history_meta_json(event: &TaskEvent) -> Option<String> {
         meta.insert("announceList".to_string(), serde_json::Value::Array(al));
     }
 
+    if event.is_hls {
+        if let Some(hls) = &event.hls {
+            let mut hls_meta = serde_json::Map::new();
+            hls_meta.insert(
+                "playlistUrl".to_string(),
+                serde_json::Value::String(hls.playlist_url.clone()),
+            );
+            hls_meta.insert(
+                "mediaKind".to_string(),
+                serde_json::Value::String(hls.media_kind.clone()),
+            );
+            if let Some(path) = &hls.output_path {
+                hls_meta.insert(
+                    "outputPath".to_string(),
+                    serde_json::Value::String(path.clone()),
+                );
+            }
+            meta.insert("hls".to_string(), serde_json::Value::Object(hls_meta));
+        }
+    }
+
     // Snapshot trigger: multi-file OR any file with multiple mirror URIs.
     // Matches the frontend's buildHistoryMeta() condition exactly.
     let has_multiple_files = event.files.len() > 1;
@@ -292,6 +335,8 @@ pub fn build_history_record_with_added_at(
         Some("bt".to_string())
     } else if event.is_ed2k {
         Some("ed2k".to_string())
+    } else if event.is_hls {
+        Some("hls".to_string())
     } else {
         Some("uri".to_string())
     };
@@ -325,6 +370,75 @@ pub fn build_history_record_with_added_at(
         created_at: None,
         completed_at: Some(now),
         meta,
+    }
+}
+
+fn is_terminal_history_event(event_name: &str) -> bool {
+    event_name == events::TASK_COMPLETE
+        || event_name == events::SHARING_COMPLETE
+        || event_name == events::TASK_ERROR
+}
+
+fn persist_history_record(app: &tauri::AppHandle, event_name: &str, event: &TaskEvent) {
+    if !is_terminal_history_event(event_name) {
+        return;
+    }
+    let Some(db_state) = app.try_state::<HistoryDbState>() else {
+        return;
+    };
+    let db = db_state.0.clone();
+    let payload = event.clone();
+    let event_name_owned = event_name.to_string();
+    // Spawn a non-blocking write — callers must not block on DB I/O.
+    tokio::spawn(async move {
+        let existing_added_at = match db.get_task_birth(&payload.gid).await {
+            Ok(added_at) => added_at,
+            Err(e) => {
+                log::warn!("task_monitor: task_birth lookup failed for {event_name_owned}: {e}");
+                None
+            }
+        };
+        let record =
+            build_history_record_with_added_at(&payload, &event_name_owned, existing_added_at);
+        if let Some(added_at) = record.added_at.as_deref() {
+            if let Err(e) = db.record_task_birth(&record.gid, added_at).await {
+                log::warn!("task_monitor: task_birth write failed for {event_name_owned}: {e}");
+            }
+        }
+        if let Err(e) = db.add_record(&record).await {
+            log::warn!("task_monitor: history write failed for {event_name_owned}: {e}");
+        }
+    });
+}
+
+/// Persist a terminal task event to history, send a native notification, and
+/// emit the frontend event. Shared by the aria2 monitor loop and HLS `run_job`.
+pub async fn persist_and_emit_task_event(
+    app: &tauri::AppHandle,
+    event_name: &str,
+    event: TaskEvent,
+) {
+    persist_history_record(app, event_name, &event);
+
+    let runtime_config = match app.try_state::<super::config::RuntimeConfigState>() {
+        Some(state) => state.snapshot().await,
+        None => {
+            log::warn!("notification:runtime-config-unavailable fallback=defaults");
+            super::config::RuntimeConfig::default()
+        }
+    };
+
+    let webview_alive = app.get_webview_window("main").is_some();
+    log::info!(
+        "task_monitor:event type={} gid={} name={:?} webview_alive={}",
+        event_name,
+        event.gid,
+        event.name,
+        webview_alive
+    );
+    send_task_notification(app, event_name, &event, &runtime_config);
+    if let Err(e) = app.emit(event_name, &event) {
+        log::warn!("task_monitor: failed to emit {event_name}: {e}");
     }
 }
 
@@ -571,75 +685,8 @@ async fn monitor_loop(
             .any(|(n, _)| n == events::TASK_COMPLETE || n == events::SHARING_COMPLETE);
 
         if !events.is_empty() {
-            // ── Rust-side history persistence (lightweight mode safety) ──
-            // Write completion/error records directly to the DB so they
-            // survive even when the WebView is destroyed. Uses UPSERT
-            // (ON CONFLICT DO UPDATE) so duplicate writes from both Rust
-            // and frontend are idempotent.
-            if let Some(db_state) = app.try_state::<HistoryDbState>() {
-                for (event_name, payload) in &events {
-                    if event_name == events::TASK_COMPLETE
-                        || event_name == events::SHARING_COMPLETE
-                        || event_name == events::TASK_ERROR
-                    {
-                        let db = db_state.0.clone();
-                        let payload = payload.clone();
-                        // Spawn a non-blocking write — monitor loop must not
-                        // block on DB I/O to keep polling responsive.
-                        let event_name_owned = event_name.clone();
-                        tokio::spawn(async move {
-                            let existing_added_at = match db.get_task_birth(&payload.gid).await {
-                                Ok(added_at) => added_at,
-                                Err(e) => {
-                                    log::warn!(
-                                        "task_monitor: task_birth lookup failed for {event_name_owned}: {e}"
-                                    );
-                                    None
-                                }
-                            };
-                            let record = build_history_record_with_added_at(
-                                &payload,
-                                &event_name_owned,
-                                existing_added_at,
-                            );
-                            if let Some(added_at) = record.added_at.as_deref() {
-                                if let Err(e) = db.record_task_birth(&record.gid, added_at).await {
-                                    log::warn!(
-                                        "task_monitor: task_birth write failed for {event_name_owned}: {e}"
-                                    );
-                                }
-                            }
-                            if let Err(e) = db.add_record(&record).await {
-                                log::warn!(
-                                    "task_monitor: history write failed for {event_name_owned}: {e}"
-                                );
-                            }
-                        });
-                    }
-                }
-            }
-
-            let runtime_config = match app.try_state::<super::config::RuntimeConfigState>() {
-                Some(state) => state.snapshot().await,
-                None => {
-                    log::warn!("notification:runtime-config-unavailable fallback=defaults");
-                    super::config::RuntimeConfig::default()
-                }
-            };
-
             for (event_name, payload) in events {
-                let webview_alive = app.get_webview_window("main").is_some();
-                log::info!(
-                    "task_monitor:event type={} gid={} name={:?} webview_alive={}",
-                    event_name,
-                    payload.gid,
-                    payload.name,
-                    webview_alive
-                );
-                send_task_notification(&app, &event_name, &payload, &runtime_config);
-                if let Err(e) = app.emit(&event_name, &payload) {
-                    log::warn!("task_monitor: failed to emit {event_name}: {e}");
-                }
+                persist_and_emit_task_event(&app, &event_name, payload).await;
             }
         }
 
@@ -648,8 +695,17 @@ async fn monitor_loop(
         // `shutdown_triggered` can reset when new downloads appear
         // after a previous trigger (cancelled or completed).
         {
-            let active_dl = count_active_downloads(&all);
-            let waiting: usize = aria2.tell_waiting(0, 1).await.map(|w| w.len()).unwrap_or(0);
+            let (hls_active, hls_waiting) =
+                match app.try_state::<Arc<crate::hls::engine::HlsEngineState>>() {
+                    Some(state) => {
+                        let jobs = state.snapshot_jobs().await;
+                        (count_hls_active_jobs(&jobs), count_hls_waiting_jobs(&jobs))
+                    }
+                    None => (0, 0),
+                };
+            let active_dl = count_active_downloads(&all) + hls_active;
+            let waiting: usize =
+                aria2.tell_waiting(0, 1).await.map(|w| w.len()).unwrap_or(0) + hls_waiting;
 
             if active_dl > 0 || waiting > 0 {
                 had_active_downloads = true;
@@ -721,6 +777,14 @@ fn count_active_downloads(tasks: &[Aria2Task]) -> usize {
         .count()
 }
 
+fn count_hls_active_jobs(jobs: &[crate::hls::types::HlsJob]) -> usize {
+    jobs.iter().filter(|job| job.status == "active").count()
+}
+
+fn count_hls_waiting_jobs(jobs: &[crate::hls::types::HlsJob]) -> usize {
+    jobs.iter().filter(|job| job.status == "waiting").count()
+}
+
 /// Managed state wrapper for the monitor handle.
 pub struct TaskMonitorState(pub Arc<tokio::sync::Mutex<Option<TaskMonitorHandle>>>);
 
@@ -733,7 +797,9 @@ impl TaskMonitorState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::aria2::types::{Aria2BtInfo, Aria2BtName, Aria2Ed2kInfo, Aria2File, Aria2FileUri};
+    use crate::aria2::types::{
+        Aria2BtInfo, Aria2BtName, Aria2Ed2kInfo, Aria2File, Aria2FileUri, Aria2HlsInfo,
+    };
 
     fn make_task(gid: &str, status: &str) -> Aria2Task {
         Aria2Task {
@@ -772,6 +838,26 @@ mod tests {
     fn make_bt_task_with_hash(gid: &str, status: &str, seeder: bool, info_hash: &str) -> Aria2Task {
         let mut task = make_bt_task(gid, status, seeder);
         task.info_hash = Some(info_hash.to_string());
+        task
+    }
+
+    fn make_hls_task(gid: &str, status: &str) -> Aria2Task {
+        let mut task = make_task(gid, status);
+        task.hls = Some(Aria2HlsInfo {
+            playlist_url: "https://cdn.example/a.m3u8".to_string(),
+            media_kind: "mpegts".to_string(),
+            segment_count: 10,
+            segment_total: 10,
+            encrypt_method: "none".to_string(),
+            phase: "merge".to_string(),
+            output_path: Some("/tmp/video.ts".to_string()),
+            fallback_ts_path: None,
+        });
+        task.files[0].path = "/tmp/video.ts".to_string();
+        task.files[0].uris = vec![Aria2FileUri {
+            uri: "https://cdn.example/a.m3u8".to_string(),
+            status: "used".to_string(),
+        }];
         task
     }
 
@@ -1266,6 +1352,29 @@ mod tests {
     }
 
     #[test]
+    fn build_history_record_derives_task_type_for_hls() {
+        let task = make_hls_task("hls-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "complete");
+        let event = TaskEvent::from_aria2(&task);
+        let record = build_history_record(&event, events::TASK_COMPLETE);
+
+        assert_eq!(record.task_type, Some("hls".to_string()));
+        let meta: serde_json::Value =
+            serde_json::from_str(record.meta.as_ref().expect("hls meta")).unwrap();
+        assert_eq!(meta["hls"]["playlistUrl"], "https://cdn.example/a.m3u8");
+        assert_eq!(meta["hls"]["mediaKind"], "mpegts");
+        assert_eq!(meta["hls"]["outputPath"], "/tmp/video.ts");
+    }
+
+    #[test]
+    fn task_event_from_aria2_marks_hls_gid_prefix() {
+        let task = make_task("hls-0123456789abcdef0123456789abcdef", "complete");
+        let event = TaskEvent::from_aria2(&task);
+        assert!(event.is_hls);
+        let record = build_history_record(&event, events::TASK_COMPLETE);
+        assert_eq!(record.task_type, Some("hls".to_string()));
+    }
+
+    #[test]
     fn build_history_record_id_is_none() {
         let task = make_task("g1", "complete");
         let event = TaskEvent::from_aria2(&task);
@@ -1458,5 +1567,31 @@ mod tests {
             make_ed2k_task("g3", "active", true),
         ];
         assert_eq!(count_active_downloads(&tasks), 1);
+    }
+
+    #[test]
+    fn count_hls_jobs_counts_active_and_waiting() {
+        let jobs = vec![
+            crate::hls::types::HlsJob {
+                status: "active".into(),
+                download_speed: 100,
+                ..crate::hls::types::HlsJob::default()
+            },
+            crate::hls::types::HlsJob {
+                status: "waiting".into(),
+                ..crate::hls::types::HlsJob::default()
+            },
+            crate::hls::types::HlsJob {
+                status: "paused".into(),
+                ..crate::hls::types::HlsJob::default()
+            },
+            crate::hls::types::HlsJob {
+                status: "active".into(),
+                download_speed: 50,
+                ..crate::hls::types::HlsJob::default()
+            },
+        ];
+        assert_eq!(count_hls_active_jobs(&jobs), 2);
+        assert_eq!(count_hls_waiting_jobs(&jobs), 1);
     }
 }
