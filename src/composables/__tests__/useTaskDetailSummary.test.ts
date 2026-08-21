@@ -46,6 +46,24 @@ describe('buildTaskDetailKind', () => {
   it('classifies HTTP, FTP, Thunder-decoded, and other URI tasks as uri when no protocol metadata exists', () => {
     expect(buildTaskDetailKind(makeTask())).toBe('uri')
   })
+
+  it('classifies HLS tasks from hls metadata or an HLS gid', () => {
+    expect(
+      buildTaskDetailKind(
+        makeTask({
+          hls: {
+            playlistUrl: 'https://x/a.m3u8',
+            mediaKind: 'mpegts',
+            segmentCount: 1,
+            segmentTotal: 1,
+            encryptMethod: 'none',
+            phase: 'download',
+          },
+        }),
+      ),
+    ).toBe('hls')
+    expect(buildTaskDetailKind(makeTask({ gid: 'hls-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }))).toBe('hls')
+  })
 })
 
 describe('getTaskDetailStatusLabelKey', () => {

@@ -63,6 +63,18 @@ export interface Aria2Ed2kInfo {
   peerCreditCount?: string
 }
 
+/** HLS VOD metadata attached to a task when the download is an HLS playlist. */
+export interface Aria2HlsInfo {
+  playlistUrl: string
+  mediaKind: 'mpegts' | 'fmp4'
+  segmentCount: number
+  segmentTotal: number
+  encryptMethod: 'none' | 'aes-128' | 'aes-128-ecb'
+  phase: 'download' | 'merge' | 'remux'
+  outputPath?: string
+  fallbackTsPath?: string
+}
+
 export interface Ed2kSearchOptions {
   fileType?: string
   extension?: string
@@ -122,6 +134,7 @@ export interface Aria2Task {
   files: Aria2File[]
   bittorrent?: Aria2BtInfo
   ed2k?: Aria2Ed2kInfo
+  hls?: Aria2HlsInfo
   infoHash?: string
   numSeeders?: string
   seeder?: string
@@ -487,6 +500,14 @@ export interface AddUriParams {
   fileCategory?: { enabled: boolean; categories: FileCategory[]; contexts?: Record<string, ExternalDownloadContext> }
 }
 
+/** Parameters for adding an HLS VOD playlist download. */
+export interface AddHlsParams {
+  uri: string
+  options: Aria2EngineOptions
+  /** Optional file classification config; frontend resolves `dir` before `hls_add`. */
+  fileCategory?: { enabled: boolean; categories: FileCategory[]; contexts?: Record<string, ExternalDownloadContext> }
+}
+
 /** Parameters for adding a torrent-based download task. */
 export interface AddTorrentParams {
   torrent: string
@@ -575,6 +596,8 @@ export interface HistoryMeta {
   ed2kHash?: string
   /** BT announce tiers — used to restore tracker-aware magnet restart links. */
   announceList?: string[][]
+  /** HLS playlist metadata — used for restart and history display. */
+  hls?: { playlistUrl: string; mediaKind: 'mpegts' | 'fmp4'; outputPath?: string }
   /** Complete file list with all URIs — present when files.length > 1. */
   files?: HistoryFileSnapshot[]
 }
@@ -616,6 +639,7 @@ export interface TaskApi {
   fetchActiveTaskList: () => Promise<Aria2Task[]>
   addUri: (params: AddUriParams) => Promise<string[]>
   addUriAtomic: (params: { uris: string[]; options: Aria2EngineOptions }) => Promise<string>
+  addHls: (params: AddHlsParams) => Promise<string>
   addTorrent: (params: AddTorrentParams) => Promise<string>
   getOption: (params: { gid: string }) => Promise<Record<string, string>>
   changeOption: (params: TaskOptionParams) => Promise<void>

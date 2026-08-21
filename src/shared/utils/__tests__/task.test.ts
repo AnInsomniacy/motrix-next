@@ -14,6 +14,8 @@ import {
   getFileNameFromFile,
   getTaskDisplayName,
   getTaskUri,
+  getTaskUris,
+  canRestart,
   checkTaskTitleIsEmpty,
   mergeTaskResult,
   resolveOpenTarget,
@@ -157,6 +159,27 @@ describe('getTaskName', () => {
     expect(getTaskName(task, { defaultName: 'N/A' })).toBe('N/A')
   })
 
+  it('does not stay on the getting-name placeholder for HLS directory-only paths', () => {
+    const task = createMockTask({
+      dir: 'C:\\Downloads\\',
+      files: [
+        createMockFile({
+          path: 'C:\\Downloads\\',
+          uris: [{ uri: 'https://cdn.example/vod/show.m3u8?token=1', status: 'used' }],
+        }),
+      ],
+      hls: {
+        playlistUrl: 'https://cdn.example/vod/show.m3u8?token=1',
+        mediaKind: 'mpegts',
+        segmentCount: 0,
+        segmentTotal: 10,
+        encryptMethod: 'none',
+        phase: 'download',
+      },
+    })
+    expect(getTaskName(task, { defaultName: 'Getting task name...' })).toBe('show.m3u8')
+  })
+
   it('returns full-length BT names without truncation', () => {
     const task = createMockTask({
       files: [createMockFile()],
@@ -249,6 +272,14 @@ describe('getFileNameFromFile', () => {
       uris: [{ uri: 'https://example.com/', status: 'used' }],
     })
     expect(getFileNameFromFile(file)).toBe('')
+  })
+
+  it('falls back to URI when path is a directory with a trailing separator', () => {
+    const file = createMockFile({
+      path: 'C:\\Downloads\\',
+      uris: [{ uri: 'https://cdn.example/vod/show.m3u8?token=1', status: 'used' }],
+    })
+    expect(getFileNameFromFile(file)).toBe('show.m3u8')
   })
 
   it('handles deep path URIs with extension correctly', () => {
@@ -502,6 +533,23 @@ describe('getTaskUri', () => {
       files: [createMockFile(), createMockFile({ index: '2' })],
     })
     expect(getTaskUri(task)).toBe('')
+  })
+
+  it('uses hls.playlistUrl as the restart URI when files are missing', () => {
+    const task = createMockTask({
+      files: [],
+      hls: {
+        playlistUrl: 'https://x/a.m3u8',
+        mediaKind: 'mpegts',
+        segmentCount: 0,
+        segmentTotal: 0,
+        encryptMethod: 'none',
+        phase: 'download',
+      },
+    })
+    expect(getTaskUris(task)).toEqual(['https://x/a.m3u8'])
+    expect(getTaskUri(task)).toBe('https://x/a.m3u8')
+    expect(canRestart(task)).toBe(true)
   })
 })
 

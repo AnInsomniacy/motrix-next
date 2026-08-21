@@ -8,6 +8,7 @@ export * from './config'
 export * from './resource'
 export * from './locale'
 export * from './clipboard'
+export * from './hls'
 
 export const generateRandomInt = (min = 0, max = 10000): number => {
   const range = max - min

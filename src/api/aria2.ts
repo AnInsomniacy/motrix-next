@@ -7,6 +7,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { changeKeysToCamelCase, formatOptionsForEngine } from '@shared/utils'
 import type {
+  AddHlsParams,
   Aria2Task,
   Aria2RawGlobalStat,
   Aria2Peer,
@@ -18,9 +19,11 @@ import type {
   ExternalDownloadContext,
 } from '@shared/types'
 import { formatLogFields, logger } from '@shared/logger'
+import { getErrorMessage } from '@shared/utils/errorMessage'
 import { resolveDownloadDir } from '@shared/utils/fileCategory'
 import { sanitizeAria2OutHint } from '@shared/utils/batchHelpers'
 import { summarizeAria2Options, summarizeExternalInput } from '@shared/utils/externalInputDiagnostics'
+import { isHlsGid, splitGids } from '@shared/utils/hls'
 
 /**
  * Engine readiness state.
@@ -48,6 +51,44 @@ function withBtSafetyOptions(options: Aria2EngineOptions): Aria2EngineOptions {
   }
 }
 
+async function concatActiveHlsTasks(aria2: Aria2Task[], context: string): Promise<Aria2Task[]> {
+  try {
+    const hls = await invoke<Aria2Task[]>('hls_list', { group: 'active' })
+    return aria2.concat(hls)
+  } catch (error) {
+    logger.warn(context, getErrorMessage(error))
+    return aria2
+  }
+}
+
+async function invokeHlsGids(
+  command: 'hls_pause' | 'hls_unpause' | 'hls_remove',
+  gids: string[],
+  extra?: { deleteFiles: boolean },
+): Promise<unknown[][]> {
+  const results = await Promise.all(gids.map((gid) => invoke<string>(command, { gid, ...extra })))
+  return results.map((gid) => [gid])
+}
+
+async function invokeSplitBatch(
+  gids: string[],
+  aria2Command: string,
+  hlsCommand: 'hls_pause' | 'hls_unpause' | 'hls_remove',
+  hlsExtra?: { deleteFiles: boolean },
+): Promise<unknown[][]> {
+  const { hls, aria2 } = splitGids(gids)
+  const jobs: Promise<unknown[][]>[] = []
+  if (aria2.length > 0) {
+    jobs.push(invoke<unknown[][]>(aria2Command, { gids: aria2 }))
+  }
+  if (hls.length > 0) {
+    jobs.push(invokeHlsGids(hlsCommand, hls, hlsExtra))
+  }
+  if (jobs.length === 0) return []
+  const parts = await Promise.all(jobs)
+  return parts.flat()
+}
+
 /** Retrieves aria2 engine version and list of enabled features. */
 export async function getVersion(): Promise<{ version: string; enabledFeatures: string[] }> {
   return invoke<{ version: string; enabledFeatures: string[] }>('aria2_get_version')
@@ -56,6 +97,7 @@ export async function getVersion(): Promise<{ version: string; enabledFeatures: 
 /** Fetches all global aria2 configuration options as camelCase keys. */
 export async function getGlobalOption(): Promise<Record<string, string>> {
   const data = await invoke<Record<string, string>>('aria2_get_global_option')
+  // camelCase helper values are unknown; option maps are always string-valued
   return changeKeysToCamelCase(data) as Record<string, string>
 }
 
@@ -73,42 +115,61 @@ export async function changeGlobalOption(options: Partial<AppConfig>): Promise<v
 
 /** Fetches the option set for a specific download task as camelCase keys. */
 export async function getOption(params: { gid: string }): Promise<Record<string, string>> {
-  const data = await invoke<Record<string, string>>('aria2_get_option', { gid: params.gid })
+  const data = isHlsGid(params.gid)
+    ? await invoke<Record<string, string>>('hls_get_option', { gid: params.gid })
+    : await invoke<Record<string, string>>('aria2_get_option', { gid: params.gid })
+  // camelCase helper values are unknown; option maps are always string-valued
   return changeKeysToCamelCase(data) as Record<string, string>
 }
 
 /** Modifies options for a specific download task at runtime. */
 export async function changeOption(params: { gid: string; options: Aria2EngineOptions }): Promise<void> {
+  if (isHlsGid(params.gid)) return
   const engineOptions = formatOptionsForEngine(params.options)
   await invoke<string>('aria2_change_option', { gid: params.gid, options: engineOptions })
 }
 
 /** Retrieves the file list for a download task by GID. */
 export async function getFiles(params: { gid: string }): Promise<Aria2File[]> {
+  if (isHlsGid(params.gid)) {
+    const task = await invoke<Aria2Task>('hls_tell_status', { gid: params.gid })
+    return task.files
+  }
   const data = await invoke<Record<string, unknown>[]>('aria2_get_files', { gid: params.gid })
+  // aria2 file rows are untyped records until camelCased into Aria2File
   return data.map((f) => changeKeysToCamelCase(f)) as unknown as Aria2File[]
 }
 
 /** Fetches only active tasks (no waiting). */
 export async function fetchActiveTaskList(): Promise<Aria2Task[]> {
-  return invoke<Aria2Task[]>('aria2_fetch_active_task_list')
+  const aria2 = await invoke<Aria2Task[]>('aria2_fetch_active_task_list')
+  return concatActiveHlsTasks(aria2, 'aria2.fetchActiveTaskList')
 }
 
 /** Fetches task list by status type: active+waiting or stopped. */
 export async function fetchTaskList(params: { type: string; limit?: number }): Promise<Aria2Task[]> {
-  return invoke<Aria2Task[]>('aria2_fetch_task_list', {
+  const aria2 = await invoke<Aria2Task[]>('aria2_fetch_task_list', {
     type: params.type,
     limit: params.limit ?? null,
   })
+  if (params.type !== 'active') return aria2
+  return concatActiveHlsTasks(aria2, 'aria2.fetchTaskList')
 }
 
 /** Fetches a single task's full status by GID. */
 export async function fetchTaskItem(params: { gid: string }): Promise<Aria2Task> {
+  if (isHlsGid(params.gid)) {
+    return invoke<Aria2Task>('hls_tell_status', { gid: params.gid })
+  }
   return invoke<Aria2Task>('aria2_fetch_task_item', { gid: params.gid })
 }
 
 /** Fetches a single task's status along with its peer list (for BT tasks). */
 export async function fetchTaskItemWithPeers(params: { gid: string }): Promise<Aria2Task & { peers: Aria2Peer[] }> {
+  if (isHlsGid(params.gid)) {
+    const task = await invoke<Aria2Task>('hls_tell_status', { gid: params.gid })
+    return { ...task, peers: task.peers ?? [] }
+  }
   return invoke<Aria2Task & { peers: Aria2Peer[] }>('aria2_fetch_task_item_with_peers', { gid: params.gid })
 }
 
@@ -171,6 +232,31 @@ export async function addUriAtomic(params: { uris: string[]; options: Aria2Engin
   return gid
 }
 
+/** Adds an HLS VOD playlist. Never routes the playlist URL through aria2 addUri. */
+export async function addHls(params: AddHlsParams): Promise<string> {
+  const { uri, options, fileCategory } = params
+  const engineOptions = formatOptionsForEngine(options)
+
+  if (fileCategory?.enabled && fileCategory.categories.length > 0) {
+    const classifyUrl = uri.replace(/\.m3u8?(\?.*)?$/i, '.ts')
+    const context = fileCategory.contexts?.[uri]
+    engineOptions.dir = resolveDownloadDir(classifyUrl, engineOptions.dir || '', true, fileCategory.categories, {
+      urls: [classifyUrl, uri, context?.finalUrl ?? '', context?.url ?? '', context?.referer ?? ''],
+    })
+  }
+
+  const gid = await invoke<string>('hls_add', { url: uri, options: engineOptions })
+  logger.info(
+    'aria2.addHls',
+    formatLogFields({
+      gid,
+      url: summarizeExternalInput(uri),
+      ...summarizeAria2Options(engineOptions),
+    }),
+  )
+  return gid
+}
+
 /** Adds a torrent download from a base64-encoded .torrent file. */
 export async function addTorrent(params: { torrent: string; options: Aria2EngineOptions }): Promise<string> {
   const engineOptions = formatOptionsForEngine(withBtSafetyOptions(params.options))
@@ -199,21 +285,33 @@ export async function cleanupEd2kSearch(params: { gid: string }): Promise<void> 
 
 /** Forcefully removes a download task by GID. */
 export async function removeTask(params: { gid: string }): Promise<string> {
+  if (isHlsGid(params.gid)) {
+    return invoke<string>('hls_remove', { gid: params.gid, deleteFiles: false })
+  }
   return invoke<string>('aria2_force_remove', { gid: params.gid })
 }
 
 /** Forcefully pauses a download task by GID. */
 export async function forcePauseTask(params: { gid: string }): Promise<string> {
+  if (isHlsGid(params.gid)) {
+    return invoke<string>('hls_pause', { gid: params.gid })
+  }
   return invoke<string>('aria2_force_pause', { gid: params.gid })
 }
 
 /** Pauses a download task by GID (graceful). */
 export async function pauseTask(params: { gid: string }): Promise<string> {
+  if (isHlsGid(params.gid)) {
+    return invoke<string>('hls_pause', { gid: params.gid })
+  }
   return invoke<string>('aria2_pause', { gid: params.gid })
 }
 
 /** Resumes a paused download task by GID. */
 export async function resumeTask(params: { gid: string }): Promise<string> {
+  if (isHlsGid(params.gid)) {
+    return invoke<string>('hls_unpause', { gid: params.gid })
+  }
   return invoke<string>('aria2_unpause', { gid: params.gid })
 }
 
@@ -224,6 +322,7 @@ export async function saveSession(): Promise<string> {
 
 /** Removes a completed/errored task record from the download list. */
 export async function removeTaskRecord(params: { gid: string }): Promise<string> {
+  if (isHlsGid(params.gid)) return 'OK'
   return invoke<string>('aria2_remove_download_result', { gid: params.gid })
 }
 
@@ -234,12 +333,12 @@ export async function purgeTaskRecord(): Promise<string> {
 
 /** Batch-resumes multiple tasks by GID array via multicall. */
 export async function batchResumeTask(params: { gids: string[] }): Promise<unknown[][]> {
-  return invoke<unknown[][]>('aria2_batch_unpause', { gids: params.gids })
+  return invokeSplitBatch(params.gids, 'aria2_batch_unpause', 'hls_unpause')
 }
 
 /** Batch-pauses multiple tasks by GID array via multicall (force). */
 export async function batchPauseTask(params: { gids: string[] }): Promise<unknown[][]> {
-  return invoke<unknown[][]>('aria2_batch_force_pause', { gids: params.gids })
+  return invokeSplitBatch(params.gids, 'aria2_batch_force_pause', 'hls_pause')
 }
 
 /** Alias for batchPauseTask — force-pauses multiple tasks. */
@@ -249,7 +348,7 @@ export async function batchForcePauseTask(params: { gids: string[] }): Promise<u
 
 /** Batch-removes multiple tasks by GID array via multicall (force). */
 export async function batchRemoveTask(params: { gids: string[] }): Promise<unknown[][]> {
-  return invoke<unknown[][]>('aria2_batch_force_remove', { gids: params.gids })
+  return invokeSplitBatch(params.gids, 'aria2_batch_force_remove', 'hls_remove', { deleteFiles: false })
 }
 
 const api = {
@@ -266,6 +365,7 @@ const api = {
   fetchTaskItemWithPeers,
   addUri,
   addUriAtomic,
+  addHls,
   addTorrent,
   ed2kSearch,
   getEd2kSearchResults,

@@ -45,6 +45,7 @@ const makeMockTask = (gid: string, status: TaskStatus = 'active', extra: Partial
 function createMockApi() {
   return {
     addUriAtomic: vi.fn().mockResolvedValue('new-gid'),
+    addHls: vi.fn().mockResolvedValue('hls-new-gid'),
     getOption: vi.fn().mockResolvedValue({}),
     removeTask: vi.fn().mockResolvedValue('OK'),
     removeTaskRecord: vi.fn().mockResolvedValue('OK'),
@@ -355,5 +356,42 @@ describe('restartTask', () => {
     const task = makeMockTask('gid1', 'error', { files: [] })
 
     await expect(restartTask(task, api, mockHistoryFns)).rejects.toThrow('no download URIs')
+  })
+
+  it('restarts complete HLS tasks via addHls instead of addUriAtomic', async () => {
+    const task = makeMockTask('hls-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'complete', {
+      hls: {
+        playlistUrl: 'https://x/a.m3u8',
+        mediaKind: 'mpegts',
+        segmentCount: 10,
+        segmentTotal: 10,
+        encryptMethod: 'none',
+        phase: 'download',
+      },
+      files: [
+        {
+          index: '1',
+          path: '/a.ts',
+          length: '100',
+          completedLength: '100',
+          selected: 'true',
+          uris: [{ uri: 'https://x/a.m3u8', status: 'used' }],
+        },
+      ],
+    })
+    api.getOption.mockResolvedValue({ dir: '/dl', header: 'Referer: https://r.com' })
+
+    await restartTask(task, api, mockHistoryFns)
+
+    expect(api.addHls).toHaveBeenCalledTimes(1)
+    expect(api.addHls).toHaveBeenCalledWith({
+      uri: 'https://x/a.m3u8',
+      options: { dir: '/dl', header: 'Referer: https://r.com' },
+    })
+    expect(api.addUriAtomic).not.toHaveBeenCalled()
+    expect(api.removeTaskRecord).toHaveBeenCalledWith({ gid: 'hls-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' })
+    expect(mockHistoryFns.removeRecord).toHaveBeenCalledWith('hls-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+    expect(api.fetchList).toHaveBeenCalled()
+    expect(api.saveSession).toHaveBeenCalled()
   })
 })

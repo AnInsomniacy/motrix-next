@@ -37,6 +37,7 @@ import type {
   ProxyConfig,
 } from '@shared/types'
 import { isMagnetUri } from '@/composables/useMagnetFlow'
+import { isHlsUri } from '@shared/utils/hls'
 import {
   sanitizeBrowserRequestHeaders,
   sanitizeBrowserRequestHeadersWithDiagnostics,
@@ -45,6 +46,7 @@ import {
 } from '@shared/utils/headerSanitize'
 import { summarizeHeaderForwarding } from '@shared/utils/externalInputDiagnostics'
 import { getErrorMessage } from '@shared/utils/errorMessage'
+import { extractHlsErrorCode, hlsErrorI18nKey } from '@shared/utils/hls'
 import { buildTaskProxyOptions, getDownloadProxy, type TaskProxyMode } from '@shared/utils/proxy'
 import { resolveUserAgentFromContext } from '@shared/utils/userAgentPolicy'
 
@@ -248,6 +250,8 @@ export async function submitBatchItems(
  * Handles multi-URI rename with buildOuts.
  *
  * Magnet URIs are separated and submitted via addMagnetUri (metadata-only mode).
+ * HLS playlist URIs (.m3u8 / .m3u) are peeled out of every entry and submitted
+ * via addHls so they never enter an aria2 URI array.
  * Returns an array of magnet GIDs for the caller to monitor for file selection.
  */
 export async function submitManualUris(
@@ -263,8 +267,9 @@ export async function submitManualUris(
   logger.info(
     'submitManualUris',
     formatLogFields({
-      regular: allUris.filter((u) => !isMagnetUri(u)).length,
+      regular: allUris.filter((u) => !isMagnetUri(u) && !isHlsUri(u)).length,
       magnet: allUris.filter(isMagnetUri).length,
+      hls: allUris.filter(isHlsUri).length,
       hasUserAgent: Boolean(form.userAgent),
       hasReferer: Boolean(form.referer),
       hasCookie: Boolean(form.cookie),
@@ -273,18 +278,41 @@ export async function submitManualUris(
   )
 
   const magnetUris = allUris.filter(isMagnetUri)
-  const regularEntries: ManualRegularEntry[] = parsedInput.entries
+  const parsedRegularEntries: ManualRegularEntry[] = parsedInput.entries
     .map((entry) => ({
       uris: entry.uris.filter((uri) => !isMagnetUri(uri)),
       options: mergeAria2InputOptions(options, entry.options),
       hasInputOptions: Object.keys(entry.options).length > 0,
     }))
     .filter((entry) => entry.uris.length > 0)
+
+  const hlsJobs: { uri: string; options: Aria2EngineOptions }[] = []
+  const regularEntries: ManualRegularEntry[] = []
+  for (const entry of parsedRegularEntries) {
+    const otherUris: string[] = []
+    for (const uri of entry.uris) {
+      if (isHlsUri(uri)) hlsJobs.push({ uri, options: entry.options })
+      else otherUris.push(uri)
+    }
+    if (otherUris.length > 0) {
+      regularEntries.push({ ...entry, uris: otherUris })
+    }
+  }
+
   const regularUris = regularEntries.flatMap((entry) => entry.uris)
   const fileCategoryWithContexts = fileCategory
     ? { ...fileCategory, contexts: form.uriRequestContexts ?? {} }
     : undefined
   const submittedTaskNames: string[] = []
+
+  for (const job of hlsJobs) {
+    await taskStore.addHls({
+      uri: job.uri,
+      options: job.options,
+      fileCategory: fileCategoryWithContexts,
+    })
+    submittedTaskNames.push(resolveSubmittedTaskName(job.uri, getScalarOption(job.options, 'out')))
+  }
 
   // Submit regular URIs using the existing path
   if (regularUris.length > 0) {
@@ -402,8 +430,14 @@ function resolveSubmittedTaskName(uri: string, outHint?: string): string {
 function buildSubmitErrorLabels(t: (key: string) => string): Parameters<typeof getErrorMessage>[1] {
   return {
     fallback: t('task.error-unknown'),
-    labels: { Aria2: t('task.error-aria2-next') },
+    labels: { Aria2: t('task.error-aria2-next'), Hls: t('task.task-hls-info') },
   }
+}
+
+function formatSubmitError(err: unknown, t: (key: string) => string): string {
+  const mappedKey = extractHlsErrorCode(err)
+  const i18nKey = mappedKey ? hlsErrorI18nKey(mappedKey) : undefined
+  return i18nKey ? t(i18nKey) : getErrorMessage(err, buildSubmitErrorLabels(t))
 }
 
 export function useAddTaskSubmit({ form, onClose }: UseAddTaskSubmitOptions) {
@@ -476,7 +510,7 @@ export function useAddTaskSubmit({ form, onClose }: UseAddTaskSubmitOptions) {
       }
     } catch (e: unknown) {
       const category = classifySubmitError(e)
-      const errMsg = getErrorMessage(e, buildSubmitErrorLabels(t))
+      const errMsg = formatSubmitError(e, t)
       logger.error('AddTask.submit', e)
       if (category === 'engine-not-ready') {
         message.error(t('app.engine-not-ready'), { closable: true })

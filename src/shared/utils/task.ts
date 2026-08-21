@@ -31,22 +31,7 @@ export const calcRatio = (totalLength: string | number, uploadLength: string | n
   return parseFloat(percentage.toFixed(4))
 }
 
-const getFileNameFromFile = (file?: Aria2File): string => {
-  if (!file) return ''
-  const { path } = file
-  if (path) {
-    // Path is set — aria2 has resolved the filename (from Content-Disposition or URL).
-    const idx = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
-    if (idx <= 0 || idx === path.length) return path
-    return path.substring(idx + 1)
-  }
-  // Path is empty: aria2 hasn't received the HTTP response yet.
-  // Fall back to extracting from URI, but only for segments that look like filenames
-  // (i.e., contain a dot/extension). Extensionless segments like "/download/sample/215"
-  // are typically redirect stubs or API endpoints — return '' so the UI shows a
-  // placeholder instead of a misleading name. aria2 will update the real filename
-  // after receiving Content-Disposition or the final redirected URL.
-  const uri = file.uris?.[0]?.uri
+const filenameFromUri = (uri?: string): string => {
   if (!uri) return ''
   try {
     const segment = new URL(uri).pathname.split('/').filter(Boolean).pop() ?? ''
@@ -55,6 +40,26 @@ const getFileNameFromFile = (file?: Aria2File): string => {
   } catch {
     return ''
   }
+}
+
+const getFileNameFromFile = (file?: Aria2File): string => {
+  if (!file) return ''
+  const { path } = file
+  if (path) {
+    // Path is set — aria2 has resolved the filename (from Content-Disposition or URL).
+    const idx = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+    if (idx < 0) return path
+    const name = path.substring(idx + 1)
+    if (name) return name
+    // Trailing separator means this is still a directory, not a resolved file.
+  }
+  // Path is empty or a directory: aria2 hasn't received the HTTP response yet,
+  // or an HLS job was mapped to `dir/` before `out` was filled.
+  // Fall back to extracting from URI, but only for segments that look like filenames
+  // (i.e., contain a dot/extension). Extensionless segments like "/download/sample/215"
+  // are typically redirect stubs or API endpoints — return '' so the UI shows a
+  // placeholder instead of a misleading name.
+  return filenameFromUri(file.uris?.[0]?.uri)
 }
 
 /** Resolves a human-readable task name from BT info or file path. */
@@ -138,6 +143,7 @@ export const checkTaskIsEd2kSearch = (task: Partial<Aria2Task> = {} as Partial<A
 /**
  * Collects all download URIs from a task.
  * For BT and ED2K tasks, returns the engine-serialized canonical link.
+ * For HLS tasks, returns the playlist URL even when files[] is empty.
  * For HTTP/FTP tasks, iterates all files and extracts their URIs.
  */
 export const getTaskUris = (task: Aria2Task, _withTracker = false): string[] => {
@@ -148,6 +154,10 @@ export const getTaskUris = (task: Aria2Task, _withTracker = false): string[] => 
   const ed2kLink = task.ed2k?.ed2kLink?.trim()
   if (ed2kLink) {
     return [ed2kLink]
+  }
+  const playlistUrl = task.hls?.playlistUrl?.trim()
+  if (playlistUrl) {
+    return [playlistUrl]
   }
   const { files } = task
   if (!files || files.length === 0) return []
