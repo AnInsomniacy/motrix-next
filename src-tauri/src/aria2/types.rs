@@ -121,6 +121,25 @@ pub struct Aria2Ed2kInfo {
     pub peer_credit_count: Option<String>,
 }
 
+/// HLS VOD metadata attached to a task when the download is an HLS playlist.
+///
+/// Enum-like fields are strings so this DTO does not depend on `hls` module types.
+/// `segmentCount` / `segmentTotal` are JSON numbers, matching TypeScript `Aria2HlsInfo`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Aria2HlsInfo {
+    pub playlist_url: String,
+    pub media_kind: String,
+    pub segment_count: u32,
+    pub segment_total: u32,
+    pub encrypt_method: String,
+    pub phase: String,
+    #[serde(default)]
+    pub output_path: Option<String>,
+    #[serde(default)]
+    pub fallback_ts_path: Option<String>,
+}
+
 /// Complete aria2 task object returned by tellStatus, tellActive,
 /// tellWaiting, or tellStopped.
 ///
@@ -143,6 +162,8 @@ pub struct Aria2Task {
     pub bittorrent: Option<Aria2BtInfo>,
     #[serde(default)]
     pub ed2k: Option<Aria2Ed2kInfo>,
+    #[serde(default)]
+    pub hls: Option<Aria2HlsInfo>,
     #[serde(default)]
     pub info_hash: Option<String>,
     #[serde(default)]
@@ -242,6 +263,7 @@ mod tests {
         assert_eq!(task.completed_length, "512");
         assert!(task.files.is_empty());
         assert!(task.bittorrent.is_none());
+        assert!(task.hls.is_none());
         assert!(task.error_code.is_none());
     }
 
