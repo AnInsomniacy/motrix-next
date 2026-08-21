@@ -54,6 +54,7 @@ import {
   fetchActiveTaskList,
   addUri,
   addUriAtomic,
+  addHls,
   addTorrent,
   removeTask,
   pauseTask,
@@ -66,6 +67,9 @@ import {
   batchPauseTask,
   batchRemoveTask,
 } from '../aria2'
+
+const HLS_GID = 'hls-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+const HLS_GID_B = 'hls-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 
 describe('aria2 API (invoke transport)', () => {
   beforeEach(() => {
@@ -199,33 +203,63 @@ describe('aria2 API (invoke transport)', () => {
       setEngineReady(true)
     })
 
-    it('fetchTaskList with type "active" invokes aria2_fetch_task_list', async () => {
-      const combined = [
+    it('fetchTaskList with type "active" concatenates hls_list onto aria2 results', async () => {
+      const aria2 = [
         { gid: '1', status: 'active' },
         { gid: '2', status: 'waiting' },
       ]
-      mockInvoke.mockResolvedValueOnce(combined)
+      const hls = [{ gid: HLS_GID, status: 'active' }]
+      mockInvoke.mockImplementation((cmd: unknown) => {
+        if (cmd === 'aria2_fetch_task_list') return Promise.resolve(aria2)
+        if (cmd === 'hls_list') return Promise.resolve(hls)
+        return Promise.resolve({})
+      })
 
       const result = await fetchTaskList({ type: 'active' })
       expect(mockInvoke).toHaveBeenCalledWith('aria2_fetch_task_list', { type: 'active', limit: null })
-      expect(result).toHaveLength(2)
-      expect(result[0].gid).toBe('1')
-      expect(result[1].gid).toBe('2')
+      expect(mockInvoke).toHaveBeenCalledWith('hls_list', { group: 'active' })
+      expect(result.map((task) => task.gid)).toEqual(['1', '2', HLS_GID])
     })
 
-    it('fetchTaskList with stopped type invokes aria2_fetch_task_list', async () => {
+    it('fetchTaskList with stopped type invokes aria2_fetch_task_list and does not call hls_list', async () => {
       const stopped = [{ gid: '3', status: 'complete' }]
       mockInvoke.mockResolvedValueOnce(stopped)
 
-      const result = await fetchTaskList({ type: 'complete' })
+      const result = await fetchTaskList({ type: 'stopped' })
       expect(result).toHaveLength(1)
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_fetch_task_list', { type: 'stopped', limit: null })
+      expect(mockInvoke.mock.calls.map((call) => call[0])).not.toContain('hls_list')
     })
 
-    it('fetchActiveTaskList invokes aria2_fetch_active_task_list', async () => {
-      mockInvoke.mockResolvedValueOnce([{ gid: '1' }])
+    it('fetchTaskList with complete type does not call hls_list', async () => {
+      mockInvoke.mockResolvedValueOnce([{ gid: '3', status: 'complete' }])
+      await fetchTaskList({ type: 'complete' })
+      expect(mockInvoke.mock.calls.map((call) => call[0])).not.toContain('hls_list')
+    })
+
+    it('fetchTaskList with type active keeps aria2 results when hls_list fails', async () => {
+      mockInvoke.mockImplementation((cmd: unknown) => {
+        if (cmd === 'aria2_fetch_task_list') return Promise.resolve([{ gid: '1', status: 'active' }])
+        if (cmd === 'hls_list') return Promise.reject(new Error('hls down'))
+        return Promise.resolve({})
+      })
+
+      const result = await fetchTaskList({ type: 'active' })
+      expect(result).toHaveLength(1)
+      expect(result[0].gid).toBe('1')
+      expect(loggerMock.warn).toHaveBeenCalledWith('aria2.fetchTaskList', expect.stringContaining('hls down'))
+    })
+
+    it('fetchActiveTaskList concatenates hls_list onto aria2 active tasks', async () => {
+      mockInvoke.mockImplementation((cmd: unknown) => {
+        if (cmd === 'aria2_fetch_active_task_list') return Promise.resolve([{ gid: '1' }])
+        if (cmd === 'hls_list') return Promise.resolve([{ gid: HLS_GID }])
+        return Promise.resolve({})
+      })
       const result = await fetchActiveTaskList()
       expect(mockInvoke).toHaveBeenCalledWith('aria2_fetch_active_task_list')
-      expect(result).toHaveLength(1)
+      expect(mockInvoke).toHaveBeenCalledWith('hls_list', { group: 'active' })
+      expect(result.map((task) => task.gid)).toEqual(['1', HLS_GID])
     })
 
     it('fetchTaskItem invokes with gid', async () => {
@@ -263,7 +297,11 @@ describe('aria2 API (invoke transport)', () => {
         { gid: 'd', status: 'waiting' },
         { gid: 'b', status: 'waiting' },
       ]
-      mockInvoke.mockResolvedValueOnce(tasks)
+      mockInvoke.mockImplementation((cmd: unknown) => {
+        if (cmd === 'aria2_fetch_task_list') return Promise.resolve(tasks)
+        if (cmd === 'hls_list') return Promise.resolve([])
+        return Promise.resolve({})
+      })
       const result = await fetchTaskList({ type: 'active' })
       expect(result.map((t) => t.gid)).toEqual(['c', 'a', 'd', 'b'])
     })
@@ -462,6 +500,58 @@ describe('aria2 API (invoke transport)', () => {
       })
     })
 
+    it('addHls invokes hls_add with url and formatted options', async () => {
+      mockInvoke.mockResolvedValueOnce('hls-gid')
+
+      const result = await addHls({
+        uri: 'https://x/a.m3u8',
+        options: { dir: '/dl', userAgent: 'UA/1.0', referer: 'https://r.com' },
+      })
+
+      expect(result).toBe('hls-gid')
+      expect(mockInvoke).toHaveBeenCalledTimes(1)
+      expect(mockInvoke).toHaveBeenCalledWith('hls_add', {
+        url: 'https://x/a.m3u8',
+        options: { dir: '/dl', 'user-agent': 'UA/1.0', referer: 'https://r.com' },
+      })
+    })
+
+    it('addHls classifies playlist URLs as .ts for directory routing', async () => {
+      mockInvoke.mockResolvedValueOnce('hls-gid')
+
+      await addHls({
+        uri: 'https://cdn.example/video.m3u8',
+        options: { dir: '/downloads' },
+        fileCategory: {
+          enabled: true,
+          categories: [{ label: 'Videos', extensions: ['ts'], directory: '/downloads/Videos' }],
+        },
+      })
+
+      expect(mockInvoke).toHaveBeenCalledWith('hls_add', {
+        url: 'https://cdn.example/video.m3u8',
+        options: { dir: '/downloads/Videos' },
+      })
+    })
+
+    it('addHls classifies .m3u playlist URLs as .ts for directory routing', async () => {
+      mockInvoke.mockResolvedValueOnce('hls-gid')
+
+      await addHls({
+        uri: 'https://cdn.example/video.m3u',
+        options: { dir: '/downloads' },
+        fileCategory: {
+          enabled: true,
+          categories: [{ label: 'Videos', extensions: ['ts'], directory: '/downloads/Videos' }],
+        },
+      })
+
+      expect(mockInvoke).toHaveBeenCalledWith('hls_add', {
+        url: 'https://cdn.example/video.m3u',
+        options: { dir: '/downloads/Videos' },
+      })
+    })
+
     it('addTorrent passes base64 torrent data', async () => {
       mockInvoke.mockResolvedValueOnce('gid-torrent')
       const result = await addTorrent({ torrent: 'base64data', options: {} })
@@ -523,6 +613,12 @@ describe('aria2 API (invoke transport)', () => {
       expect(mockInvoke).toHaveBeenCalledWith('aria2_pause', { gid: 'abc' })
     })
 
+    it('pauseTask with an HLS gid invokes hls_pause and does not invoke aria2_pause', async () => {
+      await pauseTask({ gid: HLS_GID })
+      expect(mockInvoke).toHaveBeenCalledWith('hls_pause', { gid: HLS_GID })
+      expect(mockInvoke.mock.calls.map((call) => call[0])).not.toContain('aria2_pause')
+    })
+
     it('forcePauseTask invokes aria2_force_pause', async () => {
       await forcePauseTask({ gid: 'abc' })
       expect(mockInvoke).toHaveBeenCalledWith('aria2_force_pause', { gid: 'abc' })
@@ -570,6 +666,110 @@ describe('aria2 API (invoke transport)', () => {
     it('batchRemoveTask invokes aria2_batch_force_remove with gids', async () => {
       await batchRemoveTask({ gids: ['g1'] })
       expect(mockInvoke).toHaveBeenCalledWith('aria2_batch_force_remove', { gids: ['g1'] })
+    })
+
+    it('batchPauseTask splits mixed gids and skips empty buckets', async () => {
+      await batchPauseTask({ gids: ['g1', HLS_GID, 'g2', HLS_GID_B] })
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_batch_force_pause', { gids: ['g1', 'g2'] })
+      expect(mockInvoke).toHaveBeenCalledWith('hls_pause', { gid: HLS_GID })
+      expect(mockInvoke).toHaveBeenCalledWith('hls_pause', { gid: HLS_GID_B })
+    })
+
+    it('batchPauseTask with only HLS gids does not invoke aria2_batch_force_pause', async () => {
+      await batchPauseTask({ gids: [HLS_GID] })
+      expect(mockInvoke).toHaveBeenCalledWith('hls_pause', { gid: HLS_GID })
+      expect(mockInvoke.mock.calls.map((call) => call[0])).not.toContain('aria2_batch_force_pause')
+    })
+
+    it('batchResumeTask splits mixed gids onto hls_unpause and aria2_batch_unpause', async () => {
+      await batchResumeTask({ gids: [HLS_GID, 'g1'] })
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_batch_unpause', { gids: ['g1'] })
+      expect(mockInvoke).toHaveBeenCalledWith('hls_unpause', { gid: HLS_GID })
+    })
+
+    it('batchRemoveTask removes HLS gids with deleteFiles false', async () => {
+      await batchRemoveTask({ gids: [HLS_GID, 'g1'] })
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_batch_force_remove', { gids: ['g1'] })
+      expect(mockInvoke).toHaveBeenCalledWith('hls_remove', { gid: HLS_GID, deleteFiles: false })
+    })
+  })
+
+  describe('HLS gid routing', () => {
+    beforeEach(async () => {
+      setEngineReady(true)
+      mockInvoke.mockResolvedValue('OK')
+    })
+
+    it('fetchTaskItem with an HLS gid invokes hls_tell_status', async () => {
+      mockInvoke.mockResolvedValueOnce({ gid: HLS_GID, status: 'active', files: [] })
+      const result = await fetchTaskItem({ gid: HLS_GID })
+      expect(mockInvoke).toHaveBeenCalledWith('hls_tell_status', { gid: HLS_GID })
+      expect(mockInvoke.mock.calls.map((call) => call[0])).not.toContain('aria2_fetch_task_item')
+      expect(result.gid).toBe(HLS_GID)
+    })
+
+    it('fetchTaskItemWithPeers with an HLS gid invokes hls_tell_status and not aria2', async () => {
+      mockInvoke.mockResolvedValueOnce({ gid: HLS_GID, status: 'active', files: [] })
+      const result = await fetchTaskItemWithPeers({ gid: HLS_GID })
+      expect(mockInvoke).toHaveBeenCalledWith('hls_tell_status', { gid: HLS_GID })
+      expect(mockInvoke.mock.calls.map((call) => call[0])).not.toContain('aria2_fetch_task_item_with_peers')
+      expect(result.gid).toBe(HLS_GID)
+      expect(result.peers).toEqual([])
+    })
+
+    it('getFiles with an HLS gid returns files from hls_tell_status', async () => {
+      const files = [
+        {
+          index: '1',
+          path: '/downloads/a.ts',
+          length: '100',
+          completedLength: '40',
+          selected: 'true',
+          uris: [],
+        },
+      ]
+      mockInvoke.mockResolvedValueOnce({ gid: HLS_GID, files })
+      const result = await getFiles({ gid: HLS_GID })
+      expect(mockInvoke).toHaveBeenCalledWith('hls_tell_status', { gid: HLS_GID })
+      expect(mockInvoke.mock.calls.map((call) => call[0])).not.toContain('aria2_get_files')
+      expect(result).toEqual(files)
+    })
+
+    it('getOption with an HLS gid invokes hls_get_option', async () => {
+      mockInvoke.mockResolvedValueOnce({ dir: '/dl', out: 'a.ts' })
+      const result = await getOption({ gid: HLS_GID })
+      expect(mockInvoke).toHaveBeenCalledWith('hls_get_option', { gid: HLS_GID })
+      expect(mockInvoke.mock.calls.map((call) => call[0])).not.toContain('aria2_get_option')
+      expect(result).toMatchObject({ dir: '/dl', out: 'a.ts' })
+    })
+
+    it('changeOption with an HLS gid returns without invoke', async () => {
+      await changeOption({ gid: HLS_GID, options: { dir: '/other' } })
+      expect(mockInvoke).not.toHaveBeenCalled()
+    })
+
+    it('resumeTask with an HLS gid invokes hls_unpause', async () => {
+      await resumeTask({ gid: HLS_GID })
+      expect(mockInvoke).toHaveBeenCalledWith('hls_unpause', { gid: HLS_GID })
+      expect(mockInvoke.mock.calls.map((call) => call[0])).not.toContain('aria2_unpause')
+    })
+
+    it('forcePauseTask with an HLS gid invokes hls_pause and not aria2_force_pause', async () => {
+      await forcePauseTask({ gid: HLS_GID })
+      expect(mockInvoke).toHaveBeenCalledWith('hls_pause', { gid: HLS_GID })
+      expect(mockInvoke.mock.calls.map((call) => call[0])).not.toContain('aria2_force_pause')
+    })
+
+    it('removeTask with an HLS gid invokes hls_remove without deleting files', async () => {
+      await removeTask({ gid: HLS_GID })
+      expect(mockInvoke).toHaveBeenCalledWith('hls_remove', { gid: HLS_GID, deleteFiles: false })
+      expect(mockInvoke.mock.calls.map((call) => call[0])).not.toContain('aria2_force_remove')
+    })
+
+    it('removeTaskRecord with an HLS gid returns OK without aria2 invoke', async () => {
+      const result = await removeTaskRecord({ gid: HLS_GID })
+      expect(result).toBe('OK')
+      expect(mockInvoke).not.toHaveBeenCalled()
     })
   })
 })

@@ -1,7 +1,8 @@
 /** @fileoverview Type-aware task detail summaries for the drawer UI. */
 import type { Aria2Task, Aria2File, Aria2Peer } from '@shared/types'
+import { isHlsGid } from '@shared/utils/hls'
 
-export type TaskDetailKind = 'uri' | 'bt' | 'ed2k'
+export type TaskDetailKind = 'uri' | 'bt' | 'ed2k' | 'hls'
 
 export interface UriDetailSummary {
   primaryUri: string
@@ -62,6 +63,7 @@ export function getTaskDetailStatusLabelKey(status: string | undefined): string 
 export function buildTaskDetailKind(task: Aria2Task | null | undefined): TaskDetailKind {
   if (task?.bittorrent) return 'bt'
   if (task?.ed2k) return 'ed2k'
+  if (task?.hls || (task && isHlsGid(task.gid))) return 'hls'
   return 'uri'
 }
 

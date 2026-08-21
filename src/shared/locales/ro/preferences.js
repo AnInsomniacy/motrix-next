@@ -215,6 +215,10 @@ export default {
   'aria2-conf-path': 'Configurare motor',
   'allow-remote-access': 'Permite acces la distanță',
   'temp-files-dir': 'Director fișiere temporare',
+  'ffmpeg-binary-path': 'Calea FFmpeg',
+  'ffmpeg-binary-path-tips': 'Opțional. Folosit pentru remux MPEG-TS HLS în MP4. Lăsați gol pentru a folosi ffmpeg din PATH.',
+  'ffmpeg-status-found': 'FFmpeg găsit',
+  'ffmpeg-status-missing': 'FFmpeg negăsit; listele TS vor fi salvate ca .ts',
   'factory-reset': 'Delete Config and Reset',
   'factory-reset-confirm': 'Restaurați setările din fabrică?',
   'lab-warning': '⚠️ Funcțiile laboratorului pot cauza blocări sau pierderi de date!',
@@ -309,6 +313,7 @@ export default {
   'high-connection-reason': 'Poate declanșa limitarea vitezei sau blocarea IP-ului',
   'high-bt-peers-reason': 'Prea multe noduri cresc consumul de memorie',
   'engine-section': 'Motor de descărcare Aria2 Next',
+  'ffmpeg-section': 'FFmpeg',
   'hardware-rendering': 'Accelerare hardware WebKitGTK',
   'hardware-rendering-hint':
     'Activarea poate îmbunătăți performanța de randare a interfeței, dar unele GPU-uri, drivere sau medii desktop pot cauza blocarea WebKitGTK',

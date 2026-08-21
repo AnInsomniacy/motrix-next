@@ -218,6 +218,10 @@ export default {
   'aria2-conf-path': 'Motor konfiguráció',
   'allow-remote-access': 'Távoli hozzáférés engedélyezése',
   'temp-files-dir': 'Ideiglenes fájlok mappája',
+  'ffmpeg-binary-path': 'FFmpeg elérési út',
+  'ffmpeg-binary-path-tips': 'Opcionális. MPEG-TS HLS MP4-be remuxolásához. Hagyja üresen a PATH-on lévő ffmpeg használatához.',
+  'ffmpeg-status-found': 'FFmpeg megtalálva',
+  'ffmpeg-status-missing': 'FFmpeg nem található; a TS lejátszási listák .ts fájlként lesznek mentve',
   'factory-reset': 'Delete Config and Reset',
   'factory-reset-confirm': 'Visszaállítja a gyári beállításokat?',
   'lab-warning': '⚠️ A labor funkciók összeomlást vagy adatvesztést okozhatnak!',
@@ -310,6 +314,7 @@ export default {
   'high-connection-reason': 'Sebességkorlátozást vagy IP-tiltást válthat ki',
   'high-bt-peers-reason': 'Sok csomópont növeli a memóriahasználatot',
   'engine-section': 'Aria2 Next letöltőmotor',
+  'ffmpeg-section': 'FFmpeg',
   'hardware-rendering': 'WebKitGTK hardveres gyorsítás',
   'hardware-rendering-hint':
     'Bekapcsolása javíthatja a felület renderelési teljesítményét, de egyes GPU-k, illesztőprogramok vagy asztali környezetek összeomlaszthatják a WebKitGTK-t',

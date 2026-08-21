@@ -19,6 +19,7 @@ import {
 } from '@vicons/ionicons5'
 import { useTaskCardModel } from '@/composables/useTaskCardModel'
 import { useTaskFileMissing } from '@/composables/useTaskFileMissing'
+import { hlsErrorI18nKey } from '@shared/utils/hls'
 import TaskDragHandle from './TaskDragHandle.vue'
 import TaskItemActions from './TaskItemActions.vue'
 import type { Aria2Task } from '@shared/types'
@@ -68,6 +69,12 @@ const statusColorMap: Record<string, string> = {
 
 const progressColor = computed(() => statusColorMap[taskStatus.value] || 'var(--m3-status-active)')
 const hasStatusLine = computed(() => Boolean(statusBadge.value || fileMissing.value))
+const taskErrorText = computed(() => {
+  const msg = props.task.errorMessage
+  if (!msg) return ''
+  const key = hlsErrorI18nKey(msg)
+  return key ? t(key) : msg
+})
 
 const statusBadgeStyle = computed(() => {
   switch (statusBadge.value?.tone) {
@@ -211,8 +218,8 @@ watch(isSharing, (now, was) => {
               <span>{{ task.connections }}</span>
             </span>
           </div>
-          <div class="error-message technical-text-wrap" :class="{ 'info-hidden': !task.errorMessage }">
-            {{ task.errorMessage }}
+          <div class="error-message technical-text-wrap" :class="{ 'info-hidden': !taskErrorText }">
+            {{ taskErrorText }}
           </div>
         </div>
       </div>

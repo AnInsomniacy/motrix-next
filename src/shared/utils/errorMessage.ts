@@ -10,6 +10,7 @@ const TAURI_ERROR_LABELS: Record<string, string> = {
   Protocol: 'Protocol error',
   Aria2: 'Aria2 Next error',
   Database: 'Database error',
+  Hls: 'HLS error',
 }
 
 type TauriErrorVariant = keyof typeof TAURI_ERROR_LABELS

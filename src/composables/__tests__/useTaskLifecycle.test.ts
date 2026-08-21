@@ -5,8 +5,8 @@
  * Mocks are used only for external Tauri APIs (unavoidable).
  */
 import { describe, it, expect, vi } from 'vitest'
-import type { Aria2Task, HistoryRecord } from '@shared/types'
-import { getRestartDescriptors } from '@shared/utils'
+import type { Aria2HlsInfo, Aria2Task, HistoryRecord } from '@shared/types'
+import { checkTaskIsHls, getRestartDescriptors } from '@shared/utils'
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
   exists: vi.fn().mockResolvedValue(true),
@@ -345,6 +345,19 @@ describe('shouldRunStaleCleanup', () => {
 
 // ── historyRecordToTask ─────────────────────────────────────────────
 
+function makeHlsInfo(overrides: Partial<Aria2HlsInfo> = {}): Aria2HlsInfo {
+  return {
+    playlistUrl: 'https://x/a.m3u8',
+    mediaKind: 'mpegts',
+    segmentCount: 10,
+    segmentTotal: 10,
+    encryptMethod: 'none',
+    phase: 'download',
+    outputPath: '/dl/a.ts',
+    ...overrides,
+  }
+}
+
 function makeRecord(overrides: Partial<HistoryRecord> = {}): HistoryRecord {
   return {
     gid: 'hist-001',
@@ -443,6 +456,59 @@ describe('historyRecordToTask', () => {
 
     const task2 = historyRecordToTask(makeRecord({ meta: 'NOT_JSON' }))
     expect(task2.infoHash).toBeUndefined()
+  })
+})
+
+// ── HLS history round-trip ───────────────────────────────────────────
+
+describe('HLS history round-trip', () => {
+  it('persists task_type hls and playlist URI, then restores a restartable HLS stub', () => {
+    const live = makeTask({
+      gid: 'hls-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      dir: '/dl',
+      files: [
+        {
+          index: '1',
+          path: '/dl/a.ts',
+          length: '1048576',
+          completedLength: '1048576',
+          selected: 'true',
+          uris: [{ uri: 'https://x/seg0.ts', status: 'used' }],
+        },
+      ],
+      hls: makeHlsInfo(),
+    })
+
+    const record = buildHistoryRecord(live)
+    expect(record.task_type).toBe('hls')
+    expect(record.uri).toBe('https://x/a.m3u8')
+
+    const restored = historyRecordToTask(record)
+    expect(checkTaskIsHls(restored)).toBe(true)
+    expect(restored.hls?.playlistUrl).toBe('https://x/a.m3u8')
+    expect(restored.hls?.mediaKind).toBe('mpegts')
+    expect(restored.hls?.outputPath).toBe('/dl/a.ts')
+    expect(restored.files[0].path).toBe('/dl/a.ts')
+    expect(restored.files[0].uris.map((u) => u.uri)).toContain('https://x/a.m3u8')
+  })
+
+  it('restores hls stub from hls gid even when task_type is uri', () => {
+    const restored = historyRecordToTask(
+      makeRecord({
+        gid: 'hls-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        task_type: 'uri',
+        uri: 'https://x/a.m3u8',
+        dir: '/dl',
+        name: 'a.ts',
+        meta: JSON.stringify({
+          hls: { playlistUrl: 'https://x/a.m3u8', mediaKind: 'fmp4', outputPath: '/dl/a.mp4' },
+        }),
+      }),
+    )
+    expect(checkTaskIsHls(restored)).toBe(true)
+    expect(restored.hls?.mediaKind).toBe('fmp4')
+    expect(restored.files[0].path).toBe('/dl/a.mp4')
+    expect(restored.files[0].uris.map((u) => u.uri)).toContain('https://x/a.m3u8')
   })
 })
 
@@ -835,6 +901,17 @@ describe('buildHistoryMeta', () => {
     })
 
     expect(buildHistoryMeta(task).ed2kLink).toBe(ed2kLink)
+  })
+
+  it('writes hls playlist metadata into history meta', () => {
+    const task = makeTask({
+      hls: makeHlsInfo(),
+    })
+    expect(buildHistoryMeta(task).hls).toEqual({
+      playlistUrl: 'https://x/a.m3u8',
+      mediaKind: 'mpegts',
+      outputPath: '/dl/a.ts',
+    })
   })
 })
 

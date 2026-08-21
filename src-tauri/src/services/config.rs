@@ -69,6 +69,9 @@ pub struct RuntimeConfig {
     /// Whether local control endpoints may listen on LAN interfaces.
     #[serde(default)]
     pub allow_remote_access: bool,
+    /// Optional ffmpeg binary for MPEG-TS HLS remux. Empty means search PATH.
+    #[serde(default)]
+    pub ffmpeg_binary_path: String,
 }
 
 fn default_true() -> bool {
@@ -114,6 +117,7 @@ impl Default for RuntimeConfig {
             notify_on_start: true,
             extension_api_port: default_extension_api_port(),
             allow_remote_access: false,
+            ffmpeg_binary_path: String::new(),
         }
     }
 }
@@ -172,6 +176,7 @@ mod tests {
         assert!(cfg.notify_on_complete); // default ON
         assert!(cfg.notify_on_start); // default ON
         assert!(!cfg.allow_remote_access); // default OFF
+        assert!(cfg.ffmpeg_binary_path.is_empty());
     }
 
     // ── Deserialization from AppConfig-shaped JSON ───────────────────
@@ -242,6 +247,14 @@ mod tests {
         assert!(cfg.dock_badge_speed); // default true
         assert_eq!(cfg.speed_schedule_from, "00:00");
         assert_eq!(cfg.speed_schedule_to, "06:00");
+        assert_eq!(cfg.ffmpeg_binary_path, "");
+    }
+
+    #[test]
+    fn ffmpeg_binary_path_deserializes_camel_case() {
+        let json = serde_json::json!({ "ffmpegBinaryPath": r"C:\Tools\ffmpeg.exe" });
+        let cfg: RuntimeConfig = serde_json::from_value(json).expect("deserialize");
+        assert_eq!(cfg.ffmpeg_binary_path, r"C:\Tools\ffmpeg.exe");
     }
 
     #[test]

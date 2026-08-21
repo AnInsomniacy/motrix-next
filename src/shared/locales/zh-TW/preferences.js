@@ -209,6 +209,10 @@ export default {
   'aria2-conf-path': '引擎設定檔',
   'allow-remote-access': '允許遠端存取',
   'temp-files-dir': '暫存檔案目錄',
+  'ffmpeg-binary-path': 'FFmpeg 路徑',
+  'ffmpeg-binary-path-tips': '可選。用於把 MPEG-TS HLS 轉封裝為 MP4。留空則使用 PATH 中的 ffmpeg。',
+  'ffmpeg-status-found': '已找到 FFmpeg',
+  'ffmpeg-status-missing': '未找到 FFmpeg，TS 播放清單將儲存為 .ts',
   'factory-reset': '刪除設定並重置',
   'factory-reset-confirm': '確定要還原原廠設定嗎？',
   'lab-warning': '⚠️ 實驗功能可能導致當機或資料遺失，請審慎使用！',
@@ -298,6 +302,7 @@ export default {
   'high-connection-reason': '可能觸發伺服器限速或 IP 封鎖',
   'high-bt-peers-reason': '過多節點連線會顯著增加記憶體消耗',
   'engine-section': 'Aria2 Next 下載引擎',
+  'ffmpeg-section': 'FFmpeg',
   'hardware-rendering': 'WebKitGTK 硬體加速',
   'hardware-rendering-hint': '開啟後可能提升介面渲染效能，但部分顯卡、驅動程式或桌面環境可能導致 WebKitGTK 崩潰',
   'hardware-rendering-restart-confirm':

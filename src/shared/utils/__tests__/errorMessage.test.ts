@@ -15,6 +15,7 @@ describe('getErrorMessage', () => {
     expect(getErrorMessage({ Aria2: 'aria2 RPC error [1]: Unsupported URI scheme' })).toBe(
       'Aria2 Next error [1]: Unsupported URI scheme',
     )
+    expect(getErrorMessage({ Hls: 'live-not-supported' })).toBe('HLS error: live-not-supported')
   })
 
   it('uses localized labels for Tauri AppError variants', () => {

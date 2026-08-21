@@ -49,6 +49,7 @@ const mockTaskStoreForHook = {
   addUri: vi.fn().mockResolvedValue(['gid1']),
   addMagnetUri: vi.fn().mockResolvedValue('magnet-gid'),
   addTorrent: vi.fn(),
+  addHls: vi.fn().mockResolvedValue('hls-gid'),
   registerTorrentSource: vi.fn(),
 }
 
@@ -408,6 +409,7 @@ describe('classifySubmitError', () => {
 describe('submitBatchItems', () => {
   const mockTaskStore = {
     addTorrent: vi.fn().mockResolvedValue('gid1'),
+    addHls: vi.fn().mockResolvedValue('hls-gid'),
     registerTorrentSource: vi.fn(),
   } as unknown as ReturnType<typeof import('@/stores/task').useTaskStore>
 
@@ -525,6 +527,7 @@ describe('submitManualUris', () => {
     addUriAtomic: vi.fn().mockResolvedValue('atomic-gid'),
     addMagnetUri: vi.fn().mockResolvedValue('magnet-gid'),
     addTorrent: vi.fn().mockResolvedValue('torrent-gid'),
+    addHls: vi.fn().mockResolvedValue('hls-gid'),
     registerTorrentSource: vi.fn(),
   } as unknown as ReturnType<typeof import('@/stores/task').useTaskStore>
 
@@ -727,6 +730,71 @@ describe('submitManualUris', () => {
     })
   })
 
+  it('routes HLS playlist URIs to addHls instead of addUri', async () => {
+    const result = await submitManualUris({ ...baseForm, uris: 'https://x/a.m3u8' }, { dir: '/dl' }, mockTaskStore)
+
+    expect(mockTaskStore.addUri).not.toHaveBeenCalled()
+    expect(mockTaskStore.addUriAtomic).not.toHaveBeenCalled()
+    expect(mockTaskStore.addHls).toHaveBeenCalledWith({
+      uri: 'https://x/a.m3u8',
+      options: { dir: '/dl' },
+      fileCategory: undefined,
+    })
+    expect(result.submittedTaskNames).toEqual(['a.m3u8'])
+  })
+
+  it('splits mixed HLS and HTTP URIs onto addHls and addUri', async () => {
+    await submitManualUris(
+      { ...baseForm, uris: 'https://x/a.m3u8\nhttp://example.com/file.zip' },
+      { dir: '/dl' },
+      mockTaskStore,
+    )
+
+    expect(mockTaskStore.addHls).toHaveBeenCalledTimes(1)
+    expect(mockTaskStore.addHls).toHaveBeenCalledWith({
+      uri: 'https://x/a.m3u8',
+      options: { dir: '/dl' },
+      fileCategory: undefined,
+    })
+    expect(mockTaskStore.addUri).toHaveBeenCalledTimes(1)
+    const call = (mockTaskStore.addUri as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(call.uris).toEqual(['http://example.com/file.zip'])
+  })
+
+  it('treats .m3u playlist URIs as HLS', async () => {
+    await submitManualUris({ ...baseForm, uris: 'https://x/a.m3u' }, { dir: '/dl' }, mockTaskStore)
+
+    expect(mockTaskStore.addUri).not.toHaveBeenCalled()
+    expect(mockTaskStore.addHls).toHaveBeenCalledWith({
+      uri: 'https://x/a.m3u',
+      options: { dir: '/dl' },
+      fileCategory: undefined,
+    })
+  })
+
+  it('peels HLS URIs out of an atomic mirror group', async () => {
+    await submitManualUris(
+      {
+        ...baseForm,
+        uris: 'https://x/a.m3u8\thttps://a.example/file.zip\thttps://b.example/file.zip\n  out=file.zip',
+      },
+      { dir: '/dl' },
+      mockTaskStore,
+    )
+
+    expect(mockTaskStore.addHls).toHaveBeenCalledTimes(1)
+    expect(mockTaskStore.addHls).toHaveBeenCalledWith({
+      uri: 'https://x/a.m3u8',
+      options: { dir: '/dl', out: 'file.zip' },
+      fileCategory: undefined,
+    })
+    expect(mockTaskStore.addUriAtomic).toHaveBeenCalledWith({
+      uris: ['https://a.example/file.zip', 'https://b.example/file.zip'],
+      options: { dir: '/dl', out: 'file.zip' },
+    })
+    expect(mockTaskStore.addUri).not.toHaveBeenCalled()
+  })
+
   it('does not include magnet URIs in regular addUri call (they use separate addMagnetUri path)', async () => {
     await submitManualUris(
       { ...baseForm, uris: 'http://example.com/file%20name.zip\nmagnet:?xt=urn:btih:abc123' },
@@ -834,6 +902,21 @@ describe('useAddTaskSubmit', () => {
     expect(mockMessage.error).toHaveBeenCalledWith('task.error-aria2-next [1]: Unsupported URI scheme', {
       closable: true,
     })
+  })
+
+  it('maps HLS add errors to translated short-code messages', async () => {
+    mockTaskStoreForHook.addHls.mockRejectedValueOnce({ Hls: 'live-not-supported' })
+    const onClose = vi.fn()
+
+    const { handleSubmit } = useAddTaskSubmit({
+      form: ref({ ...baseForm, uris: 'https://x/a.m3u8' }),
+      onClose,
+    })
+
+    await handleSubmit()
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(mockMessage.error).toHaveBeenCalledWith('task.hls-live-not-supported', { closable: true })
   })
 
   it('uses the resolved output filename in the start toast for extensionless URLs', async () => {

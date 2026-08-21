@@ -5,6 +5,7 @@ mod engine;
 mod error;
 mod gpu_guard;
 mod history;
+mod hls;
 mod log_policy;
 #[cfg(target_os = "macos")]
 mod menu;
@@ -506,6 +507,9 @@ fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
                 });
                 log::info!("aria2 session save attempted via managed client");
             }
+
+            crate::commands::hls::flush_hls_session(app);
+
             let _ = engine::stop_engine(app, true);
             // Stop the extension HTTP API server gracefully.
             if let Some(api_state) = app.try_state::<services::http_api::HttpApiState>() {
@@ -741,6 +745,9 @@ pub fn run() {
 
     builder
         .manage(EngineState::new())
+        .manage(std::sync::Arc::new(
+            crate::hls::engine::HlsEngineState::new(),
+        ))
         .manage(UpnpState::new())
         .manage(std::sync::Arc::new(UpdateCancelState::new()))
         .manage(std::sync::Arc::new(DownloadedUpdate::new()))
@@ -841,6 +848,14 @@ pub fn run() {
             commands::aria2_batch_unpause,
             commands::aria2_batch_force_pause,
             commands::aria2_batch_force_remove,
+            commands::hls_add,
+            commands::hls_list,
+            commands::hls_tell_status,
+            commands::hls_pause,
+            commands::hls_unpause,
+            commands::hls_remove,
+            commands::hls_get_option,
+            commands::hls_ffmpeg_status,
             commands::wait_for_engine,
             commands::system_shutdown,
             commands::cancel_shutdown,

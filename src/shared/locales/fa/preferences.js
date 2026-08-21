@@ -214,6 +214,10 @@ export default {
   'aria2-conf-path': 'پیکربندی موتور',
   'allow-remote-access': 'اجازه دسترسی از راه دور',
   'temp-files-dir': 'Temporary Files Directory',
+  'ffmpeg-binary-path': 'مسیر FFmpeg',
+  'ffmpeg-binary-path-tips': 'اختیاری. برای تبدیل ظرف MPEG-TS HLS به MP4 استفاده می‌شود. خالی بگذارید تا ffmpeg موجود در PATH استفاده شود.',
+  'ffmpeg-status-found': 'FFmpeg پیدا شد',
+  'ffmpeg-status-missing': 'FFmpeg پیدا نشد؛ فهرست‌های پخش TS به‌صورت .ts ذخیره می‌شوند',
   'factory-reset': 'Delete Config and Reset',
   'factory-reset-confirm': 'تنظیمات کارخانه بازیابی شود؟',
   'lab-warning': '⚠️ ویژگی‌های آزمایشگاه ممکن است باعث خرابی یا از دست رفتن داده شوند!',
@@ -306,6 +310,7 @@ export default {
   'high-connection-reason': 'ممکن است محدودیت سرعت یا مسدودسازی IP ایجاد کند',
   'high-bt-peers-reason': 'گره‌های زیاد حافظه بیشتری مصرف می‌کنند',
   'engine-section': 'موتور دانلود Aria2 Next',
+  'ffmpeg-section': 'FFmpeg',
   'hardware-rendering': 'شتاب‌دهی سخت‌افزاری WebKitGTK',
   'hardware-rendering-hint':
     'فعال‌سازی آن ممکن است عملکرد رندر رابط کاربری را بهتر کند، اما بعضی GPUها، درایورها یا محیط‌های دسکتاپ ممکن است باعث خرابی WebKitGTK شوند',

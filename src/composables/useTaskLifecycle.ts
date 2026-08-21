@@ -7,6 +7,7 @@ import type { Aria2Task, Aria2File, HistoryRecord, HistoryMeta, HistoryFileSnaps
 import { decodePathSegment } from '@shared/utils/batchHelpers'
 import { normalizeSep } from '@shared/utils/autoArchive'
 import { isBtMetadataTask } from '@shared/utils/task'
+import { checkTaskIsHls, isHlsGid } from '@shared/utils/hls'
 import { getAddedAt } from '@/composables/useTaskOrder'
 import { logger } from '@shared/logger'
 
@@ -32,6 +33,13 @@ export function buildHistoryMeta(task: Aria2Task): HistoryMeta {
   if (task.ed2k?.hash) meta.ed2kHash = task.ed2k.hash
   if (task.bittorrent?.announceList && task.bittorrent.announceList.length > 0) {
     meta.announceList = task.bittorrent.announceList.map((tier) => [...tier])
+  }
+  if (task.hls) {
+    meta.hls = {
+      playlistUrl: task.hls.playlistUrl,
+      mediaKind: task.hls.mediaKind,
+      outputPath: task.hls.outputPath,
+    }
   }
 
   // Snapshot trigger: multi-file OR any file with multiple mirror URIs.
@@ -59,7 +67,7 @@ export function buildHistoryMeta(task: Aria2Task): HistoryMeta {
 export function parseHistoryMeta(record: HistoryRecord): HistoryMeta {
   if (!record.meta) return {}
   try {
-    return JSON.parse(record.meta) as HistoryMeta
+    return JSON.parse(record.meta) as HistoryMeta // HistoryRecord.meta is a JSON-encoded HistoryMeta snapshot
   } catch {
     return {}
   }
@@ -90,8 +98,8 @@ export function buildHistoryRecord(task: Aria2Task): HistoryRecord {
   const pathName = firstFile?.path?.split(/[/\\]/).pop()
   const name = btName || (pathName ? decodePathSegment(pathName) : '') || 'Unknown'
 
-  const uri = firstFile?.uris?.[0]?.uri
-  const taskType = task.bittorrent ? 'bt' : task.ed2k ? 'ed2k' : 'uri'
+  const uri = task.hls?.playlistUrl || firstFile?.uris?.[0]?.uri
+  const taskType = task.bittorrent ? 'bt' : task.ed2k ? 'ed2k' : task.hls || checkTaskIsHls(task) ? 'hls' : 'uri'
 
   // Build structured meta snapshot (centralised — no inline JSON.stringify elsewhere)
   const meta = buildHistoryMeta(task)
@@ -157,19 +165,19 @@ export function historyRecordToTask(record: HistoryRecord): Aria2Task {
       length: f.length ?? '0',
       completedLength: record.status === 'complete' ? (f.length ?? '0') : '0',
       selected: f.selected ?? 'true',
-      uris: f.uris.map((uri) => ({ uri, status: 'used' as const })),
+      uris: f.uris.map((uri) => ({ uri, status: 'used' as const })), // snapshot URIs are treated as used for restart
     }))
   } else {
     // Legacy single-file fallback — path is dir + separator + name.
     // dir may end with `\\` (Windows) or `/` (Unix); avoid double separators.
     const filePath = dir && record.name ? `${dir.replace(/[\\/]+$/, '')}/${record.name}` : record.name
-    const uris = record.uri ? [{ uri: record.uri, status: 'used' as const }] : []
+    const uris = record.uri ? [{ uri: record.uri, status: 'used' as const }] : [] // single-URI records start as used
     files = [{ index: '1', path: filePath, length: totalLength, completedLength, selected: 'true', uris }]
   }
 
   const task: Aria2Task = {
     gid: record.gid,
-    status: record.status as Aria2Task['status'],
+    status: record.status as Aria2Task['status'], // HistoryRecord.status is a string; TaskStatus is the closed union
     totalLength,
     completedLength,
     uploadLength: '0',
@@ -201,12 +209,39 @@ export function historyRecordToTask(record: HistoryRecord): Aria2Task {
     }
   }
 
+  applyHlsHistoryStub(task, record, meta)
+
   // Restore infoHash from meta — essential for magnet link reconstruction
   if (meta.infoHash) {
     task.infoHash = meta.infoHash
   }
 
   return task
+}
+
+/** Restore HLS playlist metadata so history stubs stay restartable. */
+function applyHlsHistoryStub(task: Aria2Task, record: HistoryRecord, meta: HistoryMeta): void {
+  if (record.task_type !== 'hls' && !isHlsGid(record.gid)) return
+
+  const playlistUrl = meta.hls?.playlistUrl ?? record.uri ?? ''
+  task.hls = {
+    playlistUrl,
+    mediaKind: meta.hls?.mediaKind ?? 'mpegts',
+    segmentCount: 0,
+    segmentTotal: 0,
+    encryptMethod: 'none',
+    phase: 'download',
+    outputPath: meta.hls?.outputPath,
+  }
+
+  const file = task.files[0]
+  if (!file) return
+  if (meta.hls?.outputPath) {
+    file.path = meta.hls.outputPath
+  }
+  if (playlistUrl && !file.uris.some((u) => u.uri === playlistUrl)) {
+    file.uris = [{ uri: playlistUrl, status: 'used' }, ...file.uris]
+  }
 }
 
 /** Merge live aria2 tasks with persisted history records.

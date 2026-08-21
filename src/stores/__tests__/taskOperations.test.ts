@@ -69,6 +69,7 @@ function createMockApi(): TaskApi {
     fetchActiveTaskList: vi.fn().mockResolvedValue([]),
     addUri: vi.fn().mockResolvedValue([]),
     addUriAtomic: vi.fn().mockResolvedValue(''),
+    addHls: vi.fn().mockResolvedValue(''),
     addTorrent: vi.fn().mockResolvedValue(''),
     getOption: vi.fn().mockResolvedValue({}),
     changeOption: vi.fn().mockResolvedValue(undefined),

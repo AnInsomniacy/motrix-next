@@ -210,6 +210,10 @@ export default {
   'aria2-conf-path': 'ملف تهيئة المحرك',
   'allow-remote-access': 'السماح بالوصول عن بُعد',
   'temp-files-dir': 'Temporary Files Directory',
+  'ffmpeg-binary-path': 'مسار FFmpeg',
+  'ffmpeg-binary-path-tips': 'اختياري. يُستخدم لإعادة تغليف MPEG-TS HLS إلى MP4. اتركه فارغًا لاستخدام ffmpeg الموجود في PATH.',
+  'ffmpeg-status-found': 'تم العثور على FFmpeg',
+  'ffmpeg-status-missing': 'لم يتم العثور على FFmpeg؛ ستُحفظ قوائم تشغيل TS بصيغة .ts',
   'factory-reset': 'Delete Config and Reset',
   'factory-reset-confirm': 'استعادة إعدادات المصنع؟',
   'lab-warning': '⚠️ ميزات المختبر قد تسبب أعطالاً أو فقدان بيانات!',
@@ -302,6 +306,7 @@ export default {
   'high-connection-reason': 'قد يؤدي إلى تقييد السرعة أو حظر IP',
   'high-bt-peers-reason': 'كثرة العقد تزيد استهلاك الذاكرة',
   'engine-section': 'محرك التنزيل Aria2 Next',
+  'ffmpeg-section': 'FFmpeg',
   'hardware-rendering': 'تسريع WebKitGTK العتادي',
   'hardware-rendering-hint':
     'قد يؤدي تفعيله إلى تحسين أداء عرض الواجهة، لكن بعض البطاقات أو التعريفات أو بيئات سطح المكتب قد تسبب تعطل WebKitGTK',

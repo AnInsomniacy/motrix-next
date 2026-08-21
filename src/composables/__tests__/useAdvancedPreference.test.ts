@@ -108,6 +108,11 @@ describe('buildAdvancedForm', () => {
     const { form } = buildAdvancedForm(config)
     expect(form.enableUpnp).toBe(false)
   })
+
+  it('defaults ffmpegBinaryPath to empty string', () => {
+    const { form } = buildAdvancedForm(emptyConfig)
+    expect(form.ffmpegBinaryPath).toBe('')
+  })
 })
 
 // ── buildAdvancedSystemConfig ───────────────────────────────────────
@@ -122,6 +127,7 @@ describe('buildAdvancedSystemConfig', () => {
     logLevel: 'warn',
     aria2LogLevel: 'info',
     tempFilesDir: '',
+    ffmpegBinaryPath: '',
     hardwareRendering: false,
     extensionApiPort: 29110,
     extensionApiSecret: 'test-api-secret',
@@ -210,6 +216,7 @@ describe('transformAdvancedForStore', () => {
       logLevel: 'warn',
       aria2LogLevel: 'info',
       tempFilesDir: '',
+      ffmpegBinaryPath: '',
       hardwareRendering: false,
       extensionApiPort: 29110,
       extensionApiSecret: 'test-api-secret',
@@ -348,6 +355,7 @@ describe('validateAdvancedForm', () => {
     logLevel: 'warn',
     aria2LogLevel: 'info',
     tempFilesDir: '',
+    ffmpegBinaryPath: '',
     hardwareRendering: false,
     extensionApiPort: 29110,
     extensionApiSecret: 'test-api-secret',
@@ -500,6 +508,7 @@ describe('proxy configuration invariants', () => {
       logLevel: 'debug',
       aria2LogLevel: 'info',
       tempFilesDir: '',
+      ffmpegBinaryPath: '',
       hardwareRendering: false,
       extensionApiPort: 29110,
       extensionApiSecret: 'test-api-secret',
@@ -540,6 +549,7 @@ describe('proxy configuration invariants', () => {
       logLevel: 'debug',
       aria2LogLevel: 'info',
       tempFilesDir: '',
+      ffmpegBinaryPath: '',
       hardwareRendering: false,
       extensionApiPort: 29110,
       extensionApiSecret: 'test-api-secret',
@@ -579,6 +589,7 @@ describe('proxy configuration invariants', () => {
       logLevel: 'debug',
       aria2LogLevel: 'info',
       tempFilesDir: '',
+      ffmpegBinaryPath: '',
       hardwareRendering: false,
       extensionApiPort: 29110,
       extensionApiSecret: 'test-api-secret',
@@ -637,6 +648,7 @@ describe('transformAdvancedForStore — hardwareRendering', () => {
       logLevel: 'warn',
       aria2LogLevel: 'info',
       tempFilesDir: '',
+      ffmpegBinaryPath: '',
       hardwareRendering: true,
       extensionApiPort: 29110,
       extensionApiSecret: 'test-api-secret',

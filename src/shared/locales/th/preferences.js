@@ -209,6 +209,10 @@ export default {
   'aria2-conf-path': 'การตั้งค่าเอนจิน',
   'allow-remote-access': 'อนุญาตการเข้าถึงระยะไกล',
   'temp-files-dir': 'ไดเรกทอรีไฟล์ชั่วคราว',
+  'ffmpeg-binary-path': 'เส้นทาง FFmpeg',
+  'ffmpeg-binary-path-tips': 'ไม่บังคับ ใช้สำหรับรีมักซ์ MPEG-TS HLS เป็น MP4 เว้นว่างเพื่อใช้ ffmpeg ใน PATH',
+  'ffmpeg-status-found': 'พบ FFmpeg',
+  'ffmpeg-status-missing': 'ไม่พบ FFmpeg; เพลย์ลิสต์ TS จะถูกบันทึกเป็น .ts',
   'factory-reset': 'Delete Config and Reset',
   'factory-reset-confirm': 'คืนค่าเป็นค่าเริ่มต้นจากโรงงาน?',
   'lab-warning': '⚠️ ฟีเจอร์ห้องทดลองอาจทำให้แอปพังหรือข้อมูลสูญหาย!',
@@ -301,6 +305,7 @@ export default {
   'high-connection-reason': 'อาจทำให้เซิร์ฟเวอร์จำกัดความเร็วหรือบล็อก IP',
   'high-bt-peers-reason': 'โหนดมากเกินเพิ่มการใช้หน่วยความจำ',
   'engine-section': 'เอนจินดาวน์โหลด Aria2 Next',
+  'ffmpeg-section': 'FFmpeg',
   'hardware-rendering': 'การเร่งความเร็วฮาร์ดแวร์ WebKitGTK',
   'hardware-rendering-hint':
     'การเปิดใช้งานอาจช่วยเพิ่มประสิทธิภาพการเรนเดอร์ UI แต่ GPU ไดรเวอร์ หรือเดสก์ท็อปบางแบบอาจทำให้ WebKitGTK แครช',

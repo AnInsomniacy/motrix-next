@@ -168,7 +168,7 @@ pub async fn aria2_get_files(
 ///      - Truncates to 255 bytes (filesystem limit)
 ///
 /// Returns `None` for values that reduce to empty after sanitization.
-fn sanitize_out_option(raw: &str) -> Option<String> {
+pub(crate) fn sanitize_out_option(raw: &str) -> Option<String> {
     if raw.is_empty() {
         return None;
     }

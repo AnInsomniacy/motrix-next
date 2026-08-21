@@ -18,7 +18,13 @@ import { setArchivedPath, resolveTaskFilePath, requestFileRecheck } from '@/comp
 import { handleTaskComplete, handleSharingComplete, handleTaskError } from '@/composables/useTaskNotifyHandlers'
 import { shouldDeleteTorrent, trashTorrentFile } from '@/composables/useDownloadCleanup'
 import { cleanupAria2ControlFiles } from '@/composables/useFileDelete'
-import { getTaskDisplayName, resolveOpenTarget, checkTaskIsSharing, getTaskSharingKind } from '@shared/utils'
+import {
+  getTaskDisplayName,
+  resolveOpenTarget,
+  checkTaskIsSharing,
+  getTaskSharingKind,
+  hlsErrorI18nKey,
+} from '@shared/utils'
 import type { TaskSharingKind } from '@shared/utils/task'
 import type { Aria2Task } from '@shared/types'
 import { ARIA2_ERROR_CODES } from '@shared/aria2ErrorCodes'
@@ -703,7 +709,8 @@ onMounted(async () => {
     const record = buildHistoryRecord(task)
     historyStore.addRecord(record).catch((e) => logger.debug('Lifecycle.historyRecord.error', e))
     const i18nKey = task.errorCode ? ARIA2_ERROR_CODES[task.errorCode] : undefined
-    const errorText = i18nKey ? t(i18nKey) : task.errorMessage || t('task.error-unknown')
+    const hlsKey = task.errorMessage ? hlsErrorI18nKey(task.errorMessage) : undefined
+    const errorText = i18nKey ? t(i18nKey) : hlsKey ? t(hlsKey) : task.errorMessage || t('task.error-unknown')
     handleTaskError(task, errorText, {
       messageSuccess: message.success,
       messageError: message.error,

@@ -495,9 +495,11 @@ mod tests {
             ed2k_link: None,
             is_bt: false,
             is_ed2k: false,
+            is_hls: false,
             sharing_kind: None,
             files: Vec::new(),
             announce_list: Vec::new(),
+            hls: None,
         }
     }
 

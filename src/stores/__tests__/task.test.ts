@@ -68,6 +68,7 @@ function createMockApi() {
     fetchActiveTaskList: vi.fn().mockResolvedValue([]),
     addUri: vi.fn().mockResolvedValue(['gid3']),
     addUriAtomic: vi.fn().mockResolvedValue('gid3'),
+    addHls: vi.fn().mockResolvedValue('hls-gid'),
     addTorrent: vi.fn().mockResolvedValue('gid4'),
     getOption: vi.fn().mockResolvedValue({}),
     changeOption: vi.fn().mockResolvedValue(undefined),
@@ -514,6 +515,14 @@ describe('TaskStore', () => {
     const gid = await store.addTorrent({ torrent: 'base64data', options: {} })
     expect(mockApi.addTorrent).toHaveBeenCalledWith({ torrent: 'base64data', options: {} })
     expect(gid).toBe('gid4')
+    expect(mockApi.fetchTaskList).toHaveBeenCalled()
+  })
+
+  it('addHls calls API, records birth, refreshes, and returns gid', async () => {
+    const gid = await store.addHls({ uri: 'https://x/a.m3u8', options: { dir: '/dl' } })
+    expect(mockApi.addHls).toHaveBeenCalledWith({ uri: 'https://x/a.m3u8', options: { dir: '/dl' } })
+    expect(gid).toBe('hls-gid')
+    expect(mockHistoryFns.recordTaskBirth).toHaveBeenCalledWith('hls-gid', expect.any(String))
     expect(mockApi.fetchTaskList).toHaveBeenCalled()
   })
 
