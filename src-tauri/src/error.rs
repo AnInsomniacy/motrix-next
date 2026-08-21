@@ -36,6 +36,9 @@ pub enum AppError {
     /// Database read/write error (rusqlite).
     #[error("Database error: {0}")]
     Database(String),
+    /// HLS VOD engine error (playlist, download, merge, remux).
+    #[error("HLS error: {0}")]
+    Hls(String),
 }
 
 impl From<std::io::Error> for AppError {
@@ -110,6 +113,12 @@ mod tests {
         assert_eq!(e.to_string(), "Protocol error: unsupported platform");
     }
 
+    #[test]
+    fn display_hls_error() {
+        let e = AppError::Hls("bad playlist".into());
+        assert_eq!(e.to_string(), "HLS error: bad playlist");
+    }
+
     // ── From conversions ────────────────────────────────────────────
 
     #[test]
@@ -155,6 +164,7 @@ mod tests {
             ("Protocol", AppError::Protocol("r".into())),
             ("Aria2", AppError::Aria2("a".into())),
             ("Database", AppError::Database("d".into())),
+            ("Hls", AppError::Hls("h".into())),
         ];
         for (tag, err) in cases {
             let json = serde_json::to_string(&err).expect("serialize");

@@ -4,7 +4,7 @@ import { reactive, ref, watch } from 'vue'
 import { EMPTY_STRING } from '@shared/constants'
 import { checkTaskIsEd2kSearch } from '@shared/utils'
 import { logger } from '@shared/logger'
-import type { Aria2Task, Aria2File, Aria2Peer, Aria2EngineOptions, TaskApi } from '@shared/types'
+import type { AddHlsParams, Aria2Task, Aria2File, Aria2Peer, Aria2EngineOptions, TaskApi } from '@shared/types'
 
 import { historyRecordToTask, mergeHistoryIntoTasks, isMetadataTask } from '@/composables/useTaskLifecycle'
 import { buildMetadataOnlyOptions, shouldShowFileSelection } from '@/composables/useMagnetFlow'
@@ -478,6 +478,16 @@ export const useTaskStore = defineStore('task', () => {
     return gid
   }
 
+  async function addHls(data: AddHlsParams) {
+    const gid = await api.addHls(data)
+    const now = new Date().toISOString()
+    registerAddedAt(gid, now)
+    const historyStore = useHistoryStore()
+    historyStore.recordTaskBirth(gid, now).catch((e) => logger.debug('taskBirth.write', e))
+    await fetchList()
+    return gid
+  }
+
   async function getTaskOption(gid: string) {
     return api.getOption({ gid })
   }
@@ -537,6 +547,7 @@ export const useTaskStore = defineStore('task', () => {
     updateCurrentTaskItem,
     addUri,
     addUriAtomic,
+    addHls,
     addTorrent,
     addMagnetUri,
     getFiles,

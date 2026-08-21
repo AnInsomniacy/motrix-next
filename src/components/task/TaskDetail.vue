@@ -6,12 +6,14 @@ import { logger } from '@shared/logger'
 import { writeAppClipboardText } from '@shared/utils'
 import {
   checkTaskIsBT,
+  checkTaskIsHls,
   checkTaskIsSharing,
   getTaskSharingKind,
   getTaskDisplayName,
   bytesToSize,
   localeDateTimeFormat,
   isBtMetadataTask,
+  hlsErrorI18nKey,
 } from '@shared/utils'
 import {
   NDrawer,
@@ -180,7 +182,9 @@ const allTabs: TabDef[] = [
 const visibleTabs = computed(() =>
   allTabs.filter(
     (tab) =>
-      (!tab.btOnly || isBT.value) && (!tab.protocolOnly || isBT.value || isED2K.value) && (!tab.uriOnly || isURI.value),
+      (!tab.btOnly || isBT.value) &&
+      (!tab.protocolOnly || isBT.value || isED2K.value || isHls.value) &&
+      (!tab.uriOnly || isURI.value),
   ),
 )
 
@@ -194,6 +198,7 @@ function switchTab(key: string) {
 
 const isBT = computed(() => (props.task ? checkTaskIsBT(props.task) : false))
 const isED2K = computed(() => !!props.task?.ed2k)
+const isHls = computed(() => (props.task ? checkTaskIsHls(props.task) : false))
 const detailKind = computed(() => buildTaskDetailKind(props.task))
 const isURI = computed(() => detailKind.value === 'uri')
 const uriSummary = computed(() => buildUriDetailSummary(props.task))
@@ -275,6 +280,26 @@ const btInfo = computed(() => {
 const ed2kInfo = computed(() => {
   if (!isED2K.value || !props.task) return null
   return props.task.ed2k
+})
+
+const hlsInfo = computed(() => (isHls.value ? (props.task?.hls ?? null) : null))
+
+const hasTaskError = computed(() => {
+  const task = props.task
+  if (!task) return false
+  const hasCode = Boolean(task.errorCode && task.errorCode !== '0')
+  return hasCode || Boolean(task.errorMessage)
+})
+
+const taskErrorText = computed(() => {
+  const task = props.task
+  if (!task) return ''
+  const mappedKey = task.errorMessage ? hlsErrorI18nKey(task.errorMessage) : undefined
+  const mapped = mappedKey ? t(mappedKey) : (task.errorMessage ?? '')
+  if (task.errorCode && task.errorCode !== '0') {
+    return `${task.errorCode} ${mapped}`.trim()
+  }
+  return mapped
 })
 
 function yesNo(value?: boolean | string): string {
@@ -360,11 +385,8 @@ function handleClose() {
                 <NDescriptionsItem :label="t('task.task-type') || 'Type'">
                   {{ t(`task.task-type-${detailKind}`) }}
                 </NDescriptionsItem>
-                <NDescriptionsItem
-                  v-if="task.errorCode && task.errorCode !== '0'"
-                  :label="t('task.task-error-info') || 'Error'"
-                >
-                  {{ task.errorCode }} {{ task.errorMessage }}
+                <NDescriptionsItem v-if="hasTaskError" :label="t('task.task-error-info') || 'Error'">
+                  {{ taskErrorText }}
                 </NDescriptionsItem>
                 <NDescriptionsItem v-if="taskAddedAt" :label="t('task.task-added-at') || 'Added At'">
                   {{ taskAddedAt }}
@@ -373,7 +395,7 @@ function handleClose() {
                   {{ taskCompletedAt }}
                 </NDescriptionsItem>
               </NDescriptions>
-              <template v-if="isBT && btInfo">
+              <template v-if="isBT && btInfo && !isHls">
                 <div class="section-divider">BitTorrent</div>
                 <NDescriptions
                   :column="1"
@@ -402,7 +424,7 @@ function handleClose() {
                   </NDescriptionsItem>
                 </NDescriptions>
               </template>
-              <template v-if="isED2K && ed2kInfo">
+              <template v-if="isED2K && ed2kInfo && !isHls">
                 <div class="section-divider">ED2K</div>
                 <NDescriptions
                   :column="1"
@@ -423,7 +445,7 @@ function handleClose() {
             <TaskDetailActivity :task="task" :transfer-summary="transferSummary" />
           </div>
 
-          <div v-else-if="activeTab === 'status' && isBT" key="bt-status" class="tab-content">
+          <div v-else-if="activeTab === 'status' && isBT && !isHls" key="bt-status" class="tab-content">
             <template v-if="task && isBT">
               <NDescriptions
                 :column="1"
@@ -598,7 +620,7 @@ function handleClose() {
             </NForm>
           </div>
 
-          <div v-else-if="activeTab === 'status' && isED2K" key="ed2k-status" class="tab-content">
+          <div v-else-if="activeTab === 'status' && isED2K && !isHls" key="ed2k-status" class="tab-content">
             <template v-if="ed2kInfo">
               <NDescriptions
                 :column="1"
@@ -672,6 +694,37 @@ function handleClose() {
                 </NDescriptionsItem>
                 <NDescriptionsItem :label="t('task.task-ed2k-peer-credit-count')">
                   {{ ed2kInfo.peerCreditCount || 0 }}
+                </NDescriptionsItem>
+              </NDescriptions>
+            </template>
+          </div>
+
+          <div v-else-if="activeTab === 'status' && isHls" key="hls-status" class="tab-content">
+            <template v-if="hlsInfo">
+              <NDescriptions
+                :column="1"
+                label-placement="left"
+                bordered
+                size="small"
+                :label-style="{ width: '1px', whiteSpace: 'nowrap' }"
+              >
+                <NDescriptionsItem :label="t('task.task-hls-info')">
+                  {{ hlsInfo.mediaKind }}
+                </NDescriptionsItem>
+                <NDescriptionsItem :label="t('task.task-hls-segments')">
+                  {{ hlsInfo.segmentCount }} / {{ hlsInfo.segmentTotal }}
+                </NDescriptionsItem>
+                <NDescriptionsItem :label="t('task.task-hls-phase')">
+                  {{ hlsInfo.phase }}
+                </NDescriptionsItem>
+                <NDescriptionsItem :label="t('task.task-hls-encrypt')">
+                  {{ hlsInfo.encryptMethod }}
+                </NDescriptionsItem>
+                <NDescriptionsItem :label="t('task.task-primary-uri')">
+                  <CopyableValue :value="hlsInfo.playlistUrl" :label="t('task.task-primary-uri')" />
+                </NDescriptionsItem>
+                <NDescriptionsItem v-if="hlsInfo.fallbackTsPath" :label="t('task.hls-remux-fallback-ts')">
+                  <CopyableValue :value="hlsInfo.fallbackTsPath" :label="t('task.hls-remux-fallback-ts')" />
                 </NDescriptionsItem>
               </NDescriptions>
             </template>

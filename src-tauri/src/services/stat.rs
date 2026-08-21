@@ -74,6 +74,41 @@ fn tray_title_needs_update(last_title: &Option<String>, next_title: &str) -> boo
     last_title.as_deref() != Some(next_title)
 }
 
+/// Combine aria2 global counters with in-process HLS jobs.
+///
+/// Aria2 speed is zeroed when aria2 itself has no active tasks (stale window).
+/// HLS active speed is then added. Combined `num_active` is what keep-awake
+/// and the tray poll interval use, so HLS-only downloads still count.
+fn merge_hls_into_stat(
+    download_speed_raw: u64,
+    num_active: u64,
+    num_waiting: u64,
+    jobs: &[crate::hls::types::HlsJob],
+) -> (u64, u64, u64) {
+    let mut hls_speed = 0u64;
+    let mut hls_active = 0u64;
+    let mut hls_waiting = 0u64;
+    for job in jobs {
+        match job.status.as_str() {
+            "active" => {
+                hls_active = hls_active.saturating_add(1);
+                hls_speed = hls_speed.saturating_add(job.download_speed);
+            }
+            "waiting" => hls_waiting = hls_waiting.saturating_add(1),
+            _ => {}
+        }
+    }
+    let aria2_speed = if num_active > 0 {
+        download_speed_raw
+    } else {
+        0
+    };
+    let num_active = num_active.saturating_add(hls_active);
+    let num_waiting = num_waiting.saturating_add(hls_waiting);
+    let download_speed = aria2_speed.saturating_add(hls_speed);
+    (download_speed, num_active, num_waiting)
+}
+
 #[cfg(any(target_os = "macos", target_os = "windows", test))]
 fn parse_length(value: Option<&str>) -> u64 {
     value.and_then(|v| v.parse::<u64>().ok()).unwrap_or(0)
@@ -428,20 +463,23 @@ async fn stat_loop(
         // Parse string values to u64
         let download_speed_raw = stat.download_speed.parse::<u64>().unwrap_or(0);
         let upload_speed = stat.upload_speed.parse::<u64>().unwrap_or(0);
-        let num_active = stat.num_active.parse::<u64>().unwrap_or(0);
-        let num_waiting = stat.num_waiting.parse::<u64>().unwrap_or(0);
+        let aria2_num_active = stat.num_active.parse::<u64>().unwrap_or(0);
+        let aria2_num_waiting = stat.num_waiting.parse::<u64>().unwrap_or(0);
         let num_stopped = stat.num_stopped.parse::<u64>().unwrap_or(0);
         let num_stopped_total = stat.num_stopped_total.parse::<u64>().unwrap_or(0);
 
-        // aria2 uses a 10-second sliding window for speed calculation
-        // (SpeedCalc::WINDOW_TIME = 10s). After pausing, stale bytes in the
-        // window cause getGlobalStat to report non-zero speed for up to 10s.
-        // Normalize to 0 when no tasks are actively downloading.
-        let download_speed = if num_active > 0 {
-            download_speed_raw
-        } else {
-            0
+        let hls_jobs = match app.try_state::<Arc<crate::hls::engine::HlsEngineState>>() {
+            Some(state) => state.snapshot_jobs().await,
+            None => Vec::new(),
         };
+        // Combined active (aria2 + HLS) must be used so HLS-only downloads
+        // still show speed and keep the machine awake.
+        let (download_speed, num_active, num_waiting) = merge_hls_into_stat(
+            download_speed_raw,
+            aria2_num_active,
+            aria2_num_waiting,
+            &hls_jobs,
+        );
 
         // Adaptive interval
         if num_active > 0 {
@@ -797,5 +835,40 @@ mod tests {
     fn power_guard_builder_compiles() {
         let _: fn() -> Result<crate::services::power::PowerGuard, crate::error::AppError> =
             crate::services::power::PowerGuard::acquire_download;
+    }
+
+    fn hls_job(status: &str, download_speed: u64) -> crate::hls::types::HlsJob {
+        crate::hls::types::HlsJob {
+            status: status.into(),
+            download_speed,
+            ..crate::hls::types::HlsJob::default()
+        }
+    }
+
+    #[test]
+    fn merge_hls_into_stat_keeps_speed_when_only_hls_is_active() {
+        let jobs = [hls_job("active", 1200), hls_job("waiting", 0)];
+        let (speed, active, waiting) = merge_hls_into_stat(500, 0, 0, &jobs);
+        assert_eq!(speed, 1200);
+        assert_eq!(active, 1);
+        assert_eq!(waiting, 1);
+    }
+
+    #[test]
+    fn merge_hls_into_stat_zeros_stale_aria2_speed_when_nothing_is_active() {
+        let jobs = [hls_job("paused", 800), hls_job("complete", 0)];
+        let (speed, active, waiting) = merge_hls_into_stat(500, 0, 0, &jobs);
+        assert_eq!(speed, 0);
+        assert_eq!(active, 0);
+        assert_eq!(waiting, 0);
+    }
+
+    #[test]
+    fn merge_hls_into_stat_adds_hls_counts_to_aria2() {
+        let jobs = [hls_job("active", 50), hls_job("waiting", 0)];
+        let (speed, active, waiting) = merge_hls_into_stat(100, 2, 1, &jobs);
+        assert_eq!(speed, 150);
+        assert_eq!(active, 3);
+        assert_eq!(waiting, 2);
     }
 }

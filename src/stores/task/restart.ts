@@ -6,7 +6,7 @@
  * making it independently testable without Pinia or Vue reactivity.
  */
 import { TASK_STATUS } from '@shared/constants'
-import { checkTaskIsBT, getRestartDescriptors } from '@shared/utils'
+import { checkTaskIsBT, checkTaskIsHls, getRestartDescriptors } from '@shared/utils'
 import { shouldShowFileSelection } from '@/composables/useMagnetFlow'
 import { logger } from '@shared/logger'
 import type { Aria2Task } from '@shared/types'
@@ -14,6 +14,7 @@ import type { Aria2Task } from '@shared/types'
 /** Minimal API surface needed by restartTask. */
 export interface RestartTaskApi {
   addUriAtomic: (params: { uris: string[]; options: Record<string, string> }) => Promise<string>
+  addHls: (params: { uri: string; options: Record<string, string> }) => Promise<string>
   getOption: (params: { gid: string }) => Promise<Record<string, string>>
   removeTask: (params: { gid: string }) => Promise<string>
   removeTaskRecord: (params: { gid: string }) => Promise<string>
@@ -33,6 +34,7 @@ const NON_PORTABLE_KEYS = new Set(['pauseMetadata', 'gid'])
  * Restarts a stopped/errored/completed task by re-submitting its URI(s).
  *
  * - For BT tasks: rebuilds the magnet link → single addUri call.
+ * - For HLS tasks: re-submits the playlist URL via addHls (never addUriAtomic).
  * - For multi-file HTTP/FTP tasks: submits each file URI separately.
  * - Uses rollback on partial failure: if any URI fails, all previously
  *   created downloads are removed so no orphan tasks remain.
@@ -43,8 +45,10 @@ export async function restartTask(task: Aria2Task, api: RestartTaskApi, historyA
   const { ERROR, COMPLETE, REMOVED } = TASK_STATUS
   if (status !== ERROR && status !== COMPLETE && status !== REMOVED) return
 
-  const descriptors = getRestartDescriptors(task, true) // include trackers for BT
-  if (descriptors.length === 0) {
+  const isHls = checkTaskIsHls(task)
+  const hlsUri = isHls ? task.hls?.playlistUrl || task.files[0]?.uris[0]?.uri || '' : ''
+  const descriptors = isHls ? [] : getRestartDescriptors(task, true) // include trackers for BT
+  if (!hlsUri && descriptors.length === 0) {
     throw new Error('Cannot restart: no download URIs found for this task')
   }
 
@@ -72,18 +76,23 @@ export async function restartTask(task: Aria2Task, api: RestartTaskApi, historyA
   }
   const createdGids: string[] = []
   try {
-    for (const mirrorGroup of descriptors) {
-      const newGid = await api.addUriAtomic({ uris: mirrorGroup, options })
+    if (isHls) {
+      const newGid = await api.addHls({ uri: hlsUri, options })
       createdGids.push(newGid)
-      // BT restarts produce magnet URIs — register with the metadata poller
-      // only when pause-metadata is enabled (file selection mode).
-      if (isBT) {
-        const { usePreferenceStore } = await import('@/stores/preference')
-        const preferenceStore = usePreferenceStore()
-        if (shouldShowFileSelection(preferenceStore.config)) {
-          const { useAppStore } = await import('@/stores/app')
-          const appStore = useAppStore()
-          appStore.pendingMagnetGids = [...appStore.pendingMagnetGids, newGid]
+    } else {
+      for (const mirrorGroup of descriptors) {
+        const newGid = await api.addUriAtomic({ uris: mirrorGroup, options })
+        createdGids.push(newGid)
+        // BT restarts produce magnet URIs — register with the metadata poller
+        // only when pause-metadata is enabled (file selection mode).
+        if (isBT) {
+          const { usePreferenceStore } = await import('@/stores/preference')
+          const preferenceStore = usePreferenceStore()
+          if (shouldShowFileSelection(preferenceStore.config)) {
+            const { useAppStore } = await import('@/stores/app')
+            const appStore = useAppStore()
+            appStore.pendingMagnetGids = [...appStore.pendingMagnetGids, newGid]
+          }
         }
       }
     }
