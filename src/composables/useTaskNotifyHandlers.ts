@@ -5,15 +5,16 @@
  *
  * **Notification architecture:**
  * - In-app toast (Naive UI message) — always fires for immediate feedback.
- * - OS-level completion/error notification is sent by Rust's task monitor so
- *   lightweight mode works after the WebView is destroyed.
+ * - OS-level start, completion and error notifications are all sent from Rust,
+ *   driven by Aria2 Next lifecycle events. They therefore fire in lightweight
+ *   mode after the WebView is destroyed, and for tasks added outside the app
+ *   such as from a browser extension, which never reach these handlers.
  *
  * Completion toasts render inline action buttons so the user can open
  * the downloaded file or reveal it in the system file manager directly
  * from the notification — without navigating through the task list.
  */
 import type { VNodeChild } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import type { Aria2Task } from '@shared/types'
 import { getTaskDisplayName } from '@shared/utils'
 import type { TaskSharingKind } from '@shared/utils/task'
@@ -104,8 +105,9 @@ export interface StartNotifyDeps {
  * For single tasks:  "Downloading: movie.mp4"
  * For batch tasks:   "Downloading: movie.mp4 and 2 other task(s)"
  *
- * Toast always fires; OS notification is delegated to Rust so lightweight mode
- * uses the same backend-owned native path as completion/error notifications.
+ * Shows the in-app toast only. The OS notification is sent from Rust when
+ * Aria2 Next reports the download starting, so it fires no matter how the task
+ * was added.
  */
 export function handleTaskStart(taskNames: string[], deps: StartNotifyDeps): void {
   if (taskNames.length === 0) return
@@ -120,9 +122,6 @@ export function handleTaskStart(taskNames: string[], deps: StartNotifyDeps): voi
         })
 
   deps.messageInfo(body)
-  Promise.resolve(invoke('send_task_start_notification', { taskNames })).catch((error) =>
-    logger.debug('TaskNotify.start', `native notification failed: ${error}`),
-  )
   logger.info('TaskNotify.start', 'download_notification_started', {
     count: taskNames.length,
     first: /^(?:https?|sftp|magnet|ed2k|thunder):/i.test(firstName) ? summarizeExternalInput(firstName) : firstName,

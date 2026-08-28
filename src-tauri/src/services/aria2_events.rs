@@ -26,6 +26,7 @@ pub struct DownloadPauseEvent {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NativeEventKind {
+    DownloadStart,
     DownloadPause,
     DownloadComplete,
     DownloadError,
@@ -35,6 +36,7 @@ enum NativeEventKind {
 impl NativeEventKind {
     fn from_method(method: &str) -> Option<Self> {
         match method {
+            "aria2.onDownloadStart" => Some(Self::DownloadStart),
             "aria2.onDownloadPause" => Some(Self::DownloadPause),
             "aria2.onDownloadComplete" => Some(Self::DownloadComplete),
             "aria2.onDownloadError" => Some(Self::DownloadError),
@@ -45,6 +47,7 @@ impl NativeEventKind {
 
     fn lifecycle_event(self) -> Option<&'static str> {
         match self {
+            Self::DownloadStart => Some(events::TASK_START),
             Self::DownloadPause => None,
             Self::DownloadComplete => Some(events::TASK_COMPLETE),
             Self::DownloadError => Some(events::TASK_ERROR),
@@ -200,6 +203,13 @@ async fn handle_native_event(
     }
 
     let task = aria2.tell_status(&event.gid).await?;
+
+    // A start is not a terminal event: it is announced but never persisted,
+    // so it takes its own path rather than the history-writing one.
+    if event.kind == NativeEventKind::DownloadStart {
+        return monitor::process_download_start(app, &task).await;
+    }
+
     let Some(event_name) = event.kind.lifecycle_event() else {
         return Ok(());
     };
@@ -282,6 +292,7 @@ mod tests {
     #[test]
     fn parses_native_lifecycle_events() {
         let cases = [
+            ("aria2.onDownloadStart", NativeEventKind::DownloadStart),
             ("aria2.onDownloadPause", NativeEventKind::DownloadPause),
             (
                 "aria2.onDownloadComplete",
@@ -311,7 +322,7 @@ mod tests {
     fn ignores_non_lifecycle_messages() {
         assert_eq!(
             native_event_from_text(
-                r#"{"jsonrpc":"2.0","method":"aria2.onDownloadStart","params":[{"gid":"abc123"}]}"#
+                r#"{"jsonrpc":"2.0","method":"aria2.onDownloadStop","params":[{"gid":"abc123"}]}"#
             ),
             None
         );
@@ -321,5 +332,26 @@ mod tests {
             ),
             None
         );
+    }
+
+    #[test]
+    fn download_start_maps_to_the_start_lifecycle_event() {
+        assert_eq!(
+            NativeEventKind::DownloadStart.lifecycle_event(),
+            Some(events::TASK_START)
+        );
+    }
+
+    #[test]
+    fn download_start_is_not_a_terminal_event() {
+        // Terminal events are persisted to history. A start must not be, so it
+        // has to stay distinguishable from them at the routing point.
+        for kind in [
+            NativeEventKind::DownloadComplete,
+            NativeEventKind::DownloadError,
+            NativeEventKind::BtDownloadComplete,
+        ] {
+            assert_ne!(kind, NativeEventKind::DownloadStart);
+        }
     }
 }

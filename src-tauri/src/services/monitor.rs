@@ -35,6 +35,7 @@ pub mod events {
     pub const TASK_ERROR: &str = "task-monitor:error";
     pub const TASK_COMPLETE: &str = "task-monitor:complete";
     pub const P2P_DOWNLOAD_COMPLETE: &str = "task-monitor:p2p-download-complete";
+    pub const TASK_START: &str = "task-monitor:start";
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -380,6 +381,40 @@ async fn persist_lifecycle_event(
         db.record_task_birth(&record.gid, added_at).await?;
     }
     db.add_record(&record).await
+}
+
+/// Announces a download that has just entered the active state.
+///
+/// Separate from `process_lifecycle_task` on purpose. A start is
+/// notification only: the task has not finished, so it must not be written
+/// to the history database, and there is no completion generation to bump.
+pub async fn process_download_start(
+    app: &tauri::AppHandle,
+    task: &Aria2Task,
+) -> Result<(), AppError> {
+    if is_metadata_task(task) {
+        return Ok(());
+    }
+
+    let payload = TaskEvent::from_aria2(task);
+    let runtime_config = match app.try_state::<super::config::RuntimeConfigState>() {
+        Some(state) => state.snapshot().await,
+        None => {
+            log::warn!("notification:runtime-config-unavailable fallback=defaults");
+            super::config::RuntimeConfig::default()
+        }
+    };
+    let webview_alive = app.get_webview_window("main").is_some();
+    log::info!(
+        target: "task_lifecycle",
+        event = events::TASK_START,
+        gid = payload.gid.as_str(),
+        task_name:% = payload.name,
+        webview_alive;
+        "task_lifecycle_event"
+    );
+    send_task_notification(app, events::TASK_START, &payload, &runtime_config);
+    Ok(())
 }
 
 pub async fn process_lifecycle_task(

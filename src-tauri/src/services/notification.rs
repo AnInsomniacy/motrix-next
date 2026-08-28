@@ -167,6 +167,7 @@ fn kind_for_event(event_name: &str) -> Option<TaskNotificationKind> {
         events::TASK_COMPLETE => Some(TaskNotificationKind::Complete),
         events::P2P_DOWNLOAD_COMPLETE => Some(TaskNotificationKind::P2pDownloadComplete),
         events::TASK_ERROR => Some(TaskNotificationKind::Error),
+        events::TASK_START => Some(TaskNotificationKind::Start),
         _ => None,
     }
 }
@@ -199,7 +200,9 @@ pub fn build_task_notification(
     let task_name = event.name.as_str();
 
     let message = match kind {
-        TaskNotificationKind::Start => return None,
+        // A lifecycle start event covers one task, so nothing remains to
+        // fold into the batch wording.
+        TaskNotificationKind::Start => download_start(&locale, task_name, 0),
         TaskNotificationKind::Complete => download_complete(&locale, task_name),
         TaskNotificationKind::P2pDownloadComplete => {
             if event.sharing_kind == Some("ed2k") {
@@ -467,6 +470,44 @@ mod tests {
             files: Vec::new(),
             announce_list: Vec::new(),
         }
+    }
+
+    #[test]
+    fn builds_start_notification_from_a_lifecycle_event() {
+        // Driven by aria2.onDownloadStart, so it covers tasks the frontend
+        // never sees, such as ones added by a browser extension.
+        let content = build_task_notification(events::TASK_START, &event(), &cfg()).unwrap();
+        assert_eq!(content.kind, TaskNotificationKind::Start);
+        assert_eq!(content.title, "Download Started");
+        assert_eq!(content.body, "Downloading: file.zip");
+        assert_eq!(content.locale, "en-US");
+    }
+
+    #[test]
+    fn builds_localised_start_notification_from_a_lifecycle_event() {
+        let mut config = cfg();
+        config.locale = "zh-CN".to_string();
+
+        let content = build_task_notification(events::TASK_START, &event(), &config).unwrap();
+
+        assert_eq!(content.kind, TaskNotificationKind::Start);
+        assert_eq!(content.locale, "zh-CN");
+        assert_ne!(content.title, "Download Started");
+    }
+
+    #[test]
+    fn skips_lifecycle_start_when_start_notifications_are_disabled() {
+        let mut config = cfg();
+        config.notify_on_start = false;
+        assert!(build_task_notification(events::TASK_START, &event(), &config).is_none());
+        assert!(build_task_notification(events::TASK_COMPLETE, &event(), &config).is_some());
+    }
+
+    #[test]
+    fn skips_lifecycle_start_when_task_notifications_are_disabled() {
+        let mut config = cfg();
+        config.task_notification = false;
+        assert!(build_task_notification(events::TASK_START, &event(), &config).is_none());
     }
 
     #[test]
