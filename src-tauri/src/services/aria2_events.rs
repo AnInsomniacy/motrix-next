@@ -47,7 +47,8 @@ impl NativeEventKind {
 
     fn lifecycle_event(self) -> Option<&'static str> {
         match self {
-            Self::DownloadStart | Self::DownloadPause => None,
+            Self::DownloadStart => Some(events::TASK_START),
+            Self::DownloadPause => None,
             Self::DownloadComplete => Some(events::TASK_COMPLETE),
             Self::DownloadError => Some(events::TASK_ERROR),
             Self::BtDownloadComplete => Some(events::P2P_DOWNLOAD_COMPLETE),
@@ -211,7 +212,8 @@ async fn handle_native_event(
     }
     if event.kind == NativeEventKind::DownloadStart {
         super::tasks::notify_changed(app, &event.gid);
-        return Ok(());
+        let task = aria2.tell_status(&event.gid).await?;
+        return monitor::process_download_start(app, &task).await;
     }
     if event.kind == NativeEventKind::DownloadPause {
         if let Err(error) = app.emit(
@@ -256,6 +258,7 @@ async fn handle_native_event(
     }
 
     let task = aria2.tell_status(&event.gid).await?;
+
     let Some(event_name) = event.kind.lifecycle_event() else {
         return Ok(());
     };
@@ -372,5 +375,26 @@ mod tests {
             ),
             None
         );
+    }
+
+    #[test]
+    fn download_start_maps_to_the_start_lifecycle_event() {
+        assert_eq!(
+            NativeEventKind::DownloadStart.lifecycle_event(),
+            Some(events::TASK_START)
+        );
+    }
+
+    #[test]
+    fn download_start_is_not_a_terminal_event() {
+        // Terminal events are persisted to history. A start must not be, so it
+        // has to stay distinguishable from them at the routing point.
+        for kind in [
+            NativeEventKind::DownloadComplete,
+            NativeEventKind::DownloadError,
+            NativeEventKind::BtDownloadComplete,
+        ] {
+            assert_ne!(kind, NativeEventKind::DownloadStart);
+        }
     }
 }
