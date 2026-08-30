@@ -878,6 +878,8 @@
     "category-dir-placeholder": "Kosongkan untuk klasifikasi otomatis",
     "favorite-folders": "Folder favorit",
     "recent-folders": "Folder terbaru",
-    "dir-no-saved": "Tidak ada folder tersimpan"
+    "dir-no-saved": "Tidak ada folder tersimpan",
+    "search-placeholder": "Cari tugas",
+    "search-no-results": "Tidak ada tugas yang cocok dengan pencarian"
   }
 }

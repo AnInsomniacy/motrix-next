@@ -878,6 +878,8 @@
     "category-dir-placeholder": "เว้นว่างสำหรับการจำแนกอัตโนมัติ",
     "favorite-folders": "โฟลเดอร์โปรด",
     "recent-folders": "โฟลเดอร์ล่าสุด",
-    "dir-no-saved": "ไม่มีโฟลเดอร์ที่บันทึกไว้"
+    "dir-no-saved": "ไม่มีโฟลเดอร์ที่บันทึกไว้",
+    "search-placeholder": "ค้นหางาน",
+    "search-no-results": "ไม่มีงานที่ตรงกับการค้นหา"
   }
 }

@@ -878,6 +878,8 @@
     "category-dir-placeholder": "Pozostaw puste dla automatycznej klasyfikacji",
     "favorite-folders": "Ulubione foldery",
     "recent-folders": "Ostatnie foldery",
-    "dir-no-saved": "Brak zapisanych folderów"
+    "dir-no-saved": "Brak zapisanych folderów",
+    "search-placeholder": "Szukaj zadań",
+    "search-no-results": "Brak zadań pasujących do wyszukiwania"
   }
 }

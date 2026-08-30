@@ -4,11 +4,14 @@ import { flushPromises, mount } from '@vue/test-utils'
 const changeCurrentListMock = vi.fn()
 const fetchListMock = vi.fn()
 const hideTaskDetailMock = vi.fn()
+const setTaskSearchKeywordMock = vi.fn()
 const isEngineReadyMock = vi.fn(() => true)
 
 const taskStore = {
   changeCurrentList: (...args: unknown[]) => changeCurrentListMock(...args),
   fetchList: (...args: unknown[]) => fetchListMock(...args),
+  setTaskSearchKeyword: (keyword: string) => setTaskSearchKeywordMock(keyword),
+  taskSearchKeywords: { all: '', progress: '', failed: '', completed: '' },
   taskDetailVisible: false,
   currentTaskItem: null,
   currentTaskFiles: [],
@@ -31,6 +34,17 @@ vi.mock('vue-i18n', () => ({
 
 vi.mock('naive-ui', () => ({
   useDialog: () => ({}),
+  NInput: {
+    name: 'NInput',
+    props: ['value', 'placeholder', 'ariaLabel', 'size', 'round', 'clearable'],
+    emits: ['update:value'],
+    setup(_props: unknown, { emit }: { emit: (event: string, ...args: unknown[]) => void }) {
+      const onInput = (event: Event) => emit('update:value', (event.target as HTMLInputElement).value)
+      return { onInput }
+    },
+    template: '<input class="task-search-input-stub" :value="value" :aria-label="ariaLabel" @input="onInput" />',
+  },
+  NIcon: { name: 'NIcon', template: '<span><slot /></span>' },
 }))
 
 vi.mock('@/stores/task', () => ({
@@ -103,6 +117,7 @@ describe('TaskView', () => {
     vi.useFakeTimers()
     appStore.interval = 1000
     isEngineReadyMock.mockReturnValue(true)
+    taskStore.taskSearchKeywords = { all: '', progress: '', failed: '', completed: '' }
   })
 
   afterEach(() => {
@@ -127,5 +142,41 @@ describe('TaskView', () => {
     await vi.advanceTimersByTimeAsync(1500)
 
     expect(fetchListMock).not.toHaveBeenCalled()
+  })
+
+  // ─── Filename search ────────────────────────────────────
+
+  it('hides the search input on In Progress', () => {
+    const wrapper = mount(TaskView, { props: { status: 'progress' } })
+    expect(wrapper.find('.task-search-input').exists()).toBe(false)
+  })
+
+  it('hides the search input on Failed', () => {
+    const wrapper = mount(TaskView, { props: { status: 'failed' } })
+    expect(wrapper.find('.task-search-input').exists()).toBe(false)
+  })
+
+  it('shows the search input on All', () => {
+    const wrapper = mount(TaskView, { props: { status: 'all' } })
+    expect(wrapper.find('.task-search-input').exists()).toBe(true)
+  })
+
+  it('shows the search input on Completed', () => {
+    const wrapper = mount(TaskView, { props: { status: 'completed' } })
+    expect(wrapper.find('.task-search-input').exists()).toBe(true)
+  })
+
+  it('forwards typed keywords to the store', async () => {
+    const wrapper = mount(TaskView, { props: { status: 'completed' } })
+    const input = wrapper.find('input.task-search-input-stub')
+    await input.setValue('ubuntu')
+    expect(setTaskSearchKeywordMock).toHaveBeenCalledWith('ubuntu')
+  })
+
+  it('binds the input value to the scope keyword', () => {
+    taskStore.taskSearchKeywords = { all: 'ubuntu', progress: '', failed: '', completed: '' }
+    const wrapper = mount(TaskView, { props: { status: 'all' } })
+    const input = wrapper.find('input.task-search-input-stub')
+    expect((input.element as HTMLInputElement).value).toBe('ubuntu')
   })
 })

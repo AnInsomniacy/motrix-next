@@ -878,6 +878,8 @@
     "category-dir-placeholder": "留空則自動分類",
     "favorite-folders": "我的最愛",
     "recent-folders": "最近使用",
-    "dir-no-saved": "沒有已儲存目錄"
+    "dir-no-saved": "沒有已儲存目錄",
+    "search-placeholder": "搜尋任務",
+    "search-no-results": "沒有符合條件的任務"
   }
 }

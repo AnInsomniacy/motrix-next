@@ -47,3 +47,6 @@ export const SYNC_MIN_DURATION = 600
 
 /** Minimum visible loading duration for system proxy detection (ms). */
 export const DETECT_MIN_DURATION = 500
+
+/** Debounce delay before a task search keyword triggers a list refetch (ms). */
+export const TASK_SEARCH_DEBOUNCE = 250

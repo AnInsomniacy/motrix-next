@@ -878,6 +878,8 @@
     "category-dir-placeholder": "Leave empty for auto-classification",
     "favorite-folders": "Favorites",
     "recent-folders": "Recent",
-    "dir-no-saved": "No saved folders"
+    "dir-no-saved": "No saved folders",
+    "search-placeholder": "Search tasks",
+    "search-no-results": "No tasks match your search"
   }
 }

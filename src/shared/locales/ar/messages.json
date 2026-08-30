@@ -878,6 +878,8 @@
     "category-dir-placeholder": "اتركه فارغاً للتصنيف التلقائي",
     "favorite-folders": "المجلدات المفضلة",
     "recent-folders": "المجلدات الأخيرة",
-    "dir-no-saved": "لا توجد مجلدات محفوظة"
+    "dir-no-saved": "لا توجد مجلدات محفوظة",
+    "search-placeholder": "البحث عن المهام",
+    "search-no-results": "لا توجد مهام مطابقة للبحث"
   }
 }

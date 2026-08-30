@@ -878,6 +878,8 @@
     "category-dir-placeholder": "Lăsați gol pentru clasificare automată",
     "favorite-folders": "Foldere favorite",
     "recent-folders": "Foldere recente",
-    "dir-no-saved": "Nu există foldere salvate"
+    "dir-no-saved": "Nu există foldere salvate",
+    "search-placeholder": "Caută sarcini",
+    "search-no-results": "Nicio sarcină nu corespunde căutării"
   }
 }

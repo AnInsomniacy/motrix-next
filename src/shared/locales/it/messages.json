@@ -878,6 +878,8 @@
     "category-dir-placeholder": "Lasciare vuoto per la classificazione automatica",
     "favorite-folders": "Cartelle preferite",
     "recent-folders": "Cartelle recenti",
-    "dir-no-saved": "Nessuna cartella salvata"
+    "dir-no-saved": "Nessuna cartella salvata",
+    "search-placeholder": "Cerca attività",
+    "search-no-results": "Nessuna attività corrisponde alla ricerca"
   }
 }

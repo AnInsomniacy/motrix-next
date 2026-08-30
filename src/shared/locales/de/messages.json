@@ -878,6 +878,8 @@
     "category-dir-placeholder": "Leer lassen für automatische Klassifizierung",
     "favorite-folders": "Favorisierte Ordner",
     "recent-folders": "Zuletzt verwendete Ordner",
-    "dir-no-saved": "Keine gespeicherten Ordner"
+    "dir-no-saved": "Keine gespeicherten Ordner",
+    "search-placeholder": "Aufgaben suchen",
+    "search-no-results": "Keine Aufgaben entsprechen der Suche"
   }
 }
