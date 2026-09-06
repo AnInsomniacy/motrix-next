@@ -887,6 +887,8 @@
     "category-dir-placeholder": "Deixeu buit per a la classificació automàtica",
     "favorite-folders": "Carpetes preferides",
     "recent-folders": "Carpetes recents",
-    "dir-no-saved": "No hi ha carpetes desades"
+    "dir-no-saved": "No hi ha carpetes desades",
+    "search-placeholder": "Cerca tasques",
+    "search-no-results": "Cap tasca coincideix amb la cerca"
   }
 }

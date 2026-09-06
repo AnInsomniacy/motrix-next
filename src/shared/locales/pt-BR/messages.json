@@ -887,6 +887,8 @@
     "category-dir-placeholder": "Deixe vazio para classificação automática",
     "favorite-folders": "Pastas favoritas",
     "recent-folders": "Pastas recentes",
-    "dir-no-saved": "Nenhuma pasta salva"
+    "dir-no-saved": "Nenhuma pasta salva",
+    "search-placeholder": "Pesquisar tarefas",
+    "search-no-results": "Nenhuma tarefa corresponde à pesquisa"
   }
 }

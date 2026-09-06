@@ -2,12 +2,14 @@
 import { defineStore } from 'pinia'
 import { reactive, ref, watch } from 'vue'
 import { EMPTY_STRING } from '@shared/constants'
+import { TASK_SEARCH_DEBOUNCE } from '@shared/timing'
 import { checkTaskIsEd2kSearch } from '@shared/utils'
 import { logger } from '@shared/logger'
 import type { Aria2Task, Aria2File, Aria2Peer, Aria2EngineOptions, TaskApi } from '@shared/types'
 
 import { historyRecordToTask, mergeHistoryIntoTasks, isMetadataTask } from '@/composables/useTaskLifecycle'
 import { buildMagnetOptions } from '@/composables/useMagnetFlow'
+import { filterTasksByKeyword } from '@/composables/useTaskSearch'
 import {
   registerAddedAt,
   trackFirstSeen,
@@ -63,6 +65,13 @@ export const useTaskStore = defineStore('task', () => {
   const removingGids = ref<string[]>([])
   const resubmittingGids = ref<string[]>([])
   const taskListTransitionRevision = ref(0)
+  const taskSearchKeywords = reactive<Record<TaskScope, string>>({
+    all: EMPTY_STRING,
+    progress: EMPTY_STRING,
+    failed: EMPTY_STRING,
+    completed: EMPTY_STRING,
+  })
+  let searchRefetchTimer: ReturnType<typeof setTimeout> | null = null
   const taskCounts = reactive<TaskCounts>({ all: 0, progress: 0, failed: 0, completed: 0 })
   const taskPagination = reactive({
     all: { page: 1, total: 0, loaded: false },
@@ -123,6 +132,22 @@ export const useTaskStore = defineStore('task', () => {
 
   function currentTaskTab(): TaskScope {
     return currentList.value
+  }
+
+  /**
+   * Sets the filename search keyword for the current scope and schedules a
+   * debounced list refetch. The raw keyword is stored so the bound input
+   * keeps intermediate whitespace; matching normalizes at filter time.
+   */
+  function setTaskSearchKeyword(keyword: string) {
+    const tab = currentTaskTab()
+    if (taskSearchKeywords[tab] === keyword) return
+    taskSearchKeywords[tab] = keyword
+    if (searchRefetchTimer) clearTimeout(searchRefetchTimer)
+    searchRefetchTimer = setTimeout(() => {
+      searchRefetchTimer = null
+      void fetchList()
+    }, TASK_SEARCH_DEBOUNCE)
   }
 
   function clampPage(page: number): number {
@@ -286,6 +311,9 @@ export const useTaskStore = defineStore('task', () => {
 
       const removing = new Set(removingGids.value)
       data = data.filter((task) => !removing.has(task.gid))
+      // Scope-local filename search: while a keyword is active the list holds
+      // only matching tasks, so pagination and batch actions see the same set.
+      data = filterTasksByKeyword(data, taskSearchKeywords[scope])
       if (requestId !== listRequestId || currentTaskTab() !== scope) return
       taskList.value = data
       updateCurrentTaskTotal(data.length)
@@ -584,10 +612,12 @@ export const useTaskStore = defineStore('task', () => {
     removingGids,
     resubmittingGids,
     taskListTransitionRevision,
+    taskSearchKeywords,
     taskPagination,
     currentTaskPageCount,
     setApi,
     changeCurrentList,
+    setTaskSearchKeyword,
     fetchList,
     refreshTaskCounts,
     saveManualOrder,

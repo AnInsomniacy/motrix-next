@@ -6,6 +6,12 @@ import { usePreferenceStore } from '@/stores/preference'
 import type { Aria2Task } from '@shared/types'
 import type { SortableEvent, SortableOptions } from 'sortablejs'
 
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string) => key,
+  }),
+}))
+
 const { sortableCreateMock } = vi.hoisted(() => ({
   sortableCreateMock: vi.fn((_element: HTMLElement, _options: SortableOptions) => ({ destroy: vi.fn() })),
 }))
@@ -167,5 +173,52 @@ describe('TaskList', () => {
 
     expect(leaving.classList.contains('task-list-item--collapsing')).toBe(false)
     expect(leaving.style.getPropertyValue('--task-list-card-leave-height')).toBe('')
+  })
+
+  it('does not show the no-results hint when no search is active', async () => {
+    const wrapper = mount(TaskList, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+    const taskStore = useTaskStore()
+    taskStore.taskList = []
+    taskStore.currentList = 'all'
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.task-search-empty').exists()).toBe(false)
+    expect(wrapper.classes()).not.toContain('task-list--searching')
+  })
+
+  it('shows the no-results hint and disables reordering while searching', async () => {
+    const wrapper = mount(TaskList, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+    const taskStore = useTaskStore()
+    taskStore.taskList = []
+    taskStore.currentList = 'all'
+    taskStore.taskSearchKeywords.all = 'ubuntu'
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.task-search-empty').exists()).toBe(true)
+    expect(wrapper.classes()).toContain('task-list--searching')
+  })
+
+  it('does not show the no-results hint when the search matches tasks', async () => {
+    const wrapper = mount(TaskList, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+    const taskStore = useTaskStore()
+    taskStore.taskList = [createTaskWithGid('a')]
+    taskStore.currentList = 'all'
+    taskStore.taskSearchKeywords.all = 'ubuntu'
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.task-search-empty').exists()).toBe(false)
+    expect(wrapper.classes()).toContain('task-list--searching')
   })
 })

@@ -887,6 +887,8 @@
     "category-dir-placeholder": "Hagyja üresen az automatikus osztályozáshoz",
     "favorite-folders": "Kedvenc mappák",
     "recent-folders": "Legutóbbi mappák",
-    "dir-no-saved": "Nincsenek mentett mappák"
+    "dir-no-saved": "Nincsenek mentett mappák",
+    "search-placeholder": "Feladatok keresése",
+    "search-no-results": "Nincs a keresésnek megfelelő feladat"
   }
 }
