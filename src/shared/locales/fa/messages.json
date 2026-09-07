@@ -887,6 +887,8 @@
     "category-dir-placeholder": "برای طبقه‌بندی خودکار خالی بگذارید",
     "favorite-folders": "پوشه‌های مورد علاقه",
     "recent-folders": "پوشه‌های اخیر",
-    "dir-no-saved": "پوشه ذخیره‌شده‌ای وجود ندارد"
+    "dir-no-saved": "پوشه ذخیره‌شده‌ای وجود ندارد",
+    "search-placeholder": "جستجوی وظایف",
+    "search-no-results": "هیچ وظیفه‌ای با جستجو مطابقت ندارد"
   }
 }

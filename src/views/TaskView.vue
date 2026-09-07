@@ -11,7 +11,9 @@ import { isEngineReady } from '@/api/aria2'
 import { useTaskActions } from '@/composables/useTaskActions'
 
 import { logger } from '@shared/logger'
-import { useDialog } from 'naive-ui'
+import { EMPTY_STRING } from '@shared/constants'
+import { useDialog, NIcon, NInput } from 'naive-ui'
+import { SearchOutline } from '@vicons/ionicons5'
 import { useAppMessage } from '@/composables/useAppMessage'
 import TaskList from '@/components/task/TaskList.vue'
 import TaskActions from '@/components/task/TaskActions.vue'
@@ -59,6 +61,17 @@ const subnavs = computed(() => [
   { key: 'failed', title: t('task.scope-failed') || 'Failed' },
   { key: 'completed', title: t('task.scope-completed') || 'Completed' },
 ])
+
+/** Filename search is only exposed on the aggregate and completed scopes. */
+const searchEnabled = computed(() => props.status === 'all' || props.status === 'completed')
+const searchKeyword = computed(() => {
+  if (props.status === 'all' || props.status === 'completed') return taskStore.taskSearchKeywords[props.status]
+  return EMPTY_STRING
+})
+
+function onSearchInput(value: string) {
+  taskStore.setTaskSearchKeyword(value)
+}
 
 const title = computed(() => {
   const sub = subnavs.value.find((s) => s.key === props.status)
@@ -124,7 +137,24 @@ onBeforeUnmount(() => {
   <div class="task-view">
     <header class="panel-header" data-tauri-drag-region>
       <h4 :key="status" class="task-title">{{ title }}</h4>
-      <TaskActions />
+      <div class="header-actions">
+        <NInput
+          v-if="searchEnabled"
+          class="task-search-input"
+          size="small"
+          round
+          clearable
+          :value="searchKeyword"
+          :placeholder="t('task.search-placeholder')"
+          :aria-label="t('task.search-placeholder')"
+          @update:value="onSearchInput"
+        >
+          <template #prefix>
+            <NIcon :size="14"><SearchOutline /></NIcon>
+          </template>
+        </NInput>
+        <TaskActions />
+      </div>
     </header>
     <div class="panel-body">
       <!-- Brand watermark stays outside the scroll container so task cards scroll above it. -->
@@ -182,6 +212,15 @@ onBeforeUnmount(() => {
   font-weight: normal;
   line-height: 24px;
   align-self: flex-start;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.task-search-input {
+  width: 220px;
 }
 /*
  * .panel-body creates the positioning context for the watermark.

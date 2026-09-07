@@ -1,5 +1,5 @@
 /** @fileoverview Unit tests for TaskStore with mocked TaskApi. */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 let useTaskStore: typeof import('../task').useTaskStore
 import type { Aria2Task, Aria2Peer, TaskStatus, HistoryRecord } from '@shared/types'
@@ -908,6 +908,126 @@ describe('TaskStore', () => {
       store.registerTorrentSource('hash2', '/path/b.torrent')
       expect(store.consumeTorrentSource('hash1')).toBe('/path/a.torrent')
       expect(store.consumeTorrentSource('hash2')).toBe('/path/b.torrent')
+    })
+  })
+
+  describe('filename search', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    async function flushSearchRefetch(): Promise<void> {
+      await vi.advanceTimersByTimeAsync(250)
+    }
+
+    it('filters the All list by a fuzzy keyword after the debounce', async () => {
+      const alpha = makeMockTask('alpha', 'active', {
+        files: [
+          { index: '1', path: '/d/ubuntu-22.04.iso', length: '1', completedLength: '1', selected: 'true', uris: [] },
+        ],
+      })
+      const beta = makeMockTask('beta', 'active', {
+        files: [
+          { index: '1', path: '/d/debian-12.iso', length: '1', completedLength: '1', selected: 'true', uris: [] },
+        ],
+      })
+      mockApi.fetchTaskList.mockResolvedValue([alpha, beta])
+      await store.changeCurrentList('all')
+
+      store.setTaskSearchKeyword('UBUNTU')
+      expect(store.taskList).toHaveLength(2)
+      await flushSearchRefetch()
+
+      expect(store.taskList.map((task) => task.gid)).toEqual(['alpha'])
+      expect(store.taskPagination.all.total).toBe(1)
+    })
+
+    it('filters the Completed list by record name', async () => {
+      mockHistoryFns.getRecords.mockResolvedValue([
+        { gid: 'done-1', name: 'movie-night.mkv', status: 'complete' } as HistoryRecord,
+        { gid: 'done-2', name: 'backup.tar.gz', status: 'complete' } as HistoryRecord,
+      ])
+      mockApi.fetchTaskList.mockResolvedValue([])
+      await store.changeCurrentList('completed')
+
+      store.setTaskSearchKeyword('backup')
+      await flushSearchRefetch()
+
+      expect(store.taskList.map((task) => task.gid)).toEqual(['done-2'])
+    })
+
+    it('clearing the keyword restores the unfiltered list', async () => {
+      mockHistoryFns.getRecords.mockResolvedValue([
+        { gid: 'done-1', name: 'movie-night.mkv', status: 'complete' } as HistoryRecord,
+        { gid: 'done-2', name: 'backup.tar.gz', status: 'complete' } as HistoryRecord,
+      ])
+      mockApi.fetchTaskList.mockResolvedValue([])
+      await store.changeCurrentList('completed')
+
+      store.setTaskSearchKeyword('backup')
+      await flushSearchRefetch()
+      expect(store.taskList).toHaveLength(1)
+
+      store.setTaskSearchKeyword('')
+      await flushSearchRefetch()
+      expect(store.taskList.map((task) => task.gid)).toEqual(['done-1', 'done-2'])
+      expect(store.taskPagination.completed.total).toBe(2)
+    })
+
+    it('keeps the keyword per scope', async () => {
+      mockApi.fetchTaskList.mockResolvedValue([makeMockTask('alpha', 'active')])
+      await store.changeCurrentList('all')
+      store.setTaskSearchKeyword('alpha')
+      await flushSearchRefetch()
+
+      await store.changeCurrentList('completed')
+      expect(store.taskSearchKeywords.completed).toBe('')
+      expect(store.taskSearchKeywords.all).toBe('alpha')
+    })
+
+    it('matches a file basename inside a multi-file task', async () => {
+      const pack = makeMockTask('pack', 'active', {
+        bittorrent: { info: { name: 'Linux Pack' } },
+        files: [
+          { index: '1', path: '/d/Linux Pack/app.zip', length: '1', completedLength: '1', selected: 'true', uris: [] },
+          {
+            index: '2',
+            path: '/d/Linux Pack/readme.txt',
+            length: '1',
+            completedLength: '1',
+            selected: 'true',
+            uris: [],
+          },
+        ],
+      })
+      mockApi.fetchTaskList.mockResolvedValue([pack])
+      await store.changeCurrentList('all')
+
+      store.setTaskSearchKeyword('readme')
+      await flushSearchRefetch()
+      expect(store.taskList.map((task) => task.gid)).toEqual(['pack'])
+    })
+
+    it('applies the keyword to polling refetches without re-setting it', async () => {
+      const alpha = makeMockTask('alpha', 'active', {
+        files: [{ index: '1', path: '/d/ubuntu.iso', length: '1', completedLength: '1', selected: 'true', uris: [] }],
+      })
+      const beta = makeMockTask('beta', 'active', {
+        files: [{ index: '1', path: '/d/debian.iso', length: '1', completedLength: '1', selected: 'true', uris: [] }],
+      })
+      mockApi.fetchTaskList.mockResolvedValue([alpha, beta])
+      await store.changeCurrentList('all')
+
+      store.setTaskSearchKeyword('ubuntu')
+      await flushSearchRefetch()
+      expect(store.taskList).toHaveLength(1)
+
+      await store.fetchList()
+      expect(store.taskList.map((task) => task.gid)).toEqual(['alpha'])
     })
   })
 })

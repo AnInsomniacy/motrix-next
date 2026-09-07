@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /** @fileoverview Scrollable task list container with SortableJS drag ordering and Vue list transitions. */
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import Sortable from 'sortablejs'
 import { useTaskStore } from '@/stores/task'
 import { usePreferenceStore } from '@/stores/preference'
@@ -29,6 +30,7 @@ const emit = defineEmits<{
 const taskStore = useTaskStore()
 const preferenceStore = usePreferenceStore()
 const reduceMotion = useReducedMotion()
+const { t } = useI18n()
 
 type ListRefTarget = HTMLElement | ComponentPublicInstance | null
 
@@ -45,6 +47,12 @@ const taskCardComponent = computed(() =>
 )
 const taskPage = computed(() => taskStore.taskPagination[taskStore.currentList].page)
 const pageSize = computed(() => taskStore.taskPagination.pageSize)
+/**
+ * While a filename search is active the list shows a filtered subset, so
+ * drag-to-reorder is disabled: saving a manual order from a subset would
+ * discard the stored order of hidden tasks.
+ */
+const searchActive = computed(() => Boolean(taskStore.taskSearchKeywords[taskStore.currentList]?.trim()))
 const pageTransitionKey = computed(
   () => `${taskStore.currentList}:${taskPage.value}:${pageSize.value}:${taskStore.taskListTransitionRevision}`,
 )
@@ -251,7 +259,7 @@ function handleCardBeforeLeave(element: Element) {
 </script>
 
 <template>
-  <div class="task-list">
+  <div class="task-list" :class="{ 'task-list--searching': searchActive }">
     <Transition
       name="task-page-swap"
       mode="out-in"
@@ -291,6 +299,9 @@ function handleCardBeforeLeave(element: Element) {
         </div>
       </TransitionGroup>
     </Transition>
+    <div v-if="searchActive && visibleTaskList.length === 0" class="task-search-empty">
+      {{ t('task.search-no-results') }}
+    </div>
   </div>
 </template>
 
@@ -302,6 +313,20 @@ function handleCardBeforeLeave(element: Element) {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+}
+/* A filtered subset cannot be reordered without corrupting the saved order. */
+.task-list--searching :deep(.task-drag-handle) {
+  display: none;
+}
+.task-search-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--m3-outline);
+  font-size: var(--font-size-sm);
+  user-select: none;
 }
 /*
  * Speedometer bottom safety area — only when cards are present.
