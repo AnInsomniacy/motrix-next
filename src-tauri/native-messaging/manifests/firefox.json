@@ -1,0 +1,7 @@
+{
+  "name": "com.motrix.next.browser",
+  "description": "Activate Motrix Next",
+  "path": "..\\..\\motrix-next-browser-launcher.exe",
+  "type": "stdio",
+  "allowed_extensions": ["motrix-next-extension@aninsomniacy.dev"]
+}

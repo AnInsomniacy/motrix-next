@@ -8,7 +8,7 @@
  * Lifecycle:
  *   addUri/addTorrent → registerAddedAt(gid, now)
  *   fetchList poll    → trackFirstSeen(tasks) — fallback for session-restored tasks
- *   buildHistoryRecord → getAddedAt(gid) → persisted to download_history.added_at
+ *   task_birth        → Rust lifecycle writer preserves download_history.added_at
  *   App start         → loadBirthRecords() → pre-populate from task_birth table
  *
  * Two persistence layers:
@@ -85,14 +85,4 @@ export function buildSortableAddedAtMap(
   }
 
   return result
-}
-
-/** Remove a specific entry. Used when a task is permanently deleted. */
-export function removeAddedAt(gid: string): void {
-  addedAtMap.delete(gid)
-}
-
-/** Clear all entries. Used in tests. */
-export function _resetForTesting(): void {
-  addedAtMap.clear()
 }

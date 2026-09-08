@@ -11,7 +11,7 @@ export default defineConfig(async () => ({
     vue(),
     UnoCSS(),
     VueI18nPlugin({
-      include: resolve(__dirname, 'src/shared/locales/**'),
+      include: resolve(__dirname, 'src/shared/locales/*/messages.json'),
       runtimeOnly: true,
     }),
   ],
@@ -50,10 +50,10 @@ export default defineConfig(async () => ({
     host: host || false,
     hmr: host
       ? {
-        protocol: 'ws',
-        host,
-        port: 1421,
-      }
+          protocol: 'ws',
+          host,
+          port: 1421,
+        }
       : undefined,
     watch: {
       ignored: ['**/src-tauri/**'],

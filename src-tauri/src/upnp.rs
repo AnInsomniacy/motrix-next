@@ -1,7 +1,7 @@
 //! UPnP/IGD port mapping manager.
 //!
 //! Mirrors the legacy Motrix `UPnPManager.js` + `Application.js` UPnP lifecycle:
-//! discover the IGD gateway, map BT listen and DHT listen ports, periodically
+//! discover the IGD gateway, map ED2K ports, periodically
 //! renew the leases, and unmap on shutdown.  The underlying protocol work is
 //! delegated to the `igd-next` crate (UPnP IGD over SSDP).
 
@@ -160,13 +160,9 @@ async fn unmap_port(
 
 // ─── Lifecycle ───────────────────────────────────────────────────────
 
-/// Start mapping the BT, DHT, and optional ED2K ports. Idempotent: stops any existing
-/// mapping first.
+/// Start mapping the ED2K ports. Idempotent: stops any existing mapping first.
 pub async fn start_mapping(
     state: &UpnpState,
-    bt_port: u16,
-    bt_external_port: u16,
-    dht_port: u16,
     ed2k_port: Option<u16>,
     ed2k_udp_port: Option<u16>,
 ) -> Result<serde_json::Value, String> {
@@ -174,25 +170,18 @@ pub async fn start_mapping(
     // Stop any existing mapping first (idempotent).
     stop_mapping_inner(state).await;
 
+    if ed2k_port.is_none_or(|port| port == 0) && ed2k_udp_port.is_none_or(|port| port == 0) {
+        return Ok(serde_json::json!({
+            "success": true,
+            "externalIp": "",
+            "mappedPorts": [],
+            "errors": [],
+        }));
+    }
+
     let gw = discover_gateway().await?;
     let local_ip = detect_local_ip(&gw.addr);
 
-    // Map BT listen port (TCP), DHT listen port (UDP), and ED2K listen ports (TCP/UDP).
-    // Use allSettled-style: report per-port results without short-circuiting.
-    let effective_bt_external_port = if bt_external_port == 0 {
-        bt_port
-    } else {
-        bt_external_port
-    };
-    let bt_result = map_port(
-        &gw,
-        local_ip,
-        effective_bt_external_port,
-        bt_port,
-        PortMappingProtocol::TCP,
-    )
-    .await;
-    let dht_result = map_port(&gw, local_ip, dht_port, dht_port, PortMappingProtocol::UDP).await;
     let ed2k_result = match ed2k_port.filter(|port| *port > 0) {
         Some(port) => Some((
             port,
@@ -210,34 +199,6 @@ pub async fn start_mapping(
 
     let mut mapped = Vec::new();
     let mut errors: Vec<String> = Vec::new();
-
-    match bt_result {
-        Ok(lease) => mapped.push(MappedPort {
-            external: effective_bt_external_port,
-            internal: bt_port,
-            protocol: PortMappingProtocol::TCP,
-            lease,
-        }),
-        Err(e) => {
-            log::warn!(
-                "upnp:map-failed external_port={effective_bt_external_port} internal_port={bt_port} proto=TCP err={e}"
-            );
-            errors.push(e);
-        }
-    }
-
-    match dht_result {
-        Ok(lease) => mapped.push(MappedPort {
-            external: dht_port,
-            internal: dht_port,
-            protocol: PortMappingProtocol::UDP,
-            lease,
-        }),
-        Err(e) => {
-            log::warn!("upnp:map-failed port={dht_port} proto=UDP err={e}");
-            errors.push(e);
-        }
-    }
 
     if let Some((port, result)) = ed2k_result {
         match result {

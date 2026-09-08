@@ -1,22 +1,30 @@
 <script setup lang="ts">
 import { computed, h, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NDataTable, NTooltip, type DataTableColumns } from 'naive-ui'
+import { NButton, NDataTable, NInput, NInputGroup, NTooltip, type DataTableColumns } from 'naive-ui'
 import { calcColumnWidth } from '@shared/utils/calcColumnWidth'
 import { countryCodeToFlag, lookupPeerIps, type GeoInfo } from '@shared/utils/geoip'
 import { logger } from '@shared/logger'
 import type { Aria2Peer } from '@shared/types'
 import { buildPeerDetailRows, peerRowsSignature, type PeerDetailRow } from '@/composables/useTaskDetailRows'
 import { nextFrame, renderDetailCopyableText, renderDetailLongText } from './TaskDetailShared'
+import { addBtPeers } from '@/api/aria2'
+import { useAppMessage } from '@/composables/useAppMessage'
+import { getErrorMessage } from '@shared/utils/errorMessage'
 
 const props = defineProps<{
   peers: Aria2Peer[] | undefined
   locale: string
   tooltip: string
   onCopy: (value: string, label: string) => void
+  gid: string
+  editable?: boolean
 }>()
 
 const { t } = useI18n()
+const message = useAppMessage()
+const peerInput = ref('')
+const addingPeer = ref(false)
 const rows = computed(() => buildPeerDetailRows(props.peers))
 const geoCache = ref<Record<string, GeoInfo>>({})
 const loading = ref(false)
@@ -117,6 +125,12 @@ const columns = computed<DataTableColumns<PeerDetailRow>>(() => {
       render: (row) => renderDetailLongText(row.client),
     },
     {
+      title: t('task.task-peer-connection'),
+      key: 'connection',
+      minWidth: 150,
+      render: (row) => renderDetailLongText(row.connection),
+    },
+    {
       title: t('task.task-peer-percent'),
       key: 'percent',
       width: calcColumnWidth({
@@ -153,9 +167,40 @@ const columns = computed<DataTableColumns<PeerDetailRow>>(() => {
     },
   ]
 })
+
+async function addPeer() {
+  const peer = peerInput.value.trim()
+  if (!peer || !props.gid || !props.editable) return
+  addingPeer.value = true
+  try {
+    const result = await addBtPeers({ gid: props.gid, peers: [peer] })
+    if (result.added === 1) {
+      peerInput.value = ''
+      message.success(t('task.options-applied'))
+    } else {
+      message.error(t('task.options-apply-failed'))
+    }
+  } catch (error) {
+    logger.warn('TaskDetail.peers.add', getErrorMessage(error))
+    message.error(t('task.options-apply-failed'))
+  } finally {
+    addingPeer.value = false
+  }
+}
 </script>
 
 <template>
+  <NInputGroup class="detail-action-row">
+    <NInput
+      v-model:value="peerInput"
+      :disabled="!editable"
+      :placeholder="t('task.bt-peer-placeholder')"
+      @keydown.enter="addPeer"
+    />
+    <NButton :loading="addingPeer" :disabled="!editable || !peerInput.trim()" @click="addPeer">
+      {{ t('task.bt-peer-add') }}
+    </NButton>
+  </NInputGroup>
   <NDataTable
     :columns="columns"
     :data="rows"
@@ -169,3 +214,9 @@ const columns = computed<DataTableColumns<PeerDetailRow>>(() => {
     striped
   />
 </template>
+
+<style scoped>
+.detail-action-row {
+  margin-bottom: 12px;
+}
+</style>

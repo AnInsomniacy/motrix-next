@@ -7,7 +7,7 @@
 //! Port of the frontend `fetchGlobalStat` in `stores/app.ts`.
 
 use super::config::RuntimeConfigState;
-use super::power::PowerGuard;
+use super::power::{PowerGuard, RETRY_DELAY as POWER_RETRY_DELAY};
 use crate::aria2::client::Aria2Client;
 use std::sync::Arc;
 use std::time::Duration;
@@ -395,14 +395,13 @@ async fn stat_loop(
     mut stop_rx: watch::Receiver<bool>,
 ) {
     let mut interval_state = IntervalState::new();
+    let mut consecutive_rpc_failures = 0_u32;
 
-    // Keep-awake RAII guard: held while downloads are active, dropped when idle.
-    // The guard prevents system idle sleep via OS-native APIs while allowing
-    // the display to turn off according to the user's power settings:
-    //   macOS:   IOPMAssertionCreateWithName (PreventUserIdleSystemSleep)
-    //   Windows: PowerCreateRequest + PowerSetRequest(SystemRequired)
-    //   Linux:   systemd Inhibit("idle") (D-Bus)
+    // Keep-awake guard: held while downloads are active and released when idle.
+    // Linux acquisition can fail when the desktop portal is temporarily
+    // unavailable, so retries are rate-limited independently of stat polling.
     let mut awake_guard: Option<PowerGuard> = None;
+    let mut power_retry_at: Option<std::time::Instant> = None;
     let mut last_tray_title: Option<String> = None;
 
     loop {
@@ -410,6 +409,11 @@ async fn stat_loop(
             _ = tokio::time::sleep(interval_state.duration()) => {},
             _ = stop_rx.changed() => {
                 if *stop_rx.borrow() {
+                    if let Some(guard) = awake_guard.take() {
+                        if let Err(e) = guard.release().await {
+                            log::warn!("keep_awake: failed to release assertion: {e}");
+                        }
+                    }
                     log::info!("stat_service: stopped");
                     return;
                 }
@@ -419,29 +423,24 @@ async fn stat_loop(
         let stat = match aria2.get_global_stat().await {
             Ok(s) => s,
             Err(e) => {
+                consecutive_rpc_failures += 1;
                 log::debug!("stat_service: get_global_stat failed: {e}");
+                if consecutive_rpc_failures == 5 {
+                    crate::engine::supervisor::report_rpc_unhealthy(app.clone(), e.to_string());
+                }
                 interval_state.increase_idle();
                 continue;
             }
         };
+        consecutive_rpc_failures = 0;
 
         // Parse string values to u64
-        let download_speed_raw = stat.download_speed.parse::<u64>().unwrap_or(0);
+        let download_speed = stat.download_speed.parse::<u64>().unwrap_or(0);
         let upload_speed = stat.upload_speed.parse::<u64>().unwrap_or(0);
         let num_active = stat.num_active.parse::<u64>().unwrap_or(0);
         let num_waiting = stat.num_waiting.parse::<u64>().unwrap_or(0);
         let num_stopped = stat.num_stopped.parse::<u64>().unwrap_or(0);
         let num_stopped_total = stat.num_stopped_total.parse::<u64>().unwrap_or(0);
-
-        // aria2 uses a 10-second sliding window for speed calculation
-        // (SpeedCalc::WINDOW_TIME = 10s). After pausing, stale bytes in the
-        // window cause getGlobalStat to report non-zero speed for up to 10s.
-        // Normalize to 0 when no tasks are actively downloading.
-        let download_speed = if num_active > 0 {
-            download_speed_raw
-        } else {
-            0
-        };
 
         // Adaptive interval
         if num_active > 0 {
@@ -469,30 +468,36 @@ async fn stat_loop(
             let cfg = rc_state.snapshot().await;
 
             // ── Keep-awake management ────────────────────────────────
-            // Acquire the OS power assertion when downloads are active
-            // and the user has opted in.  Release automatically (RAII
-            // drop) when all downloads finish or the setting is toggled
-            // off.  This runs in stat_service rather than a Tauri
-            // command so it works in lightweight mode when the WebView
-            // is destroyed.
             if cfg.keep_awake && num_active > 0 {
-                if awake_guard.is_none() {
-                    match PowerGuard::acquire_download() {
+                let retry_due = power_retry_at.is_none_or(|at| std::time::Instant::now() >= at);
+                if awake_guard.is_none() && retry_due {
+                    match PowerGuard::acquire_download().await {
                         Ok(guard) => {
                             let backend = guard.backend_name();
                             awake_guard = Some(guard);
+                            power_retry_at = None;
                             log::info!(
                                 "keep_awake: assertion acquired backend={backend} active={num_active}"
                             );
                         }
                         Err(e) => {
+                            power_retry_at = Some(std::time::Instant::now() + POWER_RETRY_DELAY);
                             log::warn!("keep_awake: failed to acquire assertion: {e}");
                         }
                     }
                 }
-            } else if awake_guard.is_some() {
-                awake_guard = None; // RAII drop → OS releases the power assertion
-                log::info!("keep_awake: assertion released active={num_active}");
+            } else {
+                power_retry_at = None;
+                if let Some(guard) = awake_guard.take() {
+                    match guard.release().await {
+                        Ok(()) => {
+                            log::info!("keep_awake: assertion released active={num_active}");
+                        }
+                        Err(e) => {
+                            log::warn!("keep_awake: failed to release assertion: {e}");
+                        }
+                    }
+                }
             }
 
             // ── Tray title (macOS menu bar / Linux appindicator label) ──
@@ -741,6 +746,7 @@ mod tests {
                 length: "1024".to_string(),
                 completed_length: "1024".to_string(),
                 selected: "true".to_string(),
+                priority: None,
                 uris: vec![],
             }],
             ..Aria2Task::default()
@@ -786,16 +792,5 @@ mod tests {
         task.completed_length = "200".to_string();
 
         assert_eq!(completed_length(&task), 200);
-    }
-
-    // ── power guard integration ─────────────────────────────────────
-
-    /// Validates that the keepawake Builder API compiles and returns
-    /// the expected types.  Does NOT create an actual OS assertion
-    /// (safe for headless CI environments).
-    #[test]
-    fn power_guard_builder_compiles() {
-        let _: fn() -> Result<crate::services::power::PowerGuard, crate::error::AppError> =
-            crate::services::power::PowerGuard::acquire_download;
     }
 }

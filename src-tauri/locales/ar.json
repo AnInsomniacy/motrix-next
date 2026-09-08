@@ -1,0 +1,15 @@
+{
+  "_version": 1,
+  "notification.bt-complete-body": "جارٍ البذر: %{task_name}",
+  "notification.bt-complete-title": "اكتمل تنزيل BT",
+  "notification.download-batch-start-body": "جارٍ التنزيل: %{task_name} و%{count} مهمة أخرى",
+  "notification.download-complete-body": "تم الحفظ: %{task_name}",
+  "notification.download-complete-title": "اكتمل التنزيل",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "فشل التنزيل",
+  "notification.download-start-body": "جارٍ التنزيل: %{task_name}",
+  "notification.download-start-title": "بدء التنزيل",
+  "notification.ed2k-complete-body": "جارٍ المشاركة: %{task_name}",
+  "notification.ed2k-complete-title": "اكتمل تنزيل ED2K",
+  "notification.error-unknown": "Unknown error"
+}

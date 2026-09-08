@@ -79,6 +79,9 @@ mod macos {
         };
         if status == 0 {
             Ok(())
+        } else if status == -128 {
+            // LaunchServices userCanceledErr is a normal dismissal.
+            Err("cancelled".into())
         } else {
             Err(format!("LSSetDefaultHandlerForURLScheme returned {status}"))
         }

@@ -1,56 +1,16 @@
-/** @fileoverview Download resource detection: Thunder links, protocol tags, copyright. */
-import { compact } from 'lodash-es'
+/** @fileoverview Clipboard resource detection and protocol filtering. */
 import {
   RESOURCE_TAGS,
   BARE_INFO_HASH_RE,
   DETECT_RESOURCE_MAX_CHARS,
   DETECT_RESOURCE_MAX_LINES,
 } from '@shared/constants'
-import { splitTextRows } from './format'
-import { isAudioOrVideo } from './file'
 import { parseAria2Input } from './batchHelpers'
 import type { ClipboardConfig } from '@shared/types'
 
-/** Decodes a Thunder (迅雷) protocol link to its original HTTP/FTP URL. */
-export const decodeThunderLink = (url = ''): string => {
-  const trimmed = url.trim()
-  if (!trimmed.toLowerCase().startsWith('thunder://')) return url
-  const rawPayload = trimmed.slice('thunder://'.length)
-  const payload = decodeThunderPayload(rawPayload)
-  if (!payload) return url
-
-  try {
-    const decoded = decodeBase64Utf8(payload)
-    if (!decoded.startsWith('AA') || !decoded.endsWith('ZZ')) return url
-    const result = decoded.substring(2, decoded.length - 2)
-    return result || url
-  } catch {
-    return url
-  }
-}
-
-function decodeThunderPayload(payload: string): string {
-  try {
-    return decodeURIComponent(payload)
-  } catch {
-    return payload
-  }
-}
-
-function decodeBase64Utf8(payload: string): string {
-  const normalized = payload.padEnd(payload.length + ((4 - (payload.length % 4)) % 4), '=')
-  const binary = atob(normalized)
-  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
-  return new TextDecoder().decode(bytes)
-}
-
-export const splitTaskLinks = (links = ''): string[] => {
-  return compact(splitTextRows(links))
-}
-
 /**
  * Builds the list of allowed protocol prefixes based on a ClipboardConfig filter.
- * When no filter is provided, returns all recognized protocol tags (backward compat).
+ * Without a filter, includes all recognized protocol tags.
  */
 function buildAllowedTags(filter?: ClipboardConfig): string[] {
   if (!filter) return RESOURCE_TAGS
@@ -59,8 +19,8 @@ function buildAllowedTags(filter?: ClipboardConfig): string[] {
   if (filter.http) {
     tags.push('http://', 'https://')
   }
-  if (filter.ftp) {
-    tags.push('ftp://')
+  if (filter.sftp) {
+    tags.push('sftp://')
   }
   if (filter.magnet) {
     tags.push('magnet:')
@@ -100,8 +60,8 @@ function countMeaningfulInputLines(content: string): number {
  * 1. Content length ≤ 2048 characters (long payloads are not URLs).
  * 2. Split into lines; ignore empty/whitespace-only lines.
  * 3. Every remaining line must start with a recognized protocol tag
- *    (`http://`, `https://`, `ftp://`, `magnet:`, `thunder://`)
- *    OR be a bare BitTorrent v1 info hash (SHA-1 hex / Base32).
+ *    (`http://`, `https://`, `sftp://`, `magnet:`, `thunder://`)
+ *    OR be a bare BitTorrent v1 or v2 info hash.
  *
  * When a `filter` is provided, only the enabled protocol families are matched.
  * The `enable` master switch short-circuits to false when off.
@@ -131,10 +91,4 @@ export const detectResource = (content: string, filter?: ClipboardConfig): boole
   if (parsed.validLineCount !== countMeaningfulInputLines(content)) return false
 
   return parsed.entries.every((entry) => entry.uris.length > 0 && entry.uris.every(lineMatchesAnyResource))
-}
-
-export const needCheckCopyright = (links = ''): boolean => {
-  const uris = splitTaskLinks(links)
-  const avs = uris.filter((uri) => isAudioOrVideo(uri))
-  return avs.length > 0
 }

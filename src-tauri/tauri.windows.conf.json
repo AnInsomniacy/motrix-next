@@ -13,7 +13,7 @@
         "decorations": false,
         "visible": false,
         "center": true,
-        "shadow": false,
+        "shadow": true,
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --enable-features=msSmoothScrolling --animation-policy=allowed"
       }
     ]

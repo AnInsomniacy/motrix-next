@@ -4,8 +4,8 @@
 //! - `config` — RuntimeConfig cache (refreshed on engine ready)
 //! - `stat` — Global stat polling (download/upload speed)
 //! - `speed` — Speed limit scheduler (time-of-day limits)
-//! - `monitor` — Task lifecycle monitor (completion/error notifications)
-//! - `aria2_events` — WebSocket bridge for immediate aria2 notifications
+//! - `monitor` — lifecycle persistence and active-state policy
+//! - `aria2_events` — native WebSocket lifecycle event source
 //!
 //! The `on_engine_ready()` function orchestrates post-start initialization:
 //! 1. Updates `Aria2Client` credentials to match the just-started engine
@@ -22,7 +22,6 @@ pub mod frontend_action;
 pub mod http_api;
 pub mod monitor;
 pub mod notification;
-pub mod notification_i18n;
 pub mod port_guard;
 pub mod power;
 pub mod speed;
@@ -40,7 +39,7 @@ use tauri_plugin_store::StoreExt;
 /// flat `Map<String, String>`, filtered to only hot-reloadable keys.
 ///
 /// `system.json` stores aria2 engine options in kebab-case as a flat
-/// JSON object (written by the `save_system_config` command).
+/// JSON object (written by the `replace_system_config` command).
 fn read_system_options(
     app: &tauri::AppHandle,
 ) -> Result<serde_json::Map<String, serde_json::Value>, AppError> {
@@ -144,6 +143,23 @@ pub async fn on_engine_ready(app: &tauri::AppHandle) -> Result<(), AppError> {
         }
     } else {
         log::info!("runtime_services: no global options to sync");
+    }
+
+    if let Some(aria2) = app.try_state::<Aria2State>() {
+        match aria2.0.get_bt_session_status().await {
+            Ok(status) => log::info!(
+                "runtime_services: bt_session listen_port={} endpoints={} mapped_tcp={} mapped_udp={} dht_nodes={} dht_state_healthy={}",
+                status.listen_port,
+                status.listen_endpoints.len(),
+                status.mapped_tcp_port,
+                status.mapped_udp_port,
+                status.dht_nodes,
+                status.dht_state_healthy
+            ),
+            Err(error) => {
+                log::warn!("runtime_services: BT session diagnostics unavailable: {error}")
+            }
+        }
     }
 
     // 5–6. Stop old services, spawn fresh ones.
@@ -276,6 +292,35 @@ async fn spawn_background_services(app: &tauri::AppHandle) {
     log::info!(
         "runtime_services: spawned stat_service + speed_scheduler + task_monitor + bt_peer_blocklist"
     );
+}
+
+/// Stops every service whose lifetime is bound to the engine process.
+pub async fn stop_engine_services(app: &tauri::AppHandle) {
+    if let Some(state) = app.try_state::<stat::StatServiceState>() {
+        if let Some(handle) = state.0.lock().await.take() {
+            handle.stop().await;
+        }
+    }
+    if let Some(state) = app.try_state::<speed::SpeedSchedulerState>() {
+        if let Some(handle) = state.0.lock().await.take() {
+            handle.stop();
+        }
+    }
+    if let Some(state) = app.try_state::<monitor::TaskMonitorState>() {
+        if let Some(handle) = state.0.lock().await.take() {
+            handle.stop();
+        }
+    }
+    if let Some(state) = app.try_state::<aria2_events::Aria2EventState>() {
+        if let Some(handle) = state.0.lock().await.take() {
+            handle.stop();
+        }
+    }
+    if let Some(state) = app.try_state::<bt_blocklist::BtPeerBlocklistServiceState>() {
+        if let Some(handle) = state.0.lock().await.take() {
+            handle.stop();
+        }
+    }
 }
 
 /// Read engine port and secret from the config store.
@@ -490,18 +535,9 @@ mod tests {
         let keys = crate::engine::non_hot_reloadable_keys();
         for key in [
             "rpc-listen-port",
-            "allow-remote-access",
             "rpc-secret",
-            "dht-listen-port",
             "ed2k-listen-port",
             "ed2k-udp-listen-port",
-            "enable-dht",
-            "enable-dht6",
-            "enable-peer-exchange",
-            "bt-enable-lpd",
-            "bt-force-encryption",
-            "bt-require-crypto",
-            "bt-max-peers",
         ] {
             assert!(keys.contains(key), "missing: {key}");
         }
@@ -512,9 +548,14 @@ mod tests {
         let keys = crate::engine::non_hot_reloadable_keys();
         assert!(!keys.contains("max-overall-download-limit"));
         assert!(!keys.contains("dir"));
-        assert!(!keys.contains("split"));
+        assert!(!keys.contains("stream-max-connections"));
         assert!(!keys.contains("listen-port"));
         assert!(!keys.contains("bt-external-ip"));
         assert!(!keys.contains("bt-external-port"));
+        assert!(!keys.contains("bt-encryption"));
+        assert!(!keys.contains("enable-dht"));
+        assert!(!keys.contains("enable-peer-exchange"));
+        assert!(!keys.contains("bt-enable-lpd"));
+        assert!(!keys.contains("bt-max-peers"));
     }
 }

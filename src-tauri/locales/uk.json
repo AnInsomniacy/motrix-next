@@ -1,0 +1,15 @@
+{
+  "_version": 1,
+  "notification.bt-complete-body": "Роздача: %{task_name}",
+  "notification.bt-complete-title": "BT-завантаження завершено",
+  "notification.download-batch-start-body": "Завантаження: %{task_name} та ще %{count} завдань",
+  "notification.download-complete-body": "Збережено: %{task_name}",
+  "notification.download-complete-title": "Завантаження завершено",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "Завантаження не вдалося",
+  "notification.download-start-body": "Завантаження: %{task_name}",
+  "notification.download-start-title": "Завантаження розпочато",
+  "notification.ed2k-complete-body": "Роздача: %{task_name}",
+  "notification.ed2k-complete-title": "ED2K-завантаження завершено",
+  "notification.error-unknown": "Unknown error"
+}

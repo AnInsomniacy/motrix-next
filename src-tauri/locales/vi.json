@@ -1,0 +1,15 @@
+{
+  "_version": 1,
+  "notification.bt-complete-body": "Đang seeding: %{task_name}",
+  "notification.bt-complete-title": "Tải BT hoàn thành",
+  "notification.download-batch-start-body": "Đang tải: %{task_name} và %{count} tác vụ khác",
+  "notification.download-complete-body": "Đã lưu: %{task_name}",
+  "notification.download-complete-title": "Tải xuống hoàn thành",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "Tải xuống thất bại",
+  "notification.download-start-body": "Đang tải: %{task_name}",
+  "notification.download-start-title": "Tải xuống đã bắt đầu",
+  "notification.ed2k-complete-body": "Đang chia sẻ: %{task_name}",
+  "notification.ed2k-complete-title": "Tải ED2K hoàn thành",
+  "notification.error-unknown": "Unknown error"
+}

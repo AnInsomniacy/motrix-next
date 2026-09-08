@@ -1,0 +1,15 @@
+{
+  "_version": 1,
+  "notification.bt-complete-body": "Paylaşılıyor: %{task_name}",
+  "notification.bt-complete-title": "BT indirmesi tamamlandı",
+  "notification.download-batch-start-body": "İndiriliyor: %{task_name} ve %{count} diğer görev",
+  "notification.download-complete-body": "Kaydedildi: %{task_name}",
+  "notification.download-complete-title": "İndirme tamamlandı",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "İndirme başarısız",
+  "notification.download-start-body": "İndiriliyor: %{task_name}",
+  "notification.download-start-title": "İndirme başladı",
+  "notification.ed2k-complete-body": "Paylaşılıyor: %{task_name}",
+  "notification.ed2k-complete-title": "ED2K indirmesi tamamlandı",
+  "notification.error-unknown": "Unknown error"
+}

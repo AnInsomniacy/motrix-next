@@ -7,7 +7,6 @@ import {
   timeFormat,
   localeDateTimeFormat,
   ellipsis,
-  splitTextRows,
   convertCommaToLine,
   convertLineToComma,
 } from '../format'
@@ -134,24 +133,6 @@ describe('ellipsis', () => {
   it('returns original string when maxLen is 0', () => {
     // maxLen <= 0 means no truncation per the code logic
     expect(ellipsis('hello', 0)).toBe('hello')
-  })
-})
-
-describe('splitTextRows', () => {
-  it('splits by newline', () => {
-    expect(splitTextRows('a\nb\nc')).toEqual(['a', 'b', 'c'])
-  })
-  it('trims whitespace', () => {
-    expect(splitTextRows('  a  \n  b  ')).toEqual(['a', 'b'])
-  })
-  it('handles \r\n (Windows newlines)', () => {
-    expect(splitTextRows('a\r\nb\r\nc')).toEqual(['a', 'b', 'c'])
-  })
-  it('handles carriage return only', () => {
-    expect(splitTextRows('a\rb\rc')).toEqual(['a', 'b', 'c'])
-  })
-  it('returns single-element array for empty string', () => {
-    expect(splitTextRows('')).toEqual([''])
   })
 })
 

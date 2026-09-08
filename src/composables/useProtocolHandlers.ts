@@ -1,58 +1,84 @@
 import { computed, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { logger } from '@shared/logger'
 
 export type ProtocolKey = 'magnet' | 'ed2k' | 'thunder' | 'motrixnext'
+type ProtocolResult =
+  | { kind: 'success' | 'unchanged' | 'manual' | 'cancelled' | 'query-failed' | 'ignored' }
+  | { kind: 'failed'; reason: string }
 
-export type ProtocolStatus = Record<ProtocolKey, boolean>
-
-export const protocolKeys: ProtocolKey[] = ['magnet', 'ed2k', 'thunder', 'motrixnext']
-
-const defaultStatus: ProtocolStatus = {
-  magnet: false,
-  ed2k: false,
-  thunder: false,
-  motrixnext: false,
-}
+const protocolKeys: ProtocolKey[] = ['magnet', 'ed2k', 'thunder', 'motrixnext']
 
 function errorReason(error: unknown): string {
   if (error instanceof Error) return error.message
-  if (typeof error === 'object' && error !== null) return Object.values(error as Record<string, unknown>).join(': ')
+  if (typeof error === 'object' && error !== null && 'Protocol' in error) return String(error.Protocol)
   return String(error)
 }
 
 export function useProtocolHandlers() {
-  const status = ref<ProtocolStatus>({ ...defaultStatus })
+  const status = ref<Record<ProtocolKey, boolean>>({ magnet: false, ed2k: false, thunder: false, motrixnext: false })
   const pending = ref<ProtocolKey | null>(null)
-  const lastError = ref<{ protocol: ProtocolKey; enabled: boolean; reason: string } | null>(null)
-
-  async function readProtocol(protocol: ProtocolKey): Promise<boolean> {
-    return await invoke<boolean>('is_default_protocol_client', { protocol })
-  }
+  const refreshing = ref(false)
+  const busy = computed(() => refreshing.value || pending.value !== null)
 
   async function refreshProtocol(protocol: ProtocolKey): Promise<boolean> {
-    const enabled = await readProtocol(protocol)
-    status.value = { ...status.value, [protocol]: enabled }
+    const enabled = await invoke<boolean>('is_default_protocol_client', { protocol })
+    status.value[protocol] = enabled
     return enabled
   }
 
   async function refreshAll(): Promise<void> {
-    const entries = await Promise.all(protocolKeys.map(async (protocol) => [protocol, await readProtocol(protocol)]))
-    status.value = Object.fromEntries(entries) as ProtocolStatus
+    if (busy.value) return
+    refreshing.value = true
+    try {
+      await Promise.all(
+        protocolKeys.map(async (protocol) => {
+          try {
+            await refreshProtocol(protocol)
+          } catch (error) {
+            logger.debug('Protocol.refresh', { protocol, reason: errorReason(error) })
+          }
+        }),
+      )
+    } finally {
+      refreshing.value = false
+    }
   }
 
-  async function setProtocolEnabled(protocol: ProtocolKey, enabled: boolean): Promise<void> {
+  async function setProtocolEnabled(protocol: ProtocolKey, enabled: boolean): Promise<ProtocolResult> {
+    if (busy.value) return { kind: 'ignored' }
     pending.value = protocol
-    lastError.value = null
     try {
-      if (enabled) {
-        await invoke('set_default_protocol_client', { protocol })
-      } else {
-        await invoke('remove_as_default_protocol_client', { protocol })
+      let failure: string | undefined
+      try {
+        await invoke(enabled ? 'set_default_protocol_client' : 'remove_as_default_protocol_client', { protocol })
+      } catch (error) {
+        failure = errorReason(error)
+        logger.debug('Protocol.change', 'operation returned an error', { protocol, enabled, reason: failure })
       }
-    } catch (error) {
-      lastError.value = { protocol, enabled, reason: errorReason(error) }
+
+      let actual: boolean
+      try {
+        actual = await refreshProtocol(protocol)
+      } catch (error) {
+        logger.warn('Protocol.verify', 'could not verify association', {
+          protocol,
+          enabled,
+          reason: errorReason(error),
+        })
+        return { kind: failure === 'cancelled' ? 'cancelled' : 'query-failed' }
+      }
+
+      if (failure === 'cancelled') return { kind: 'cancelled' }
+      if (actual === enabled) return { kind: 'success' }
+      if (failure === 'manual_change_required') return { kind: 'manual' }
+      if (failure !== undefined) {
+        logger.warn('Protocol.change', 'association change failed', { protocol, enabled, actual, reason: failure })
+        return { kind: 'failed', reason: failure }
+      }
+      logger.warn('Protocol.verify', 'association unchanged', { protocol, enabled, actual })
+      return { kind: 'unchanged' }
     } finally {
-      await refreshProtocol(protocol)
       pending.value = null
     }
   }
@@ -60,7 +86,7 @@ export function useProtocolHandlers() {
   return {
     status: computed(() => status.value),
     pending: computed(() => pending.value),
-    lastError: computed(() => lastError.value),
+    busy,
     refreshAll,
     setProtocolEnabled,
   }

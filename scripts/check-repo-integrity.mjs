@@ -1,92 +1,117 @@
 #!/usr/bin/env node
 /**
- * Repo-integrity checks that are NOT unit tests: they scan source and locale
- * files on disk to catch cross-cutting drift. Run in CI (see ci.yml), kept out
- * of the vitest suite so unit tests stay fast and don't break on asset edits.
- *
- * Checks:
- *   1. Locale parity   — every locale defines exactly the en-US key set.
- *   2. i18n usage       — every literal t('ns.key') in source exists in en-US.
- *
- * Exits non-zero with a readable report on the first category that fails.
+ * Cross-runtime locale checks that framework tooling cannot express.
+ * Translation keys and usage are validated by @intlify/eslint-plugin-vue-i18n.
  */
 import { readdirSync, readFileSync } from 'node:fs'
-import { join, relative, dirname } from 'node:path'
+import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { baseCompile } from '@intlify/message-compiler'
+import { INDIRECT_I18N_KEYS } from './i18n-key-contracts.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const SRC_DIR = join(ROOT, 'src')
-const LOCALES_DIR = join(SRC_DIR, 'shared', 'locales')
-
+const LOCALES_DIR = join(ROOT, 'src', 'shared', 'locales')
+const NATIVE_LOCALES_DIR = join(ROOT, 'src-tauri', 'locales')
 const problems = []
 
-// ── 1. Locale key parity ────────────────────────────────────────────
+const catalog = JSON.parse(readFileSync(join(LOCALES_DIR, 'catalog.json'), 'utf8'))
+const expectedLocales = Object.keys(catalog).sort()
+const resourceLocales = readdirSync(LOCALES_DIR, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name)
+  .sort()
 
-function extractLocaleKeys(filePath) {
-  const content = readFileSync(filePath, 'utf-8')
-  const quoted = Array.from(content.matchAll(/^\s*'([^']+)'\s*:/gm), (m) => m[1])
-  const bare = Array.from(content.matchAll(/^\s*([A-Za-z_$][\w$-]*)\s*:/gm), (m) => m[1])
-  return new Set([...quoted, ...bare])
+function reportSetDifference(label, expected, actual) {
+  const missing = expected.filter((value) => !actual.includes(value))
+  const extra = actual.filter((value) => !expected.includes(value))
+  if (missing.length) problems.push(`${label} missing: ${missing.join(', ')}`)
+  if (extra.length) problems.push(`${label} unexpected: ${extra.join(', ')}`)
 }
 
-const locales = readdirSync(LOCALES_DIR, { withFileTypes: true })
-  .filter((d) => d.isDirectory())
-  .map((d) => d.name)
+reportSetDifference('frontend locale resources', expectedLocales, resourceLocales)
 
-const namespaces = readdirSync(join(LOCALES_DIR, 'en-US'))
-  .filter((f) => f.endsWith('.js') && f !== 'index.js')
-  .map((f) => f.replace(/\.js$/, ''))
+for (const locale of resourceLocales) {
+  const files = readdirSync(join(LOCALES_DIR, locale)).sort()
+  if (files.length !== 1 || files[0] !== 'messages.json') {
+    problems.push(`locale ${locale} must contain only messages.json; found: ${files.join(', ')}`)
+  }
+}
 
-for (const namespace of namespaces) {
-  const reference = extractLocaleKeys(join(LOCALES_DIR, 'en-US', `${namespace}.js`))
-  for (const locale of locales) {
-    if (locale === 'en-US') continue
-    const filePath = join(LOCALES_DIR, locale, `${namespace}.js`)
-    let keys
-    try {
-      keys = extractLocaleKeys(filePath)
-    } catch {
-      problems.push(`locale ${locale} is missing namespace file ${namespace}.js`)
-      continue
+const nativeLocales = readdirSync(NATIVE_LOCALES_DIR)
+  .filter((file) => file.endsWith('.json'))
+  .map((file) => file.replace(/\.json$/u, ''))
+  .sort()
+reportSetDifference('native locale resources', expectedLocales, nativeLocales)
+
+const nativeReference = JSON.parse(readFileSync(join(NATIVE_LOCALES_DIR, 'en-US.json'), 'utf8'))
+const nativeReferenceKeys = Object.keys(nativeReference).filter((key) => key !== '_version')
+const rustPlaceholders = (message) => Array.from(message.matchAll(/%\{([^}]+)\}/gu), (match) => match[1]).sort()
+
+for (const locale of nativeLocales) {
+  const messages = JSON.parse(readFileSync(join(NATIVE_LOCALES_DIR, `${locale}.json`), 'utf8'))
+  const keys = Object.keys(messages).filter((key) => key !== '_version')
+  reportSetDifference(`native locale ${locale} keys`, nativeReferenceKeys, keys)
+  for (const key of nativeReferenceKeys) {
+    const sourceMessage = nativeReference[key]
+    const targetMessage = messages[key]
+    if (typeof sourceMessage !== 'string' || typeof targetMessage !== 'string') continue
+    const expected = rustPlaceholders(sourceMessage)
+    const actual = rustPlaceholders(targetMessage)
+    if (expected.join('\0') !== actual.join('\0')) {
+      problems.push(
+        `native locale ${locale} placeholder mismatch at ${key}: expected [${expected.join(', ')}], found [${actual.join(', ')}]`,
+      )
     }
-    const missing = [...reference].filter((k) => !keys.has(k))
-    const extra = [...keys].filter((k) => !reference.has(k))
-    if (missing.length) problems.push(`locale ${locale}/${namespace}.js missing keys: ${missing.join(', ')}`)
-    if (extra.length) problems.push(`locale ${locale}/${namespace}.js extra keys: ${extra.join(', ')}`)
   }
 }
 
-// ── 2. i18n literal-key usage ───────────────────────────────────────
-
-function walkSourceFiles(dir) {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name)
-    if (entry.isDirectory()) return entry.name === '__tests__' ? [] : walkSourceFiles(path)
-    return /\.(ts|vue)$/.test(entry.name) ? [path] : []
-  })
+function flattenMessages(value, prefix = '', result = new Map()) {
+  for (const [key, child] of Object.entries(value)) {
+    const path = prefix ? `${prefix}.${key}` : key
+    if (typeof child === 'string') result.set(path, child)
+    else if (child && typeof child === 'object' && !Array.isArray(child)) flattenMessages(child, path, result)
+    else problems.push(`locale message ${path} must be a string or object`)
+  }
+  return result
 }
 
-const namespaceKeys = new Map(namespaces.map((ns) => [ns, extractLocaleKeys(join(LOCALES_DIR, 'en-US', `${ns}.js`))]))
-const callRe = /(?:\b\w+\.)?\bt\(\s*(['"])([A-Za-z0-9_-]+)\.([A-Za-z0-9_.-]+)\1/g
+function collectPlaceholders(message) {
+  const placeholders = new Set()
+  const visit = (node) => {
+    if (!node || typeof node !== 'object') return
+    if (node.type === 4) placeholders.add(`named:${node.key}`)
+    if (node.type === 5) placeholders.add(`list:${node.index}`)
+    for (const [key, value] of Object.entries(node)) {
+      if (key !== 'loc') visit(value)
+    }
+  }
+  visit(baseCompile(message).ast)
+  return [...placeholders].sort()
+}
 
-for (const filePath of walkSourceFiles(SRC_DIR)) {
-  const content = readFileSync(filePath, 'utf-8')
-  let match
-  while ((match = callRe.exec(content)) !== null) {
-    const [, , namespace, key] = match
-    const keys = namespaceKeys.get(namespace)
-    if (keys?.has(key)) continue
-    if (!keys) continue // dynamic namespace — not a literal we can verify
-    const line = content.slice(0, match.index).split('\n').length
-    problems.push(`i18n key not found: ${relative(SRC_DIR, filePath)}:${line} ${namespace}.${key}`)
+const reference = flattenMessages(JSON.parse(readFileSync(join(LOCALES_DIR, 'en-US', 'messages.json'), 'utf8')))
+for (const key of INDIRECT_I18N_KEYS) {
+  if (!reference.has(key)) problems.push(`indirect i18n contract references missing key: ${key}`)
+}
+for (const locale of resourceLocales.filter((value) => value !== 'en-US')) {
+  const messages = flattenMessages(JSON.parse(readFileSync(join(LOCALES_DIR, locale, 'messages.json'), 'utf8')))
+  for (const [key, sourceMessage] of reference) {
+    const targetMessage = messages.get(key)
+    if (targetMessage === undefined) continue
+    const sourcePlaceholders = collectPlaceholders(sourceMessage)
+    const targetPlaceholders = collectPlaceholders(targetMessage)
+    if (sourcePlaceholders.join('\0') !== targetPlaceholders.join('\0')) {
+      problems.push(
+        `locale ${locale} placeholder mismatch at ${key}: expected [${sourcePlaceholders.join(', ')}], found [${targetPlaceholders.join(', ')}]`,
+      )
+    }
   }
 }
-
-// ── Report ──────────────────────────────────────────────────────────
 
 if (problems.length) {
   console.error(`✗ repo-integrity: ${problems.length} problem(s)\n`)
-  for (const p of problems) console.error(`  - ${p}`)
+  for (const problem of problems) console.error(`  - ${problem}`)
   process.exit(1)
 }
-console.log('✓ repo-integrity: locale parity + i18n usage OK')
+
+console.log('✓ repo-integrity: locale structure and placeholders OK')

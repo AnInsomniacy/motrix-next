@@ -135,12 +135,6 @@ describe('resolveArchiveAction', () => {
 
   // ── BT multi-file tasks ───────────────────────────────────────
 
-  it('returns null for BT task (multi-file downloads have own directory structure)', () => {
-    const task = makeTask('/Users/test/Downloads/torrent-name/video.mp4', '/Users/test/Downloads')
-    task.bittorrent = { info: { name: 'torrent-name' } }
-    expect(resolveArchiveAction(task, true, CATEGORIES, BASE_DIR)).toBeNull()
-  })
-
   // ── Custom absolute path categories ────────────────────────────
 
   it('archives to custom absolute path from NAS', () => {

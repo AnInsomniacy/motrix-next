@@ -53,6 +53,7 @@ describe('TaskList', () => {
     vi.clearAllMocks()
     pinia = createPinia()
     setActivePinia(pinia)
+    useTaskStore().currentList = 'progress'
   })
 
   it('renders full task cards by default', async () => {
@@ -86,6 +87,25 @@ describe('TaskList', () => {
     expect(wrapper.find('.full-task-item').exists()).toBe(false)
   })
 
+  it('reuses the card through download, seeding, pause, and completion', async () => {
+    const store = useTaskStore()
+    store.currentList = 'all'
+    store.taskList = [createTask()]
+    const wrapper = mount(TaskList, { global: { plugins: [pinia] } })
+    const card = wrapper.find('.full-task-item').element
+    for (const update of [
+      { status: 'active', bittorrent: { state: 'seeding' } },
+      { status: 'paused', bittorrent: { state: 'seeding' } },
+      { status: 'active', bittorrent: { state: 'seeding' } },
+      { status: 'complete' },
+    ] satisfies Partial<Aria2Task>[]) {
+      store.taskList = [{ ...createTask(), ...update }]
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('.full-task-item').element).toBe(card)
+    }
+    wrapper.unmount()
+  })
+
   it('renders only the current task page', async () => {
     const wrapper = mount(TaskList, {
       global: {
@@ -95,9 +115,9 @@ describe('TaskList', () => {
     const taskStore = useTaskStore()
     taskStore.setTaskPageSize(2)
     taskStore.taskList = ['a', 'b', 'c', 'd', 'e'].map(createTaskWithGid)
-    taskStore.taskPagination.active.total = 5
-    taskStore.taskPagination.active.loaded = true
-    taskStore.setTaskPage('active', 2)
+    taskStore.taskPagination.progress.total = 5
+    taskStore.taskPagination.progress.loaded = true
+    taskStore.setTaskPage('progress', 2)
 
     await wrapper.vm.$nextTick()
 
@@ -115,13 +135,14 @@ describe('TaskList', () => {
     const saveSpy = vi.spyOn(taskStore, 'saveVisiblePageManualOrder').mockResolvedValue(undefined)
     taskStore.setTaskPageSize(2)
     taskStore.taskList = ['a', 'b', 'c', 'd'].map(createTaskWithGid)
-    taskStore.taskPagination.active.total = 4
-    taskStore.taskPagination.active.loaded = true
-    taskStore.setTaskPage('active', 2)
+    taskStore.taskPagination.progress.total = 4
+    taskStore.taskPagination.progress.loaded = true
+    taskStore.setTaskPage('progress', 2)
     await wrapper.vm.$nextTick()
     await wrapper.vm.$nextTick()
 
     const sortableOptions = sortableCreateMock.mock.calls[sortableCreateMock.mock.calls.length - 1]?.[1]
+    expect(sortableOptions?.handle).toBe('.task-drag-handle')
     await sortableOptions?.onEnd?.({} as SortableEvent)
 
     expect(saveSpy).toHaveBeenCalledWith([expect.objectContaining({ gid: 'c' }), expect.objectContaining({ gid: 'd' })])
@@ -135,7 +156,7 @@ describe('TaskList', () => {
     })
     const taskStore = useTaskStore()
     taskStore.taskList = ['a', 'b', 'c'].map(createTaskWithGid)
-    taskStore.taskPagination.active.total = 3
+    taskStore.taskPagination.progress.total = 3
     await wrapper.vm.$nextTick()
 
     const removed = wrapper.findAll('.task-list-item')[1].element as HTMLElement
@@ -155,7 +176,7 @@ describe('TaskList', () => {
     })
     const taskStore = useTaskStore()
     taskStore.taskList = ['a', 'b', 'c'].map(createTaskWithGid)
-    taskStore.taskPagination.active.total = 3
+    taskStore.taskPagination.progress.total = 3
     await wrapper.vm.$nextTick()
 
     await wrapper.findComponent({ name: 'Transition' }).vm.$emit('before-leave')

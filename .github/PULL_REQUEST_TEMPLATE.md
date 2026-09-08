@@ -37,7 +37,7 @@ PR title MUST follow Conventional Commits format.
 <!-- Check what passed. Leave unchecked items explained below. -->
 
 - [ ] Frontend checks passed: `pnpm format:check`, `npx vue-tsc --noEmit`, `pnpm test`
-- [ ] Rust checks passed: `cargo fmt -- --check`, `cargo clippy --all-targets -- -D warnings`, `cargo check --all-targets`, `cargo test --all-targets`
+- [ ] Rust checks passed: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo check --workspace --all-targets`, `cargo test --workspace --all-targets`
 - [ ] Manual testing completed, or not needed for this change
 
 Unchecked checks:

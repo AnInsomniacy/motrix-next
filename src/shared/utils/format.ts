@@ -81,16 +81,6 @@ export const ellipsis = (str = '', maxLen = 64): string => {
   return str
 }
 
-export const splitTextRows = (text = ''): string[] => {
-  let result =
-    `${text}`
-      .replace(/(?:\\\r\\\n|\\\r|\\\n)/g, ' ')
-      .replace(/(?:\r\n|\r|\n)/g, '\n')
-      .split('\n') || []
-  result = result.map((row) => row.trim())
-  return result
-}
-
 export const convertCommaToLine = (text = ''): string => {
   let arr = `${text}`.split(',')
   arr = arr.map((row) => row.trim())

@@ -6,37 +6,27 @@
  */
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NModal, NCard, NDataTable, NButton, NSpace, NEllipsis } from 'naive-ui'
-import { bytesToSize } from '@shared/utils'
-import { calcColumnWidth } from '@shared/utils/calcColumnWidth'
-import type { DataTableColumns, DataTableRowKey } from 'naive-ui'
-import type { MagnetFileItem, MagnetSelectionSubmission } from '@/composables/useMagnetFlow'
+import { NModal, NCard, NButton, NSpace, NEllipsis } from 'naive-ui'
+import type { MagnetSelectionSubmission } from '@/composables/useMagnetFlow'
+import type { BtFileSelectionItem } from '@shared/types'
+import BtFileSelector from '@/components/task/BtFileSelector.vue'
 
 const props = defineProps<{
   show: boolean
-  files: MagnetFileItem[]
+  files: BtFileSelectionItem[]
   taskName: string
   submission: MagnetSelectionSubmission
 }>()
 
 const emit = defineEmits<{
   confirm: [selectedIndices: number[]]
-  cancel: []
+  dismiss: []
   afterLeave: []
 }>()
 
 const { t } = useI18n()
 
-const checkedKeys = ref<DataTableRowKey[]>([])
-
-// ── Directional animation state ─────────────────────────────────────
-// Track previous values to determine slide direction:
-//   value increased → new value slides UP   (counter feels like it "grows")
-//   value decreased → new value slides DOWN (counter feels like it "shrinks")
-const prevCount = ref(0)
-const prevSize = ref(0)
-const countDirection = ref<'val-up' | 'val-down'>('val-up')
-const sizeDirection = ref<'val-up' | 'val-down'>('val-up')
+const checkedKeys = ref<number[]>([])
 
 watch(
   () => props.files,
@@ -46,70 +36,18 @@ watch(
   { immediate: true },
 )
 
-watch(
-  () => checkedKeys.value.length,
-  (cur, prev) => {
-    countDirection.value = cur >= prev ? 'val-up' : 'val-down'
-    prevCount.value = prev
-  },
-)
-
-const columns = computed<DataTableColumns>(() => {
-  const data = props.files
-  return [
-    { type: 'selection' },
-    {
-      title: t('task.file-index') || '#',
-      key: 'index',
-      width: calcColumnWidth({
-        title: t('task.file-index') || '#',
-        values: data.map((r) => String(r.index)),
-      }),
-    },
-    {
-      title: t('task.file-name') || 'File Name',
-      key: 'name',
-      ellipsis: { tooltip: true },
-    },
-    {
-      title: t('task.file-size') || 'Size',
-      key: 'length',
-      width: calcColumnWidth({
-        title: t('task.file-size') || 'Size',
-        values: data.map((r) => bytesToSize(r.length)),
-        sortable: true,
-      }),
-      sorter: (a: Record<string, unknown>, b: Record<string, unknown>) => (a.length as number) - (b.length as number),
-      render(row: Record<string, unknown>) {
-        return bytesToSize(row.length as number)
-      },
-    },
-  ]
-})
-
-const totalSize = computed(() => {
-  const selected = new Set(checkedKeys.value)
-  return props.files.filter((f) => selected.has(f.index)).reduce((sum, f) => sum + f.length, 0)
-})
-
-watch(totalSize, (cur, prev) => {
-  sizeDirection.value = cur >= prev ? 'val-up' : 'val-down'
-  prevSize.value = prev
-})
-
 const hasSelection = computed(() => checkedKeys.value.length > 0)
 const submitting = computed(() => props.submission !== null)
 const confirming = computed(() => props.submission === 'confirm')
-const cancelling = computed(() => props.submission === 'cancel')
 
 function handleConfirm() {
   if (submitting.value) return
-  emit('confirm', checkedKeys.value as number[])
+  emit('confirm', checkedKeys.value)
 }
 
-function handleCancel() {
+function handleDismiss() {
   if (submitting.value) return
-  emit('cancel')
+  emit('dismiss')
 }
 </script>
 
@@ -121,7 +59,7 @@ function handleCancel() {
     :auto-focus="false"
     transform-origin="center"
     :transition="{ name: 'fade-scale' }"
-    @update:show="(v) => !v && handleCancel()"
+    @update:show="(v) => !v && handleDismiss()"
     @after-leave="emit('afterLeave')"
   >
     <NCard
@@ -140,39 +78,20 @@ function handleCancel() {
       }"
       :content-style="{ flex: '1', minHeight: '0', overflowY: 'auto', overflowX: 'hidden' }"
       :segmented="{ footer: true }"
-      @close="handleCancel"
+      @close="handleDismiss"
     >
       <!-- Task name subtitle -->
       <div class="task-name-subtitle">
         <NEllipsis :line-clamp="1">{{ taskName }}</NEllipsis>
       </div>
 
-      <NDataTable
-        :columns="columns"
-        :data="files"
-        :row-key="(row: MagnetFileItem) => row.index"
-        :checked-row-keys="checkedKeys"
-        :max-height="360"
-        size="small"
-        @update:checked-row-keys="(keys: DataTableRowKey[]) => (checkedKeys = keys)"
-      />
+      <BtFileSelector v-model:selected-indices="checkedKeys" :files="files" :max-height="360" />
 
       <template #footer>
-        <NSpace justify="space-between" align="center">
-          <span class="file-summary">
-            <Transition :name="countDirection" mode="out-in">
-              <span :key="checkedKeys.length" class="file-summary-count"
-                >{{ checkedKeys.length }}/{{ files.length }}</span
-              >
-            </Transition>
-            <span class="file-summary-sep">—</span>
-            <Transition :name="sizeDirection" mode="out-in">
-              <span :key="bytesToSize(totalSize)" class="file-summary-size">{{ bytesToSize(totalSize) }}</span>
-            </Transition>
-          </span>
+        <NSpace justify="end" align="center">
           <NSpace>
-            <NButton :loading="cancelling" :disabled="submitting" @click="handleCancel">
-              {{ t('task.magnet-cancel-download') || 'Cancel Download' }}
+            <NButton :disabled="submitting" @click="handleDismiss">
+              {{ t('task.magnet-choose-later') || 'Choose Later' }}
             </NButton>
             <NButton
               type="primary"
@@ -197,56 +116,5 @@ function handleCancel() {
   font-size: 13px;
   color: var(--m3-on-surface-variant);
   line-height: 1.4;
-}
-
-.file-summary {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--m3-on-surface);
-}
-
-.file-summary-count,
-.file-summary-size {
-  display: inline-block;
-}
-
-.file-summary-sep {
-  opacity: 0.5;
-}
-
-/* Value change transition — directional vertical slide.
- * val-up:   new value rises from below  (used when count increases)
- * val-down: new value drops from above  (used when count decreases) */
-.val-up-enter-active,
-.val-up-leave-active,
-.val-down-enter-active,
-.val-down-leave-active {
-  transition:
-    opacity 0.15s ease-out,
-    transform 0.15s ease-out;
-}
-
-/* ↑ increase: enter from below, leave upward */
-.val-up-enter-from {
-  opacity: 0;
-  transform: translateY(4px);
-}
-.val-up-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-
-/* ↓ decrease: enter from above, leave downward */
-.val-down-enter-from {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-.val-down-leave-to {
-  opacity: 0;
-  transform: translateY(4px);
 }
 </style>

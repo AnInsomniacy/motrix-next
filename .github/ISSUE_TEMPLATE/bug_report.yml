@@ -93,7 +93,7 @@ body:
     attributes:
       label: Diagnostic Logs
       description: |
-        Keep both **Motrix Next Log Level** and **Aria2 Next Log Level** at the default `warn` level unless a maintainer requests otherwise. Reproduce the issue, then export the logs via **Advanced Settings → Export Diagnostic Logs**.
+        Leave both log levels at their default `info` unless a maintainer requests otherwise. Reproduce the issue, then export the diagnostic ZIP from **Advanced Settings → Export Diagnostic Logs**.
         Upload the exported `.zip` directly. Do not extract it.
         If you must redact sensitive data, keep the same ZIP file structure and filenames when repacking.
         Do not paste only a few log lines unless a maintainer asks for that.

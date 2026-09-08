@@ -8,7 +8,7 @@ import {
   peerIdParser,
 } from '@shared/utils'
 import { decodePathSegment } from '@shared/utils/batchHelpers'
-import type { Aria2File, Aria2Peer, Aria2Task } from '@shared/types'
+import type { Aria2File, Aria2Peer, Aria2Task, BtFilePriority } from '@shared/types'
 
 export interface FileDetailRow {
   idx: number
@@ -18,6 +18,7 @@ export interface FileDetailRow {
   completedLength: number
   percent: number
   selected: boolean
+  priority: BtFilePriority
 }
 
 export interface SourceDetailRow {
@@ -33,6 +34,7 @@ export interface PeerDetailRow {
   host: string
   ip: string
   client: string
+  connection: string
   percent: string
   uploadSpeed: string
   downloadSpeed: string
@@ -54,6 +56,7 @@ export function buildFileDetailRows(files: Aria2File[]): FileDetailRow[] {
       completedLength,
       percent: calcProgress(item.length, item.completedLength, 1),
       selected: item.selected === 'true',
+      priority: item.priority ?? (item.selected === 'true' ? 'normal' : 'off'),
     }
   })
 }
@@ -75,8 +78,13 @@ export function buildPeerDetailRows(peers: Aria2Peer[] | undefined): PeerDetailR
     .map((peer) => ({
       host: `${peer.ip}:${peer.port}`,
       ip: peer.ip,
-      client: peerIdParser(peer.peerId),
-      percent: peer.bitfield ? bitfieldToPercent(peer.bitfield) + '%' : '-',
+      client: peer.peerClientName || peerIdParser(peer.peerId ?? ''),
+      connection: [peer.state, peer.transport, peer.encryption].filter(Boolean).join(' · '),
+      percent: peer.bitfield
+        ? bitfieldToPercent(peer.bitfield) + '%'
+        : peer.progress
+          ? `${Math.floor(Number(peer.progress) * 100)}%`
+          : '-',
       uploadSpeed: bytesToSize(peer.uploadSpeed) + '/s',
       downloadSpeed: bytesToSize(peer.downloadSpeed) + '/s',
       amChoking: peer.amChoking === 'true',

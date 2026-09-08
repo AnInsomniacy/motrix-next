@@ -10,7 +10,6 @@ describe('normalizeHttpAuthOrigin', () => {
   })
 
   it('rejects unsupported URL schemes and invalid URLs', () => {
-    expect(normalizeHttpAuthOrigin('ftp://files.example.com/file.zip')).toBeNull()
     expect(normalizeHttpAuthOrigin('magnet:?xt=urn:btih:abc')).toBeNull()
     expect(normalizeHttpAuthOrigin('not a url')).toBeNull()
   })

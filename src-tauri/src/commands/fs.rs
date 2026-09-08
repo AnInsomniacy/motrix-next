@@ -1,87 +1,9 @@
-use crate::engine::{valid_aria2_log_level, DEFAULT_ARIA2_LOG_LEVEL};
 use crate::error::AppError;
-use crate::log_policy::{
-    is_managed_active_log_file, remove_legacy_log_files, ARIA2_LOG_FILE, MOTRIX_LOG_FILE,
-};
 use serde::Deserialize;
 use serde_json::Value;
 use std::path::Path;
 use tauri::AppHandle;
 use tauri::Manager;
-
-fn diagnostic_log_zip_path(name: &str) -> Option<String> {
-    if name == MOTRIX_LOG_FILE {
-        Some(format!("motrix-next/{name}"))
-    } else if name == ARIA2_LOG_FILE {
-        Some(format!("aria2-next/{name}"))
-    } else {
-        None
-    }
-}
-
-fn should_export_log_file(path: &Path, name: &str) -> Result<bool, AppError> {
-    let Some(_) = diagnostic_log_zip_path(name) else {
-        return Ok(false);
-    };
-    let metadata = std::fs::metadata(path)
-        .map_err(|e| AppError::Io(format!("Failed to read log metadata: {e}")))?;
-    Ok(metadata.len() > 0)
-}
-
-fn config_aria2_log_level(raw: Option<&Value>) -> &str {
-    raw.and_then(|config| {
-        config
-            .get("preferences")
-            .and_then(|prefs| prefs.get("aria2LogLevel"))
-            .and_then(Value::as_str)
-    })
-    .filter(|level| valid_aria2_log_level(level))
-    .unwrap_or(DEFAULT_ARIA2_LOG_LEVEL)
-}
-
-fn redact_url_credentials(value: &str) -> String {
-    match url::Url::parse(value) {
-        Ok(url) => {
-            let host = url.host_str().unwrap_or("invalid-host");
-            let port = url.port().map(|p| format!(":{p}")).unwrap_or_default();
-            let has_auth = !url.username().is_empty() || url.password().is_some();
-            if has_auth {
-                format!("{}://[REDACTED]@{host}{port}", url.scheme())
-            } else {
-                value.to_string()
-            }
-        }
-        Err(_) => value.to_string(),
-    }
-}
-
-fn sanitize_config_snapshot(raw: &Value) -> Value {
-    let mut sanitized = raw.clone();
-    if let Some(prefs) = sanitized
-        .get_mut("preferences")
-        .and_then(Value::as_object_mut)
-    {
-        for key in ["rpcSecret", "extensionApiSecret"] {
-            if let Some(secret) = prefs.get_mut(key) {
-                *secret = Value::String("[REDACTED]".into());
-            }
-        }
-        if let Some(cookie) = prefs.get_mut("cookie") {
-            *cookie = Value::String("[REDACTED]".into());
-        }
-        if let Some(proxy) = prefs.get_mut("proxy").and_then(Value::as_object_mut) {
-            if let Some(server_value) = proxy.get_mut("server") {
-                if let Some(server) = server_value.as_str() {
-                    *server_value = Value::String(redact_url_credentials(server));
-                }
-            }
-            if let Some(password) = proxy.get_mut("password") {
-                *password = Value::String("[REDACTED]".into());
-            }
-        }
-    }
-    sanitized
-}
 
 /// Returns `true` when the current process was launched by the OS
 /// autostart mechanism (the Tauri autostart plugin appends `--autostart`)
@@ -136,8 +58,6 @@ fn clear_managed_log_files_in_dir(log_dir: &Path) -> Result<(), AppError> {
     if !log_dir.exists() {
         return Ok(());
     }
-    remove_legacy_log_files(log_dir)
-        .map_err(|e| AppError::Io(format!("Failed to remove legacy logs: {e}")))?;
     for entry in std::fs::read_dir(log_dir)
         .map_err(|e| AppError::Io(format!("Failed to read log dir: {e}")))?
         .flatten()
@@ -150,12 +70,15 @@ fn clear_managed_log_files_in_dir(log_dir: &Path) -> Result<(), AppError> {
         if !path.is_file() {
             continue;
         }
-        if is_managed_active_log_file(name) {
+        if crate::log_policy::is_managed_active_log_file(name) {
             std::fs::OpenOptions::new()
                 .write(true)
                 .truncate(true)
                 .open(&path)
                 .map_err(|e| AppError::Io(format!("Failed to clear active log: {e}")))?;
+        } else if crate::log_policy::managed_log_source(name).is_some() {
+            std::fs::remove_file(&path)
+                .map_err(|e| AppError::Io(format!("Failed to remove rotated log: {e}")))?;
         }
     }
     Ok(())
@@ -171,15 +94,7 @@ pub fn clear_log_file(app: AppHandle) -> Result<(), AppError> {
     clear_managed_log_files_in_dir(&log_dir)
 }
 
-/// Collects all log files from the app log directory and compresses them
-/// into a ZIP archive at the user-specified path (chosen via a save dialog
-/// on the frontend). Includes:
-/// - `system-info.json` with enriched machine/runtime context for diagnostics
-/// - Motrix Next logs under `motrix-next/`
-/// - Aria2 Next logs under `aria2-next/`
-/// - `config.json` user configuration snapshot for issue reproduction
-///
-/// Returns the full path to the created ZIP file.
+/// Exports a redacted runtime snapshot and the complete application and engine logs.
 #[tauri::command]
 pub async fn export_diagnostic_logs(app: AppHandle, save_path: String) -> Result<String, AppError> {
     let log_dir = app
@@ -192,12 +107,6 @@ pub async fn export_diagnostic_logs(app: AppHandle, save_path: String) -> Result
     }
 
     let zip_path = std::path::PathBuf::from(&save_path);
-
-    let zip_file = std::fs::File::create(&zip_path)
-        .map_err(|e| AppError::Io(format!("Failed to create zip: {}", e)))?;
-    let mut zip_writer = zip::ZipWriter::new(zip_file);
-    let options = zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Deflated);
 
     let data_dir = app
         .path()
@@ -221,82 +130,29 @@ pub async fn export_diagnostic_logs(app: AppHandle, save_path: String) -> Result
     } else {
         None
     };
-    // ── System info: enriched machine context for diagnostics ────────
-    let pkg = app.package_info();
-    let engine_pid = app
-        .state::<crate::engine::EngineState>()
-        .child
-        .lock()
-        .expect("engine state lock poisoned")
-        .as_ref()
-        .map(tauri_plugin_shell::process::CommandChild::pid);
-    let system_info = serde_json::json!({
-        "os": std::env::consts::OS,
-        "os_version": os_info::get().version().to_string(),
-        "arch": std::env::consts::ARCH,
-        "locale": sys_locale::get_locale().unwrap_or_default(),
-        "app_version": pkg.version.to_string(),
-        "app_name": pkg.name,
-        "motrix_next_log_level": format!("{}", crate::read_log_level()),
-        "aria2_next_log_level": config_aria2_log_level(raw_config.as_ref()),
-        "engine_pid": engine_pid,
-        "webkit_dmabuf_disabled": std::env::var(crate::gpu_guard::WEBKIT_DISABLE_DMABUF_RENDERER).unwrap_or_default(),
-        "webkit_compositing_disabled": std::env::var(crate::gpu_guard::WEBKIT_DISABLE_COMPOSITING_MODE).unwrap_or_default(),
-        "webkit_hardware_acceleration_enabled": crate::gpu_guard::is_hardware_rendering_enabled(),
-        "appimage": std::env::var("APPIMAGE").unwrap_or_default(),
-        "appdir": std::env::var("APPDIR").unwrap_or_default(),
-        "xdg_session_type": std::env::var("XDG_SESSION_TYPE").unwrap_or_default(),
-        "gdk_backend": std::env::var("GDK_BACKEND").unwrap_or_default(),
-        "exported_at": chrono::Local::now().to_rfc3339(),
-    });
-    let info_bytes = serde_json::to_vec_pretty(&system_info)
-        .map_err(|e| AppError::Io(format!("Failed to serialize system info: {}", e)))?;
-    zip_writer
-        .start_file("system-info.json", options)
-        .map_err(|e| AppError::Io(format!("Failed to add system-info.json: {}", e)))?;
-    std::io::Write::write_all(&mut zip_writer, &info_bytes)
-        .map_err(|e| AppError::Io(format!("Failed to write system-info.json: {}", e)))?;
-
-    // ── Log files ───────────────────────────────────────────────────
-    let entries = std::fs::read_dir(&log_dir)
-        .map_err(|e| AppError::Io(format!("Failed to read log dir: {}", e)))?;
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_file() {
-            let name = path.file_name().unwrap_or_default().to_string_lossy();
-            let Some(zip_name) = diagnostic_log_zip_path(&name) else {
-                continue;
-            };
-            if !should_export_log_file(&path, &name)? {
-                continue;
-            }
-            let content = std::fs::read(&path)
-                .map_err(|e| AppError::Io(format!("Failed to read {}: {}", name, e)))?;
-            zip_writer
-                .start_file(zip_name, options)
-                .map_err(|e| AppError::Io(format!("Failed to add {} to zip: {}", name, e)))?;
-            std::io::Write::write_all(&mut zip_writer, &content)
-                .map_err(|e| AppError::Io(format!("Failed to write {}: {}", name, e)))?;
-        }
+    log::logger().flush();
+    if let (Some(state), Some(level)) = (
+        app.try_state::<crate::aria2::client::Aria2State>(),
+        raw_config
+            .as_ref()
+            .and_then(|value| value.get("preferences"))
+            .and_then(|value| value.get("aria2LogLevel"))
+            .and_then(Value::as_str),
+    ) {
+        let mut log_option = serde_json::Map::new();
+        log_option.insert("log-level".to_string(), Value::String(level.to_string()));
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            state.0.change_global_option(log_option),
+        )
+        .await;
     }
 
-    // ── Config snapshot: user preferences for issue reproduction ─────
-    if let Some(value) = raw_config {
-        let sanitized = serde_json::to_vec_pretty(&sanitize_config_snapshot(&value))
-            .map_err(|e| AppError::Io(format!("Failed to sanitize config: {}", e)))?;
-        zip_writer
-            .start_file("config.json", options)
-            .map_err(|e| AppError::Io(format!("Failed to add config.json: {}", e)))?;
-        std::io::Write::write_all(&mut zip_writer, &sanitized)
-            .map_err(|e| AppError::Io(format!("Failed to write config.json: {}", e)))?;
-    }
+    let logs = crate::diagnostics::collect_logs(&log_dir)?;
+    let diagnostics = crate::diagnostics::runtime_snapshot(&app, raw_config.as_ref()).await;
+    crate::diagnostics::write_archive(&zip_path, &logs, &diagnostics)?;
 
-    zip_writer
-        .finish()
-        .map_err(|e| AppError::Io(format!("Failed to finalize zip: {}", e)))?;
-
-    log::info!("Exported diagnostic logs to {}", zip_path.display());
+    log::info!(target: "diagnostics", event = "diagnostics_exported", path:% = zip_path.display(); "diagnostics_exported");
     Ok(crate::engine::path_to_safe_string(&zip_path))
 }
 
@@ -305,91 +161,17 @@ mod export_tests {
     use super::*;
 
     #[test]
-    fn redact_url_credentials_masks_auth_section() {
-        assert_eq!(
-            redact_url_credentials("http://user:pass@example.com:8080"),
-            "http://[REDACTED]@example.com:8080"
-        );
-    }
-
-    #[test]
-    fn sanitize_config_snapshot_redacts_api_secrets_cookie_and_proxy_server() {
-        let raw = serde_json::json!({
-            "preferences": {
-                "rpcSecret": "secret",
-                "extensionApiSecret": "api-secret",
-                "cookie": "session=abc",
-                "proxy": {
-                    "server": "http://user:pass@example.com:8080",
-                    "password": "proxy-secret"
-                }
-            }
-        });
-        let sanitized = sanitize_config_snapshot(&raw);
-        let prefs = sanitized
-            .get("preferences")
-            .and_then(Value::as_object)
-            .expect("preferences object must exist");
-        assert_eq!(
-            prefs.get("rpcSecret").and_then(Value::as_str),
-            Some("[REDACTED]")
-        );
-        assert_eq!(
-            prefs.get("extensionApiSecret").and_then(Value::as_str),
-            Some("[REDACTED]")
-        );
-        assert_eq!(
-            prefs.get("cookie").and_then(Value::as_str),
-            Some("[REDACTED]")
-        );
-        assert_eq!(
-            prefs
-                .get("proxy")
-                .and_then(Value::as_object)
-                .and_then(|proxy| proxy.get("server"))
-                .and_then(Value::as_str),
-            Some("http://[REDACTED]@example.com:8080")
-        );
-        assert_eq!(
-            prefs
-                .get("proxy")
-                .and_then(Value::as_object)
-                .and_then(|proxy| proxy.get("password"))
-                .and_then(Value::as_str),
-            Some("[REDACTED]")
-        );
-    }
-
-    #[test]
-    fn diagnostic_log_zip_path_separates_motrix_and_aria2_logs_without_export_toggle() {
-        assert_eq!(
-            diagnostic_log_zip_path("motrix-next.log"),
-            Some("motrix-next/motrix-next.log".to_string())
-        );
-        assert_eq!(
-            diagnostic_log_zip_path("aria2-next.log"),
-            Some("aria2-next/aria2-next.log".to_string())
-        );
-        assert_eq!(diagnostic_log_zip_path("aria2-next.1.log"), None);
-        assert_eq!(diagnostic_log_zip_path("aria2-next.log.1"), None);
-        assert_eq!(diagnostic_log_zip_path("other.log"), None);
-        assert_eq!(diagnostic_log_zip_path("motrix-next.log.1"), None);
-    }
-
-    #[test]
-    fn clear_managed_log_files_truncates_active_logs_and_removes_legacy_logs() {
+    fn clear_managed_log_files_truncates_active_logs_and_removes_rotations() {
         let dir = tempfile::tempdir().expect("tempdir");
         let motrix = dir.path().join("motrix-next.log");
         let aria2 = dir.path().join("aria2-next.log");
         let rotated = dir.path().join("aria2-next.1.log");
-        let current_rotated = dir.path().join("aria2-next.log.1");
-        let motrix_rotated = dir.path().join("motrix-next.log.1");
+        let motrix_rotated = dir.path().join("motrix-next_2026-08-27_12-00-00.log");
         let other = dir.path().join("other.log");
 
         std::fs::write(&motrix, "motrix log").expect("motrix log");
         std::fs::write(&aria2, "aria2 log").expect("aria2 log");
         std::fs::write(&rotated, "rotated log").expect("rotated log");
-        std::fs::write(&current_rotated, "rotated log").expect("current rotated log");
         std::fs::write(&motrix_rotated, "rotated log").expect("motrix rotated log");
         std::fs::write(&other, "other log").expect("other log");
 
@@ -401,50 +183,10 @@ mod export_tests {
         );
         assert_eq!(std::fs::metadata(&aria2).expect("aria2 metadata").len(), 0);
         assert!(!rotated.exists());
-        assert!(!current_rotated.exists());
         assert!(!motrix_rotated.exists());
         assert_eq!(
             std::fs::read_to_string(&other).expect("other content"),
             "other log"
-        );
-    }
-
-    #[test]
-    fn should_export_log_file_skips_empty_logs() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let empty = dir.path().join("aria2-next.log");
-        let non_empty = dir.path().join("motrix-next.log");
-        let other = dir.path().join("other.log");
-
-        std::fs::write(&empty, "").expect("empty log");
-        std::fs::write(&non_empty, "log").expect("non-empty log");
-        std::fs::write(&other, "log").expect("other log");
-
-        assert!(!should_export_log_file(&empty, "aria2-next.log").expect("empty export"));
-        assert!(should_export_log_file(&non_empty, "motrix-next.log").expect("non-empty export"));
-        assert!(!should_export_log_file(&other, "other.log").expect("other export"));
-    }
-
-    #[test]
-    fn config_aria2_log_level_reads_current_field_only() {
-        assert_eq!(config_aria2_log_level(None), "warn");
-        assert_eq!(
-            config_aria2_log_level(Some(&serde_json::json!({
-                "preferences": { "aria2LogLevel": "debug" }
-            }))),
-            "debug"
-        );
-        assert_eq!(
-            config_aria2_log_level(Some(&serde_json::json!({
-                "preferences": { "aria2LogLevel": "verbose" }
-            }))),
-            "warn"
-        );
-        assert_eq!(
-            config_aria2_log_level(Some(&serde_json::json!({
-                "preferences": { "aria2LogsEnabled": false }
-            }))),
-            "warn"
         );
     }
 }
@@ -958,8 +700,8 @@ mod tests {
     #[test]
     fn delete_path_permanently_deletes_existing_file() {
         let dir = tempfile::tempdir().expect("create temp dir");
-        let file = dir.path().join("test.aria2");
-        std::fs::write(&file, "control data").expect("write test file");
+        let file = dir.path().join("test.bin");
+        std::fs::write(&file, "data").expect("write test file");
 
         let result = delete_path(
             file.to_string_lossy().to_string(),
@@ -990,7 +732,7 @@ mod tests {
     #[test]
     fn delete_path_returns_false_for_nonexistent_path() {
         let result = delete_path(
-            "/definitely/does/not/exist/file.aria2".to_string(),
+            "/definitely/does/not/exist/file.bin".to_string(),
             FileDeletionMode::Permanent,
         );
         assert!(!result.expect("missing path is a no-op"));

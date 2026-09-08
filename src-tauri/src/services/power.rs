@@ -1,33 +1,39 @@
 //! System idle-sleep prevention for runtime services.
 //!
-//! The stat service owns this guard while aria2 reports active tasks.  Windows
-//! uses a process handle based Power Request so acquisition and release are not
-//! tied to the tokio worker thread that happens to poll stats.  macOS and Linux
-//! keep using `keepawake`, whose backends are already assertion/inhibitor based.
-
-use crate::error::AppError;
+//! The stat service owns this guard while aria2 reports active tasks. Windows
+//! uses a Power Request, macOS uses an IOPM assertion through `keepawake`, and
+//! Linux uses the desktop-native XDG Inhibit portal.
 
 const DOWNLOAD_REASON: &str = "Active downloads in progress";
-const APP_NAME: &str = "Motrix Next";
-const APP_REVERSE_DOMAIN: &str = "com.motrix.next";
+pub const RETRY_DELAY: std::time::Duration = std::time::Duration::from_secs(30);
+
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+pub struct PowerError(String);
 
 pub struct PowerGuard {
     inner: PlatformPowerGuard,
 }
 
 impl PowerGuard {
-    pub fn acquire_download() -> Result<Self, AppError> {
-        PlatformPowerGuard::acquire_download().map(|inner| Self { inner })
+    pub async fn acquire_download() -> Result<Self, PowerError> {
+        PlatformPowerGuard::acquire_download()
+            .await
+            .map(|inner| Self { inner })
     }
 
     pub fn backend_name(&self) -> &'static str {
         self.inner.backend_name()
     }
+
+    pub async fn release(self) -> Result<(), PowerError> {
+        self.inner.release().await
+    }
 }
 
 #[cfg(target_os = "windows")]
 mod platform {
-    use super::{AppError, DOWNLOAD_REASON};
+    use super::{PowerError, DOWNLOAD_REASON};
     use std::ptr::null_mut;
     use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, HANDLE, INVALID_HANDLE_VALUE};
     use windows_sys::Win32::System::Power::{
@@ -48,7 +54,7 @@ mod platform {
     unsafe impl Send for PlatformPowerGuard {}
 
     impl PlatformPowerGuard {
-        pub fn acquire_download() -> Result<Self, AppError> {
+        pub async fn acquire_download() -> Result<Self, PowerError> {
             let mut reason = DOWNLOAD_REASON
                 .encode_utf16()
                 .chain(std::iter::once(0))
@@ -80,6 +86,11 @@ mod platform {
         pub fn backend_name(&self) -> &'static str {
             "windows-power-request"
         }
+
+        pub async fn release(self) -> Result<(), PowerError> {
+            drop(self);
+            Ok(())
+        }
     }
 
     impl Drop for PlatformPowerGuard {
@@ -103,35 +114,83 @@ mod platform {
         }
     }
 
-    fn last_power_error(operation: &str) -> AppError {
+    fn last_power_error(operation: &str) -> PowerError {
         let code = unsafe { GetLastError() };
-        AppError::Engine(format!("{operation} failed with Win32 error {code}"))
+        PowerError(format!("{operation} failed with Win32 error {code}"))
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
 mod platform {
-    use super::{AppError, APP_NAME, APP_REVERSE_DOMAIN, DOWNLOAD_REASON};
+    use super::{PowerError, DOWNLOAD_REASON};
 
     pub struct PlatformPowerGuard {
         _guard: keepawake::KeepAwake,
     }
 
     impl PlatformPowerGuard {
-        pub fn acquire_download() -> Result<Self, AppError> {
+        pub async fn acquire_download() -> Result<Self, PowerError> {
             keepawake::Builder::default()
                 .idle(true)
                 .reason(DOWNLOAD_REASON)
-                .app_name(APP_NAME)
-                .app_reverse_domain(APP_REVERSE_DOMAIN)
                 .create()
                 .map(|guard| Self { _guard: guard })
-                .map_err(|e| AppError::Engine(format!("keepawake failed: {e}")))
+                .map_err(|e| PowerError(format!("IOPM assertion failed: {e}")))
         }
 
         pub fn backend_name(&self) -> &'static str {
-            "keepawake"
+            "macos-iopm-assertion"
         }
+
+        pub async fn release(self) -> Result<(), PowerError> {
+            drop(self);
+            Ok(())
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+mod platform {
+    use super::{PowerError, DOWNLOAD_REASON};
+    use ashpd::desktop::{
+        inhibit::{InhibitFlags, InhibitOptions, InhibitProxy},
+        Request,
+    };
+
+    pub struct PlatformPowerGuard {
+        request: Request<()>,
+    }
+
+    impl PlatformPowerGuard {
+        pub async fn acquire_download() -> Result<Self, PowerError> {
+            let proxy = InhibitProxy::new()
+                .await
+                .map_err(|e| portal_error("connect", e))?;
+            let request = proxy
+                .inhibit(
+                    None,
+                    InhibitFlags::Suspend.into(),
+                    InhibitOptions::default().set_reason(DOWNLOAD_REASON),
+                )
+                .await
+                .map_err(|e| portal_error("acquire", e))?;
+            Ok(Self { request })
+        }
+
+        pub fn backend_name(&self) -> &'static str {
+            "linux-xdg-inhibit-portal"
+        }
+
+        pub async fn release(self) -> Result<(), PowerError> {
+            self.request
+                .close()
+                .await
+                .map_err(|e| portal_error("release", e))
+        }
+    }
+
+    fn portal_error(operation: &str, error: ashpd::Error) -> PowerError {
+        PowerError(format!("XDG inhibit portal {operation} failed: {error}"))
     }
 }
 
@@ -140,11 +199,6 @@ use platform::PlatformPowerGuard;
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn acquire_download_has_expected_signature() {
-        let _: fn() -> Result<PowerGuard, AppError> = PowerGuard::acquire_download;
-    }
 
     #[test]
     fn power_guard_can_be_owned_by_tokio_spawned_services() {

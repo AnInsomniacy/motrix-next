@@ -69,7 +69,7 @@ What changed is everything underneath. Every transition and micro-interaction ha
 
 ## Features
 
-- **Multi-protocol downloads** — HTTP, FTP, ED2K, BitTorrent, Magnet, and `.torrent` tasks
+- **Multi-protocol downloads** — HTTP, HTTPS, SFTP, ED2K, BitTorrent, Magnet, and `.torrent` tasks
 - **BitTorrent** — Selective file download, DHT, peer exchange, encryption controls, metadata caching, GeoIP peer flags, and tracker probing
 - **Browser extension integration** — Embedded Extension API with independent authentication, download confirmation, smart auto-submit, filename hints, referer/cookie forwarding, and real-time controls ([Chrome Web Store](https://chromewebstore.google.com/detail/ofeajdebdjajhkmcmamagokecnbephhl) · [Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/loojjolhejmakcdlbidigoniobfanjlb) · [Firefox Add-ons](https://addons.mozilla.org/firefox/addon/motrix-next-extension/))
 - **Safe filename handling** — Content-Disposition, RFC 2047, non-UTF-8, percent-encoded, and extensionless URL resolution with path traversal sanitization
@@ -131,7 +131,16 @@ Run the installer — it takes about 10 seconds, no reboot required.
 
 ### Linux
 
-Download from [Releases](https://github.com/AnInsomniacy/motrix-next/releases):
+**Flatpak via FlatPark (x64 only):**
+
+```bash
+flatpak remote-add --user --if-not-exists flatpark https://dl.flatpark.org/flatpark.flatpakrepo
+flatpak install --user flatpark com.motrix.next
+```
+
+FlatPark maintains this community package independently with permission from the Motrix Next developer. It uses official release binaries and receives updates through `flatpak update`. See the [FlatPark app page](https://flatpark.org/apps/com.motrix.next/) for details.
+
+Or download directly from [Releases](https://github.com/AnInsomniacy/motrix-next/releases):
 
 **Debian / Ubuntu:**
 
@@ -283,7 +292,7 @@ motrix-next/
 │   ├── src/
 │   │   ├── aria2/              #   Native Rust aria2 JSON-RPC client
 │   │   ├── commands/           #   Tauri invoke handlers (config, engine, fs, etc.)
-│   │   ├── engine/             #   Aria2 Next sidecar lifecycle (args, state, cleanup)
+│   │   ├── engine/             #   Aria2 Next sidecar lifecycle, runtime config, state, cleanup
 │   │   ├── services/           #   Runtime services (stat, speed, monitor, HTTP API, deep links)
 │   │   ├── db_guard.rs         #   SQLite health checks and rebuild guard
 │   │   ├── error.rs            #   AppError enum

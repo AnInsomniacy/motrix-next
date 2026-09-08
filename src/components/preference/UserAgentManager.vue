@@ -1,14 +1,35 @@
 <script setup lang="ts">
-/** @fileoverview Single-layer User-Agent profile and rule manager modal. */
-import { computed, ref, watch } from 'vue'
+/** @fileoverview User-Agent profile and host-rule manager. */
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import type { ComponentPublicInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NCard, NCheckbox, NEmpty, NIcon, NInput, NModal, NSelect, NSpace, NText } from 'naive-ui'
-import { vAutoAnimate } from '@formkit/auto-animate'
-import { AddOutline } from '@vicons/ionicons5'
-import type { UserAgentProfile, UserAgentRule } from '@shared/types'
-import { sanitizeHeaderValue } from '@shared/utils/headerSanitize'
-import { isValidUserAgentHostPattern } from '@shared/utils/userAgentPolicy'
+import Sortable from 'sortablejs'
+import type { SortableEvent, SortableOptions } from 'sortablejs'
+import {
+  NButton,
+  NCard,
+  NEmpty,
+  NForm,
+  NFormItem,
+  NIcon,
+  NInput,
+  NModal,
+  NRadioButton,
+  NRadioGroup,
+  NSelect,
+  NSpace,
+  NSwitch,
+  NTab,
+  NTabs,
+  NText,
+} from 'naive-ui'
+import { AddOutline, ArrowForwardOutline, ReorderThreeOutline } from '@vicons/ionicons5'
+import { vMotionAutoAnimate } from '@/directives/motionAutoAnimate'
 import { useAppMessage } from '@/composables/useAppMessage'
+import { useReducedMotion } from '@/composables/useReducedMotion'
+import { useUserAgentManager } from '@/composables/useUserAgentManager'
+import type { UserAgentProfile, UserAgentRule } from '@shared/types'
+import { isValidUserAgentHostPattern } from '@shared/utils/userAgentPolicy'
 
 const props = defineProps<{
   show: boolean
@@ -22,242 +43,264 @@ const emit = defineEmits<{
   save: [payload: { profiles: UserAgentProfile[]; rules: UserAgentRule[]; recentProfileIds: string[] }]
 }>()
 
-type Panel = 'profiles' | 'rules'
-
 const { t } = useI18n()
 const message = useAppMessage()
+const reduceMotion = useReducedMotion()
+const manager = useUserAgentManager()
+type RuleListRefTarget = Element | ComponentPublicInstance | null
+const ruleListRef = ref<RuleListRefTarget>(null)
+const sortingRules = ref(false)
+let sortable: Sortable | null = null
+let lastFloatingRect: DOMRect | null = null
+let floatingRectFrame = 0
 
-const draftProfiles = ref<UserAgentProfile[]>([])
-const draftRules = ref<UserAgentRule[]>([])
-const draftRecentProfileIds = ref<string[]>([])
-const activePanel = ref<Panel>('profiles')
-const selectedProfileId = ref('')
-const selectedRuleId = ref('')
-const profileDraft = ref({ name: '', value: '' })
-const ruleDraft = ref({ enabled: true, hostPattern: '', profileId: '', overridePlugin: false })
+type ManagerView = 'profiles-empty' | 'profiles-workspace' | 'rules-no-profile' | 'rules-empty' | 'rules-workspace'
 
-const selectedProfile = computed(() => draftProfiles.value.find((profile) => profile.id === selectedProfileId.value))
-const selectedRule = computed(() => draftRules.value.find((rule) => rule.id === selectedRuleId.value))
-const profileOptions = computed(() =>
-  draftProfiles.value.map((profile) => ({
-    label: profile.name,
-    value: profile.id,
-  })),
+const activeView = computed<ManagerView>(() => {
+  if (manager.activePanel.value === 'profiles') {
+    return manager.profiles.value.length === 0 ? 'profiles-empty' : 'profiles-workspace'
+  }
+  if (manager.profiles.value.length === 0) return 'rules-no-profile'
+  return manager.rules.value.length === 0 ? 'rules-empty' : 'rules-workspace'
+})
+
+const selectedProfileRuleCount = computed(() =>
+  manager.selectedProfile.value ? manager.profileRuleCount(manager.selectedProfile.value.id) : 0,
 )
-const selectedRuleProfileName = computed(() => profileName(ruleDraft.value.profileId))
+const selectedRuleProfileName = computed(
+  () =>
+    manager.profileOptions.value.find((option) => option.value === manager.selectedRule.value?.profileId)?.label ?? '',
+)
+const canDeleteSelected = computed(() =>
+  manager.activePanel.value === 'profiles'
+    ? Boolean(manager.selectedProfile.value)
+    : Boolean(manager.selectedRule.value),
+)
+const profileNameInvalid = computed(
+  () => manager.validationRequested.value && !manager.selectedProfile.value?.name.trim(),
+)
+const profileValueInvalid = computed(
+  () => manager.validationRequested.value && !manager.selectedProfile.value?.value.trim(),
+)
+const ruleHostInvalid = computed(
+  () =>
+    manager.validationRequested.value && !isValidUserAgentHostPattern(manager.selectedRule.value?.hostPattern ?? ''),
+)
+const ruleProfileInvalid = computed(
+  () =>
+    manager.validationRequested.value &&
+    !manager.profileOptions.value.some((option) => option.value === manager.selectedRule.value?.profileId),
+)
+const pluginBehavior = computed<'preserve' | 'override'>({
+  get: () => (manager.selectedRule.value?.overridePlugin ? 'override' : 'preserve'),
+  set: (value) => {
+    if (manager.selectedRule.value) manager.selectedRule.value.overridePlugin = value === 'override'
+  },
+})
 
-function cloneProfiles(profiles: UserAgentProfile[]): UserAgentProfile[] {
-  return profiles.map((profile) => ({ ...profile }))
-}
-
-function cloneRules(rules: UserAgentRule[]): UserAgentRule[] {
-  return rules.map((rule) => ({ ...rule }))
-}
-
-function newUserAgentId(prefix: string): string {
-  const now = Date.now()
-  return `${prefix}-${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+function profileMeta(profile: UserAgentProfile): string {
+  const count = manager.profileRuleCount(profile.id)
+  return count > 0 ? t('preferences.ua-profile-rule-count', { count }) : t('preferences.ua-no-rules')
 }
 
 function profileName(id: string): string {
-  return draftProfiles.value.find((profile) => profile.id === id)?.name ?? id
+  return manager.profiles.value.find((profile) => profile.id === id)?.name ?? id
 }
 
-function profileMeta(profile: UserAgentProfile): string {
-  const ruleCount = draftRules.value.filter((rule) => rule.profileId === profile.id).length
-  return ruleCount > 0 ? t('preferences.ua-profile-rule-count', { count: ruleCount }) : t('preferences.ua-no-rules')
+function handlePanelChange(value: string | number): void {
+  if (value === 'profiles' || value === 'rules') manager.activePanel.value = value
 }
 
-function ruleMeta(rule: UserAgentRule): string {
-  return `${profileName(rule.profileId)} · ${
-    rule.overridePlugin ? t('preferences.ua-override-on') : t('preferences.ua-override-off')
-  }`
+function addProfile(): void {
+  manager.addProfile(t('preferences.ua-new-profile'))
 }
 
-function syncProfileDraft(profile: UserAgentProfile | undefined) {
-  profileDraft.value = profile ? { name: profile.name, value: profile.value } : { name: '', value: '' }
+function addRule(): void {
+  manager.addRule()
 }
 
-function syncRuleDraft(rule: UserAgentRule | undefined) {
-  ruleDraft.value = rule
-    ? {
-        enabled: rule.enabled,
-        hostPattern: rule.hostPattern,
-        profileId: rule.profileId,
-        overridePlugin: rule.overridePlugin,
-      }
-    : {
-        enabled: true,
-        hostPattern: '',
-        profileId: draftProfiles.value[0]?.id ?? '',
-        overridePlugin: false,
-      }
+function removeProfile(): void {
+  if (!manager.removeProfile()) message.error(t('preferences.ua-profile-in-use'))
 }
 
-function selectProfile(id: string) {
-  if (!saveCurrentDraft()) return
-  activePanel.value = 'profiles'
-  selectedProfileId.value = id
-  syncProfileDraft(draftProfiles.value.find((profile) => profile.id === id))
+function removeRule(): void {
+  manager.removeRule()
 }
 
-function selectRule(id: string) {
-  if (!saveCurrentDraft()) return
-  activePanel.value = 'rules'
-  selectedRuleId.value = id
-  syncRuleDraft(draftRules.value.find((rule) => rule.id === id))
+function removeSelected(): void {
+  if (manager.activePanel.value === 'profiles') removeProfile()
+  else removeRule()
 }
 
-function addProfile() {
-  if (!saveCurrentDraft()) return
-  const now = Date.now()
-  const profile: UserAgentProfile = {
-    id: newUserAgentId('ua'),
-    name: t('preferences.ua-new-profile'),
-    value: '',
-    createdAt: now,
-    updatedAt: now,
-  }
-  draftProfiles.value.push(profile)
-  selectProfile(profile.id)
+function openProfileSetup(): void {
+  manager.activePanel.value = 'profiles'
+  addProfile()
 }
 
-function saveProfileDraft(): boolean {
-  if (!selectedProfileId.value) return true
-  const name = profileDraft.value.name.trim()
-  const value = sanitizeHeaderValue(profileDraft.value.value)
-  if (!name || !value) {
-    message.error(t('preferences.ua-profile-invalid'))
-    return false
-  }
-  draftProfiles.value = draftProfiles.value.map((profile) =>
-    profile.id === selectedProfileId.value ? { ...profile, name, value, updatedAt: Date.now() } : profile,
-  )
-  profileDraft.value = { name, value }
-  return true
-}
-
-function removeProfile() {
-  if (!selectedProfileId.value) return
-  if (draftRules.value.some((rule) => rule.profileId === selectedProfileId.value)) {
-    message.error(t('preferences.ua-profile-in-use'))
-    return
-  }
-  draftProfiles.value = draftProfiles.value.filter((profile) => profile.id !== selectedProfileId.value)
-  draftRecentProfileIds.value = draftRecentProfileIds.value.filter((id) => id !== selectedProfileId.value)
-  const next = draftProfiles.value[0]
-  selectedProfileId.value = next?.id ?? ''
-  syncProfileDraft(next)
-}
-
-function addRule() {
-  if (!saveCurrentDraft()) return
-  if (draftProfiles.value.length === 0) {
-    message.error(t('preferences.ua-rule-invalid'))
-    return
-  }
-  const now = Date.now()
-  const rule: UserAgentRule = {
-    id: newUserAgentId('ua-rule'),
-    enabled: true,
-    hostPattern: '',
-    profileId: draftProfiles.value[0].id,
-    overridePlugin: false,
-    createdAt: now,
-    updatedAt: now,
-  }
-  draftRules.value.push(rule)
-  selectRule(rule.id)
-}
-
-function saveRuleDraft(): boolean {
-  if (!selectedRuleId.value) return true
-  const hostPattern = ruleDraft.value.hostPattern.trim().toLowerCase()
-  if (!isValidUserAgentHostPattern(hostPattern) || !ruleDraft.value.profileId) {
-    message.error(t('preferences.ua-rule-invalid'))
-    return false
-  }
-  draftRules.value = draftRules.value.map((rule) =>
-    rule.id === selectedRuleId.value
-      ? {
-          ...rule,
-          enabled: ruleDraft.value.enabled,
-          hostPattern,
-          profileId: ruleDraft.value.profileId,
-          overridePlugin: ruleDraft.value.overridePlugin,
-          updatedAt: Date.now(),
-        }
-      : rule,
-  )
-  ruleDraft.value = { ...ruleDraft.value, hostPattern }
-  return true
-}
-
-function removeRule() {
-  if (!selectedRuleId.value) return
-  draftRules.value = draftRules.value.filter((rule) => rule.id !== selectedRuleId.value)
-  const next = draftRules.value[0]
-  selectedRuleId.value = next?.id ?? ''
-  syncRuleDraft(next)
-}
-
-function saveCurrentDraft(): boolean {
-  return activePanel.value === 'profiles' ? saveProfileDraft() : saveRuleDraft()
-}
-
-function validateAllDrafts(): boolean {
-  if (!saveCurrentDraft()) return false
-  for (const profile of draftProfiles.value) {
-    if (!profile.name.trim() || !sanitizeHeaderValue(profile.value)) {
-      selectProfile(profile.id)
-      message.error(t('preferences.ua-profile-invalid'))
-      return false
-    }
-  }
-  for (const rule of draftRules.value) {
-    if (
-      !isValidUserAgentHostPattern(rule.hostPattern) ||
-      !draftProfiles.value.some((profile) => profile.id === rule.profileId)
-    ) {
-      selectRule(rule.id)
-      message.error(t('preferences.ua-rule-invalid'))
-      return false
-    }
-  }
-  return true
-}
-
-function closeModal() {
+function closeModal(): void {
+  destroySortable()
   emit('update:show', false)
 }
 
-function handleSave() {
-  if (!validateAllDrafts()) return
-  emit('save', {
-    profiles: cloneProfiles(draftProfiles.value),
-    rules: cloneRules(draftRules.value),
-    recentProfileIds: [...draftRecentProfileIds.value],
-  })
+function handleSave(): void {
+  const error = manager.validate()
+  if (error) {
+    message.error(error.kind === 'profile' ? t('preferences.ua-profile-invalid') : t('preferences.ua-rule-invalid'))
+    return
+  }
+  emit('save', manager.payload())
   closeModal()
 }
 
-function resetDraft() {
-  draftProfiles.value = cloneProfiles(props.profiles)
-  draftRules.value = cloneRules(props.rules)
-  draftRecentProfileIds.value = [...props.recentProfileIds]
-  activePanel.value = 'profiles'
-  selectedProfileId.value = draftProfiles.value[0]?.id ?? ''
-  selectedRuleId.value = draftRules.value[0]?.id ?? ''
-  syncProfileDraft(selectedProfile.value)
-  syncRuleDraft(selectedRule.value)
+function trackFloatingRect(): void {
+  const floating = document.querySelector<HTMLElement>('.ua-manager-rule-row--floating')
+  if (floating?.isConnected) lastFloatingRect = floating.getBoundingClientRect()
+  if (sortingRules.value) floatingRectFrame = requestAnimationFrame(trackFloatingRect)
+}
+
+function startFloatingRectTracking(): void {
+  stopFloatingRectTracking()
+  lastFloatingRect = null
+  floatingRectFrame = requestAnimationFrame(trackFloatingRect)
+}
+
+function stopFloatingRectTracking(): void {
+  if (!floatingRectFrame) return
+  cancelAnimationFrame(floatingRectFrame)
+  floatingRectFrame = 0
+}
+
+function animateDropSettle(event: SortableEvent): Promise<void> {
+  const item = event.item
+  if (!lastFloatingRect || !item.isConnected) return Promise.resolve()
+  if (reduceMotion.value) {
+    lastFloatingRect = null
+    return Promise.resolve()
+  }
+
+  const targetRect = item.getBoundingClientRect()
+  const deltaX = lastFloatingRect.left - targetRect.left
+  const deltaY = lastFloatingRect.top - targetRect.top
+  lastFloatingRect = null
+  if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return Promise.resolve()
+
+  item.classList.add('ua-manager-rule-row--settling')
+  item.style.setProperty('--ua-rule-drop-x', `${deltaX}px`)
+  item.style.setProperty('--ua-rule-drop-y', `${deltaY}px`)
+
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => item.classList.add('ua-manager-rule-row--settled'))
+    window.setTimeout(() => {
+      item.classList.remove('ua-manager-rule-row--settling', 'ua-manager-rule-row--settled')
+      item.style.removeProperty('--ua-rule-drop-x')
+      item.style.removeProperty('--ua-rule-drop-y')
+      resolve()
+    }, 320)
+  })
+}
+
+function removeRuleDragArtifacts(): void {
+  document.querySelectorAll<HTMLElement>('.ua-manager-rule-row--floating').forEach((element) => element.remove())
+}
+
+function destroySortable(): void {
+  stopFloatingRectTracking()
+  sortable?.destroy()
+  sortable = null
+  sortingRules.value = false
+  lastFloatingRect = null
+  removeRuleDragArtifacts()
+}
+
+const sortableOptions: SortableOptions = {
+  animation: reduceMotion.value ? 0 : 240,
+  handle: '.ua-manager-rule-handle',
+  draggable: '.ua-manager-rule-row',
+  filter: 'button:not(.ua-manager-rule-handle), a, input, textarea, select, [data-no-drag]',
+  ghostClass: 'ua-manager-rule-row--ghost',
+  chosenClass: 'ua-manager-rule-row--chosen',
+  fallbackClass: 'ua-manager-rule-row--floating',
+  dragClass: 'ua-manager-rule-row--dragging',
+  direction: 'vertical',
+  swapThreshold: 0.72,
+  invertedSwapThreshold: 0.28,
+  invertSwap: false,
+  forceFallback: true,
+  fallbackOnBody: true,
+  fallbackTolerance: 3,
+  preventOnFilter: false,
+  onStart: () => {
+    sortingRules.value = true
+    if (!reduceMotion.value) startFloatingRectTracking()
+  },
+  onUpdate: (event) => {
+    if (event.oldIndex === undefined || event.newIndex === undefined) return
+    manager.moveRule(event.oldIndex, event.newIndex)
+  },
+  onEnd: async (event) => {
+    stopFloatingRectTracking()
+    await nextTick()
+    await animateDropSettle(event)
+    window.setTimeout(() => {
+      sortingRules.value = false
+    }, 0)
+  },
+}
+
+function resolveRuleListElement(): HTMLElement | null {
+  const target = ruleListRef.value
+  if (target instanceof Element) return target instanceof HTMLElement ? target : null
+  const element = target?.$el
+  return element instanceof HTMLElement ? element : null
+}
+
+function mountSortable(): void {
+  destroySortable()
+  const element = resolveRuleListElement()
+  if (!element) return
+  sortable = Sortable.create(element, sortableOptions)
 }
 
 watch(
   () => props.show,
   (show) => {
-    if (show) resetDraft()
+    if (!show) {
+      destroySortable()
+      return
+    }
+    removeRuleDragArtifacts()
+    manager.reset({
+      profiles: props.profiles,
+      rules: props.rules,
+      recentProfileIds: props.recentProfileIds,
+    })
   },
 )
+
+watch(
+  ruleListRef,
+  async (target) => {
+    if (!target) {
+      destroySortable()
+      return
+    }
+    await nextTick()
+    mountSortable()
+  },
+  { flush: 'post' },
+)
+
+watch(reduceMotion, (enabled) => {
+  const duration = enabled ? 0 : 240
+  sortableOptions.animation = duration
+  sortable?.option('animation', duration)
+})
+
+onMounted(removeRuleDragArtifacts)
+
+onUnmounted(() => {
+  destroySortable()
+})
 </script>
 
 <template>
@@ -268,151 +311,237 @@ watch(
     :transition="{ name: 'fade-scale' }"
     @update:show="(value: boolean) => emit('update:show', value)"
   >
-    <NCard
-      :title="t('preferences.ua-manager-title')"
-      closable
-      class="ua-manager-card"
-      :bordered="false"
-      @close="closeModal"
-    >
-      <div class="ua-manager">
-        <aside class="ua-manager-sidebar">
-          <section class="ua-manager-group">
-            <div class="ua-manager-group-header">
-              <span>{{ t('preferences.ua-saved') }}</span>
-              <NButton size="tiny" quaternary circle @click="addProfile">
-                <template #icon>
-                  <NIcon><AddOutline /></NIcon>
+    <NCard closable class="ua-manager-card" :bordered="false" @close="closeModal">
+      <template #header>
+        <div class="ua-manager-heading">
+          <strong>{{ t('preferences.ua-manager-title') }}</strong>
+          <NText depth="3">{{ t('preferences.ua-manager-description') }}</NText>
+        </div>
+      </template>
+
+      <NTabs :value="manager.activePanel.value" type="segment" @update:value="handlePanelChange">
+        <NTab name="profiles">{{ t('preferences.ua-saved') }} · {{ manager.profiles.value.length }}</NTab>
+        <NTab name="rules">{{ t('preferences.ua-rules') }} · {{ manager.rules.value.length }}</NTab>
+      </NTabs>
+
+      <div class="ua-manager-content-stage">
+        <Transition name="fade-scale" mode="out-in">
+          <div v-if="manager.activePanel.value === 'profiles'" :key="activeView" class="ua-manager-pane-stage">
+            <div v-if="manager.profiles.value.length === 0" class="ua-manager-full-empty">
+              <NEmpty :description="t('task.ua-no-saved')">
+                <template #extra>
+                  <NButton type="primary" :disabled="!manager.canAddProfile.value" @click="addProfile">
+                    <template #icon
+                      ><NIcon><AddOutline /></NIcon
+                    ></template>
+                    {{ t('preferences.ua-add-profile') }}
+                  </NButton>
                 </template>
-              </NButton>
+              </NEmpty>
             </div>
-            <div v-auto-animate="{ duration: 220, easing: 'ease-out' }" class="ua-manager-list">
-              <button
-                v-for="profile in draftProfiles"
-                :key="profile.id"
-                type="button"
-                class="ua-manager-list-item"
-                :class="{
-                  'ua-manager-list-item--active': activePanel === 'profiles' && selectedProfileId === profile.id,
-                }"
-                @click="selectProfile(profile.id)"
-              >
-                <span class="ua-manager-list-title">{{ profile.name }}</span>
-                <span class="ua-manager-list-meta">{{ profileMeta(profile) }}</span>
-              </button>
-              <NEmpty
-                v-if="draftProfiles.length === 0"
-                size="small"
-                class="ua-manager-empty"
-                :description="t('task.ua-no-saved')"
-              />
-            </div>
-          </section>
 
-          <section class="ua-manager-group">
-            <div class="ua-manager-group-header">
-              <span>{{ t('preferences.ua-rules') }}</span>
-              <NButton size="tiny" quaternary circle :disabled="draftProfiles.length === 0" @click="addRule">
-                <template #icon>
-                  <NIcon><AddOutline /></NIcon>
+            <div v-else class="ua-manager-workspace">
+              <aside class="ua-manager-sidebar">
+                <div class="ua-manager-sidebar-header">
+                  <NText depth="3">{{ t('preferences.ua-saved') }}</NText>
+                  <NButton size="small" secondary :disabled="!manager.canAddProfile.value" @click="addProfile">
+                    <template #icon
+                      ><NIcon><AddOutline /></NIcon
+                    ></template>
+                    {{ t('preferences.ua-add-profile') }}
+                  </NButton>
+                </div>
+                <div v-motion-auto-animate="{ duration: 220, easing: 'ease-out' }" class="ua-manager-list">
+                  <NButton
+                    v-for="profile in manager.profiles.value"
+                    :key="profile.id"
+                    block
+                    class="ua-manager-list-button"
+                    :secondary="manager.selectedProfileId.value === profile.id"
+                    :quaternary="manager.selectedProfileId.value !== profile.id"
+                    :aria-pressed="manager.selectedProfileId.value === profile.id"
+                    @click="manager.selectProfile(profile.id)"
+                  >
+                    <span class="ua-manager-list-copy">
+                      <span class="ua-manager-list-title">{{ profile.name }}</span>
+                      <span class="ua-manager-list-meta">{{ profileMeta(profile) }}</span>
+                    </span>
+                  </NButton>
+                </div>
+              </aside>
+
+              <section v-motion-auto-animate="{ duration: 200, easing: 'ease-out' }" class="ua-manager-editor">
+                <NForm
+                  v-if="manager.selectedProfile.value"
+                  :key="manager.selectedProfile.value.id"
+                  label-placement="top"
+                  size="small"
+                >
+                  <NFormItem
+                    :label="t('preferences.ua-profile-name')"
+                    :validation-status="profileNameInvalid ? 'error' : undefined"
+                    :feedback="profileNameInvalid ? t('preferences.ua-profile-invalid') : undefined"
+                  >
+                    <NInput v-model:value="manager.selectedProfile.value.name" />
+                  </NFormItem>
+                  <NFormItem
+                    :label="t('preferences.user-agent')"
+                    :validation-status="profileValueInvalid ? 'error' : undefined"
+                    :feedback="profileValueInvalid ? t('preferences.ua-profile-invalid') : undefined"
+                  >
+                    <NInput
+                      v-model:value="manager.selectedProfile.value.value"
+                      type="textarea"
+                      :autosize="{ minRows: 5, maxRows: 9 }"
+                    />
+                  </NFormItem>
+                  <NText depth="3" class="ua-manager-editor-note">
+                    {{ t('preferences.ua-profile-rule-count', { count: selectedProfileRuleCount }) }}
+                  </NText>
+                </NForm>
+              </section>
+            </div>
+          </div>
+
+          <div v-else :key="activeView" class="ua-manager-pane-stage">
+            <div v-if="manager.profiles.value.length === 0" class="ua-manager-full-empty">
+              <NEmpty :description="t('preferences.ua-rules-require-profile')">
+                <template #extra>
+                  <NButton type="primary" @click="openProfileSetup">
+                    <template #icon
+                      ><NIcon><AddOutline /></NIcon
+                    ></template>
+                    {{ t('preferences.ua-add-profile') }}
+                  </NButton>
                 </template>
-              </NButton>
-            </div>
-            <div v-auto-animate="{ duration: 220, easing: 'ease-out' }" class="ua-manager-list">
-              <button
-                v-for="rule in draftRules"
-                :key="rule.id"
-                type="button"
-                class="ua-manager-list-item"
-                :class="{ 'ua-manager-list-item--active': activePanel === 'rules' && selectedRuleId === rule.id }"
-                @click="selectRule(rule.id)"
-              >
-                <span class="ua-manager-list-title">{{ rule.hostPattern || t('preferences.ua-new-rule') }}</span>
-                <span class="ua-manager-list-meta">{{ ruleMeta(rule) }}</span>
-              </button>
-              <NEmpty
-                v-if="draftRules.length === 0"
-                size="small"
-                class="ua-manager-empty"
-                :description="t('preferences.ua-rules')"
-              />
-            </div>
-          </section>
-        </aside>
-
-        <section class="ua-manager-editor">
-          <Transition name="content-fade" mode="out-in">
-            <div
-              v-if="activePanel === 'profiles'"
-              :key="'profiles-' + selectedProfileId"
-              class="ua-manager-editor-content"
-            >
-              <template v-if="selectedProfileId">
-                <div class="ua-manager-field">
-                  <span>{{ t('preferences.ua-profile-name') }}</span>
-                  <NInput v-model:value="profileDraft.name" size="small" />
-                </div>
-                <div class="ua-manager-field">
-                  <span>{{ t('preferences.user-agent') }}</span>
-                  <NInput
-                    v-model:value="profileDraft.value"
-                    type="textarea"
-                    size="small"
-                    :autosize="{ minRows: 4, maxRows: 6 }"
-                  />
-                </div>
-              </template>
-              <NEmpty v-else class="ua-manager-editor-empty" :description="t('task.ua-no-saved')" />
+              </NEmpty>
             </div>
 
-            <div v-else :key="'rules-' + selectedRuleId" class="ua-manager-editor-content">
-              <template v-if="selectedRuleId">
-                <div class="ua-manager-field">
-                  <span>{{ t('preferences.ua-rule-host') }}</span>
-                  <NInput v-model:value="ruleDraft.hostPattern" size="small" placeholder="*.example.com" />
-                </div>
-                <div class="ua-manager-field">
-                  <span>{{ t('preferences.ua-rule-profile') }}</span>
-                  <NSelect v-model:value="ruleDraft.profileId" :options="profileOptions" size="small" />
-                </div>
-                <NCheckbox v-model:checked="ruleDraft.overridePlugin">
-                  {{ t('preferences.ua-override-plugin') }}
-                </NCheckbox>
-                <NText depth="3" class="ua-manager-rule-preview">
-                  {{ selectedRuleProfileName }}
-                </NText>
-              </template>
-              <NEmpty v-else class="ua-manager-editor-empty" :description="t('preferences.ua-rules')" />
+            <div v-else-if="manager.rules.value.length === 0" class="ua-manager-full-empty">
+              <NEmpty :description="t('preferences.ua-no-rules')">
+                <template #extra>
+                  <NButton type="primary" :disabled="!manager.canAddRule.value" @click="addRule">
+                    <template #icon
+                      ><NIcon><AddOutline /></NIcon
+                    ></template>
+                    {{ t('preferences.ua-add-rule') }}
+                  </NButton>
+                </template>
+              </NEmpty>
             </div>
-          </Transition>
-        </section>
+
+            <div v-else class="ua-manager-workspace">
+              <aside class="ua-manager-sidebar">
+                <div class="ua-manager-sidebar-header ua-manager-sidebar-header--stacked">
+                  <NText depth="3">{{ t('preferences.ua-rule-order-hint') }}</NText>
+                  <NButton size="small" secondary :disabled="!manager.canAddRule.value" @click="addRule">
+                    <template #icon
+                      ><NIcon><AddOutline /></NIcon
+                    ></template>
+                    {{ t('preferences.ua-add-rule') }}
+                  </NButton>
+                </div>
+                <TransitionGroup
+                  ref="ruleListRef"
+                  tag="div"
+                  name="ua-manager-rule-row"
+                  class="ua-manager-list ua-manager-rule-list"
+                  :css="!sortingRules"
+                >
+                  <div
+                    v-for="rule in manager.rules.value"
+                    :key="rule.id"
+                    role="button"
+                    tabindex="0"
+                    class="ua-manager-rule-row"
+                    :class="{ 'ua-manager-rule-row--active': manager.selectedRuleId.value === rule.id }"
+                    :aria-pressed="manager.selectedRuleId.value === rule.id"
+                    @click="manager.selectRule(rule.id)"
+                    @keydown.enter.prevent="manager.selectRule(rule.id)"
+                    @keydown.space.prevent="manager.selectRule(rule.id)"
+                  >
+                    <span
+                      class="ua-manager-rule-handle"
+                      role="button"
+                      tabindex="0"
+                      :aria-label="t('preferences.ua-rule-reorder')"
+                      @click.stop
+                      @pointerdown="manager.selectRule(rule.id)"
+                    >
+                      <NIcon aria-hidden="true"><ReorderThreeOutline /></NIcon>
+                    </span>
+                    <span class="ua-manager-list-copy">
+                      <span class="ua-manager-list-title">{{ rule.hostPattern || t('preferences.ua-new-rule') }}</span>
+                      <span class="ua-manager-list-meta">
+                        {{ profileName(rule.profileId) }} ·
+                        {{ rule.enabled ? t('preferences.ua-rule-enabled') : t('preferences.ua-rule-disabled') }}
+                      </span>
+                    </span>
+                  </div>
+                </TransitionGroup>
+              </aside>
+
+              <section v-motion-auto-animate="{ duration: 200, easing: 'ease-out' }" class="ua-manager-editor">
+                <NForm
+                  v-if="manager.selectedRule.value"
+                  :key="manager.selectedRule.value.id"
+                  label-placement="top"
+                  size="small"
+                >
+                  <NFormItem :label="t('preferences.ua-rule-enabled')">
+                    <NSwitch v-model:value="manager.selectedRule.value.enabled" />
+                  </NFormItem>
+                  <NFormItem
+                    :label="t('preferences.ua-rule-host')"
+                    :validation-status="ruleHostInvalid ? 'error' : undefined"
+                    :feedback="ruleHostInvalid ? t('preferences.ua-rule-invalid') : t('preferences.ua-rule-host-hint')"
+                  >
+                    <NInput v-model:value="manager.selectedRule.value.hostPattern" placeholder="*.example.com" />
+                  </NFormItem>
+                  <NFormItem
+                    :label="t('preferences.ua-rule-profile')"
+                    :validation-status="ruleProfileInvalid ? 'error' : undefined"
+                    :feedback="ruleProfileInvalid ? t('preferences.ua-rule-invalid') : undefined"
+                  >
+                    <NSelect
+                      v-model:value="manager.selectedRule.value.profileId"
+                      :options="manager.profileOptions.value"
+                    />
+                  </NFormItem>
+                  <NFormItem :label="t('preferences.ua-browser-user-agent')">
+                    <NRadioGroup v-model:value="pluginBehavior" size="small">
+                      <NRadioButton value="preserve">{{ t('preferences.ua-override-off') }}</NRadioButton>
+                      <NRadioButton value="override">{{ t('preferences.ua-override-on') }}</NRadioButton>
+                    </NRadioGroup>
+                  </NFormItem>
+                  <div class="ua-manager-rule-preview">
+                    <div class="ua-manager-rule-flow">
+                      <strong>{{ manager.selectedRule.value.hostPattern || '*.example.com' }}</strong>
+                      <NIcon aria-hidden="true"><ArrowForwardOutline /></NIcon>
+                      <strong>{{ selectedRuleProfileName }}</strong>
+                    </div>
+                    <NText depth="3">
+                      {{
+                        manager.selectedRule.value.overridePlugin
+                          ? t('preferences.ua-override-on')
+                          : t('preferences.ua-override-off')
+                      }}
+                    </NText>
+                  </div>
+                </NForm>
+              </section>
+            </div>
+          </div>
+        </Transition>
       </div>
 
       <template #footer>
         <NSpace justify="space-between" align="center">
           <div class="ua-manager-footer-left">
-            <Transition name="footer-delete" mode="out-in">
-              <NButton
-                v-if="activePanel === 'profiles' && selectedProfileId"
-                key="delete-profile"
-                size="small"
-                ghost
-                type="error"
-                @click="removeProfile"
-              >
-                {{ t('edit.delete') }}
+            <Transition name="fade-scale">
+              <NButton v-if="canDeleteSelected" size="small" ghost type="error" @click="removeSelected">
+                {{ t('app.delete') }}
               </NButton>
-              <NButton
-                v-else-if="activePanel === 'rules' && selectedRuleId"
-                key="delete-rule"
-                size="small"
-                ghost
-                type="error"
-                @click="removeRule"
-              >
-                {{ t('edit.delete') }}
-              </NButton>
-              <NText v-else key="delete-empty" depth="3" />
             </Transition>
           </div>
           <NSpace>
@@ -427,8 +556,8 @@ watch(
 
 <style scoped>
 .ua-manager-card {
-  width: min(840px, calc(100vw - 32px));
-  max-height: min(720px, calc(100vh - 48px));
+  width: min(820px, calc(100vw - 32px));
+  max-height: min(740px, calc(100vh - 32px));
 }
 
 .ua-manager-card :deep(.n-card__content) {
@@ -436,161 +565,323 @@ watch(
   overflow: hidden;
 }
 
-.ua-manager {
+.ua-manager-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ua-manager-heading strong {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.ua-manager-heading .n-text {
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.ua-manager-content-stage {
+  height: clamp(340px, 55vh, 490px);
+  min-height: 0;
+  margin-top: 16px;
+}
+
+.ua-manager-pane-stage {
+  height: 100%;
+  min-height: 0;
+}
+
+.ua-manager-workspace {
   display: grid;
-  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
-  gap: 16px;
-  height: clamp(360px, 58vh, 520px);
+  grid-template-columns: minmax(220px, 270px) minmax(0, 1fr);
+  gap: 20px;
+  height: 100%;
+  min-height: 0;
+}
+
+.ua-manager-sidebar,
+.ua-manager-editor {
+  min-width: 0;
   min-height: 0;
 }
 
 .ua-manager-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  min-width: 0;
-  min-height: 0;
+  gap: 10px;
+  padding-right: 16px;
+  border-right: 1px solid var(--m3-outline-variant);
 }
 
-.ua-manager-group {
+.ua-manager-sidebar-header {
   display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 0;
-}
-
-.ua-manager-group-header {
-  display: flex;
+  min-height: 34px;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
+  gap: 10px;
+}
+
+.ua-manager-sidebar-header--stacked {
+  align-items: flex-start;
+}
+
+.ua-manager-sidebar-header .n-text {
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .ua-manager-list {
-  flex: 1 1 0;
+  display: flex;
   min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-right: 2px;
 }
 
-.ua-manager-list-item {
+.ua-manager-list-button {
+  height: auto;
+  min-height: 56px;
+  padding: 8px 10px;
+  justify-content: flex-start;
+}
+
+.ua-manager-list-button :deep(.n-button__content) {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+}
+
+.ua-manager-list-copy {
   display: flex;
+  min-width: 0;
+  flex: 1;
   flex-direction: column;
   gap: 2px;
+  text-align: left;
+}
+
+.ua-manager-list-title,
+.ua-manager-list-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ua-manager-list-title {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.ua-manager-list-meta {
+  color: var(--m3-on-surface-variant);
+  font-size: 12px;
+}
+
+.ua-manager-rule-list {
+  position: relative;
+  gap: 0;
+}
+
+.ua-manager-rule-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
   width: 100%;
-  min-height: 54px;
-  margin-bottom: 6px;
+  min-height: 56px;
+  margin-bottom: 8px;
   padding: 8px 10px;
   border: 1px solid var(--m3-outline-variant);
   border-radius: 8px;
-  color: var(--n-text-color);
+  color: var(--m3-on-surface);
   background: var(--m3-surface-container-low);
   text-align: left;
   cursor: pointer;
   transition:
     background-color 0.2s cubic-bezier(0.2, 0, 0, 1),
-    border-color 0.2s cubic-bezier(0.2, 0, 0, 1),
-    transform 0.2s cubic-bezier(0.2, 0, 0, 1);
+    border-color 0.2s cubic-bezier(0.2, 0, 0, 1);
 }
 
-.ua-manager-list-item:hover {
+.ua-manager-rule-row:hover,
+.ua-manager-rule-row--active {
   border-color: var(--m3-primary);
 }
 
-.ua-manager-list-item--active {
-  border-color: var(--m3-primary);
+.ua-manager-rule-row--active {
   background: var(--m3-surface-container-high);
 }
 
-.ua-manager-list-title {
-  overflow: hidden;
-  font-size: 13px;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.ua-manager-rule-handle {
+  display: inline-flex;
+  min-width: 24px;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--m3-on-surface-variant);
+  cursor: grab;
+  touch-action: none;
+  transition:
+    color 0.18s cubic-bezier(0.2, 0, 0, 1),
+    background-color 0.18s cubic-bezier(0.2, 0, 0, 1);
 }
 
-.ua-manager-list-meta {
-  overflow: hidden;
-  color: var(--n-text-color-3);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.ua-manager-rule-handle:hover {
+  color: var(--m3-primary);
+  background: var(--m3-surface-container-highest);
 }
 
-.ua-manager-empty {
-  padding: 14px 0;
+.ua-manager-rule-handle:active {
+  cursor: grabbing;
+}
+
+.ua-manager-rule-row--ghost {
+  overflow: hidden;
+  opacity: 0;
+}
+
+.ua-manager-rule-row--floating,
+.ua-manager-rule-row--dragging {
+  opacity: 1 !important;
+  filter: none !important;
+  pointer-events: none;
+  transition: none !important;
+}
+
+.ua-manager-rule-row--settling {
+  z-index: 3;
+  transform: translate3d(var(--ua-rule-drop-x), var(--ua-rule-drop-y), 0);
+  will-change: transform;
+}
+
+.ua-manager-rule-row--settling.ua-manager-rule-row--settled {
+  transform: translate3d(0, 0, 0);
+  transition: transform 300ms ease;
+}
+
+.ua-manager-rule-row-move,
+.ua-manager-rule-row-enter-active {
+  transition:
+    transform 260ms ease,
+    opacity 180ms ease;
+}
+
+.ua-manager-rule-row-enter-from {
+  opacity: 0;
+  transform: translateY(8px) scale(0.99);
+}
+
+.ua-manager-rule-row-leave-active {
+  position: absolute;
+  width: 100%;
+  pointer-events: none;
+  transition:
+    transform 260ms ease,
+    opacity 180ms ease;
+}
+
+.ua-manager-rule-row-leave-to {
+  opacity: 0;
+  transform: scale(0.995);
 }
 
 .ua-manager-editor {
-  min-width: 0;
-  min-height: 0;
-  padding: 2px 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 4px 8px 0;
 }
 
-.ua-manager-editor-content {
+.ua-manager-editor :deep(.n-form-item) {
+  margin-bottom: 10px;
+}
+
+.ua-manager-editor-note {
+  display: block;
+  font-size: 12px;
+}
+
+.ua-manager-rule-preview {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  height: 100%;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: 10px;
+  background: var(--m3-surface-container-low);
 }
 
-.ua-manager-editor-empty {
+.ua-manager-rule-flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.ua-manager-rule-flow strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ua-manager-rule-flow strong:last-child {
+  text-align: right;
+}
+
+.ua-manager-rule-preview .n-text {
+  font-size: 12px;
+}
+
+.ua-manager-full-empty {
   display: flex;
-  flex: 1;
+  height: 100%;
   align-items: center;
   justify-content: center;
 }
 
-.ua-manager-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.ua-manager-rule-preview {
-  font-size: 12px;
-}
-
 .ua-manager-footer-left {
-  min-width: 76px;
+  min-width: 88px;
+  min-height: 34px;
 }
 
-.content-fade-enter-active {
-  transition: opacity 0.2s cubic-bezier(0.2, 0, 0, 1);
-}
+@media (max-width: 720px) {
+  .ua-manager-card {
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 20px);
+  }
 
-.content-fade-leave-active {
-  transition: opacity 0.14s cubic-bezier(0.3, 0, 0.8, 0.15);
-}
+  .ua-manager-content-stage {
+    height: min(570px, calc(100vh - 240px));
+    min-height: 300px;
+  }
 
-.content-fade-enter-from,
-.content-fade-leave-to {
-  opacity: 0;
-}
+  .ua-manager-workspace {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow-y: auto;
+  }
 
-.footer-delete-enter-active {
-  transition:
-    opacity 0.26s cubic-bezier(0.2, 0, 0, 1),
-    transform 0.26s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
+  .ua-manager-sidebar {
+    max-height: 210px;
+    flex: 0 0 auto;
+    padding-right: 0;
+    padding-bottom: 14px;
+    border-right: 0;
+    border-bottom: 1px solid var(--m3-outline-variant);
+  }
 
-.footer-delete-leave-active {
-  transition:
-    opacity 0.14s cubic-bezier(0.3, 0, 0.8, 0.15),
-    transform 0.14s cubic-bezier(0.3, 0, 0.8, 0.15);
-}
+  .ua-manager-list {
+    min-height: 96px;
+  }
 
-.footer-delete-enter-from,
-.footer-delete-leave-to {
-  opacity: 0;
-  transform: scale(0.94);
+  .ua-manager-editor {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
 }
 </style>

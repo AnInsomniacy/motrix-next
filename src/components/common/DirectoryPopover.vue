@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { usePreferenceStore } from '@/stores/preference'
 import { NPopover, NButton, NIcon, NEllipsis, NEmpty } from 'naive-ui'
 import { TimeOutline, StarOutline, Star, TrashOutline } from '@vicons/ionicons5'
-import { vAutoAnimate } from '@formkit/auto-animate'
+import { vMotionAutoAnimate } from '@/directives/motionAutoAnimate'
 
 const emit = defineEmits<{ select: [dir: string] }>()
 
@@ -57,7 +57,7 @@ function shortLabel(dir: string): string {
     </template>
 
     <template v-if="hasItems">
-      <div v-auto-animate="{ duration: 200, easing: 'ease-out' }">
+      <div v-motion-auto-animate="{ duration: 200, easing: 'ease-out' }">
         <div v-if="favorites.length > 0" class="dir-popover-heading">{{ t('task.favorite-folders') }}</div>
         <div v-for="dir in favorites" :key="'fav-' + dir" class="dir-popover-item" :title="dir" @click="onSelect(dir)">
           <NEllipsis class="dir-popover-label" :tooltip="false">
@@ -78,7 +78,7 @@ function shortLabel(dir: string): string {
         </div>
       </div>
 
-      <div v-auto-animate="{ duration: 200, easing: 'ease-out' }">
+      <div v-motion-auto-animate="{ duration: 200, easing: 'ease-out' }">
         <div
           v-if="recents.length > 0"
           class="dir-popover-heading"

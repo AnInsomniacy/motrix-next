@@ -96,7 +96,6 @@
   --panel-border: var(--m3-outline-variant);
 
   --task-item-bg: var(--m3-surface-container-lowest);
-  --task-item-hover-border: var(--m3-primary);
   --task-action-bg: var(--m3-surface-container-lowest);
 
   --about-card-bg: var(--m3-surface-container-lowest);
@@ -123,6 +122,11 @@
   --font-size-xs: 12px;
   --border-radius: 6px;
   --transition-all: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+  --task-motion-enter: 200ms;
+  --task-motion-leave: 150ms;
+  --task-motion-progress: 300ms;
+  --task-motion-state: 400ms;
+  --task-motion-ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
 /* ── Dark Theme ────────────────────────────────────────────────────── */

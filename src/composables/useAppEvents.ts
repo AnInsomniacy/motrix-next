@@ -3,7 +3,7 @@
  *
  * Extracted from MainLayout.vue to reduce component script size.
  * Contains handlers for: menu-event, tray-menu-action, deep-link-open,
- * single-instance-triggered, engine-crashed, engine-stopped, and drag-drop.
+ * single-instance-triggered, port changes, and drag-drop.
  */
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
@@ -11,15 +11,15 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useRouter, useRoute } from 'vue-router'
-import { formatLogFields, logger } from '@shared/logger'
-import { setEngineReady, isEngineReady } from '@/api/aria2'
+import { logger } from '@shared/logger'
+import { isEngineReady } from '@/api/aria2'
 import { detectKind, createBatchItem } from '@shared/utils/batchHelpers'
 import { createExternalInputTraceId, summarizeExternalInputBatch } from '@shared/utils/externalInputDiagnostics'
 import { getErrorMessage } from '@shared/utils/errorMessage'
 import { isMotrixNewTaskLink } from '@shared/utils/motrixDeepLink'
 import type { ExternalDownloadInput, PendingExternalInputsPayload } from '@shared/types'
 import { handleTaskStart } from '@/composables/useTaskNotifyHandlers'
-import { onUnmounted, watch, type Ref, type WatchStopHandle } from 'vue'
+import { onUnmounted } from 'vue'
 
 interface DeepLinkHandlingResult {
   received: number
@@ -43,13 +43,13 @@ interface PendingFrontendAction {
 }
 
 interface PortSwitchEvent {
-  kind: 'rpc' | 'extensionApi' | 'bt' | 'dht' | 'ed2k' | 'ed2kUdp'
+  kind: 'rpc' | 'extensionApi' | 'bt' | 'ed2k' | 'ed2kUdp'
   oldPort: number
   newPort: number
 }
 
 interface PortSwitchFailureEvent {
-  kind: 'rpc' | 'extensionApi' | 'bt' | 'dht' | 'ed2k' | 'ed2kUdp'
+  kind: 'rpc' | 'extensionApi' | 'bt' | 'ed2k' | 'ed2kUdp'
   port: number
   reason: 'disabled' | 'noAvailablePort' | 'bindFailed'
   source: 'startup' | 'btRuntime' | 'extensionApi'
@@ -64,8 +64,6 @@ interface AppEventsDeps {
     handleExternalInputs: (inputs: ExternalDownloadInput[]) => DeepLinkHandlingResult | void
     setExternalInputErrorHandler?: (handler: ((error: unknown) => void) | null) => void
     setExternalInputStartHandler?: (handler: ((taskNames: string[]) => void) | null) => void
-    engineReady: boolean
-    engineRestarting: boolean
     addTaskVisible: boolean
     pendingBatch: unknown[]
     pendingMagnetGids: string[]
@@ -86,7 +84,6 @@ interface AppEventsDeps {
       rpcSecret: string
       extensionApiPort?: number
       listenPort?: number
-      dhtListenPort?: number
       ed2kListenPort?: number
       ed2kUdpListenPort?: number
       lightweightMode?: boolean
@@ -100,8 +97,6 @@ interface AppEventsDeps {
     info: (msg: string, opts?: Record<string, unknown>) => void
   }
   navDialog: ReturnType<typeof import('naive-ui').useDialog>
-  showEngineOverlay: Ref<boolean>
-  isExiting: Ref<boolean>
   handleExitConfirm: () => Promise<void>
   onAbout: () => void
 }
@@ -119,23 +114,12 @@ interface AppEventsReturn {
 }
 
 export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
-  const {
-    t,
-    appStore,
-    taskStore,
-    preferenceStore,
-    message,
-    navDialog,
-    showEngineOverlay,
-    isExiting,
-    handleExitConfirm,
-  } = deps
+  const { t, appStore, taskStore, preferenceStore, message, navDialog, handleExitConfirm } = deps
 
   const router = useRouter()
   const route = useRoute()
   const cleanupFns: Array<() => void> = []
   let silentCleanupTimer: ReturnType<typeof setTimeout> | null = null
-  let engineRecoveredWaitInFlight = false
 
   function registerCleanup(cleanup: (() => void) | null | undefined): () => void {
     let active = true
@@ -191,81 +175,15 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
   ) {
     try {
       await operation()
-      logger.debug('ExternalInput', formatLogFields({ traceId, stage, result: 'ok' }))
+      logger.debug('ExternalInput', 'window_stage_completed', { trace_id: traceId, stage, result: 'ok' })
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
-      logger.warn('ExternalInput', formatLogFields({ traceId, stage, result: 'failed', reason }))
+      logger.warn('ExternalInput', 'window_stage_failed', { trace_id: traceId, stage, result: 'failed', reason })
     }
   }
 
-  // ─── Engine lifecycle watchers ────────────────────────────────────
-  async function setupEngineWatchers() {
-    const unlistenEngineCrashed = registerCleanup(
-      await listen<{ code: number; signal?: number }>('engine-crashed', (event) => {
-        if (isExiting.value) return
-        const { code } = event.payload
-        logger.error('MainLayout', `engine crashed with code ${code}`)
-        appStore.engineReady = false
-        setEngineReady(false)
-        showEngineOverlay.value = true
-      }),
-    )
-
-    const stopEngineWatch: WatchStopHandle = watch(
-      () => appStore.engineRestarting,
-      (initializing) => {
-        if (!initializing) {
-          if (appStore.engineReady) {
-            message.success(t('app.engine-ready'))
-          } else {
-            message.error(t('app.engine-failed'), { closable: true })
-            showEngineOverlay.value = true
-          }
-        }
-      },
-    )
-    const unwatchEngineState = registerCleanup(stopEngineWatch)
-
-    const unlistenEngineRecovered = registerCleanup(
-      await listen<{ source: string }>('engine-recovered', async (event) => {
-        logger.info('MainLayout', `engine recovered (source: ${event.payload.source})`)
-        if (engineRecoveredWaitInFlight) {
-          logger.debug('MainLayout', 'engine-recovered: readiness check already in flight, skipping')
-          return
-        }
-        engineRecoveredWaitInFlight = true
-
-        // Rust-side health check with retries — also updates Aria2Client credentials.
-        // on_engine_ready() was already called by restart_engine_command before
-        // this event is emitted, so credentials and options are synced.
-        try {
-          const { invoke } = await import('@tauri-apps/api/core')
-          const ready = await invoke<boolean>('wait_for_engine')
-          if (ready) {
-            setEngineReady(true)
-            appStore.engineReady = true
-            message.success(t('app.engine-recovered'))
-          } else {
-            logger.error('MainLayout', 'engine-recovered: wait_for_engine returned false')
-            setEngineReady(false)
-            appStore.engineReady = false
-          }
-        } catch (e) {
-          logger.error('MainLayout', `engine-recovered: wait_for_engine failed: ${e}`)
-          setEngineReady(false)
-          appStore.engineReady = false
-        } finally {
-          engineRecoveredWaitInFlight = false
-        }
-      }),
-    )
-
-    const unlistenEngineStopped = registerCleanup(
-      await listen('engine-stopped', () => {
-        message.warning(t('app.engine-stopped'))
-      }),
-    )
-
+  // ─── Port state watchers ──────────────────────────────────────────
+  async function setupPortWatchers() {
     const unlistenPortAutoSwitched = registerCleanup(
       await listen<PortSwitchEvent[]>('port-auto-switched', (event) => {
         const switches = event.payload
@@ -274,7 +192,6 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
           rpc: t('preferences.rpc-listen-port'),
           extensionApi: t('preferences.extension-api-port'),
           bt: t('preferences.bt-port'),
-          dht: t('preferences.dht-port'),
           ed2k: t('preferences.ed2k-listen-port'),
           ed2kUdp: t('preferences.ed2k-udp-listen-port'),
         }
@@ -286,7 +203,6 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
           if (item.kind === 'rpc') patch.rpcListenPort = item.newPort
           if (item.kind === 'extensionApi') patch.extensionApiPort = item.newPort
           if (item.kind === 'bt') patch.listenPort = item.newPort
-          if (item.kind === 'dht') patch.dhtListenPort = item.newPort
           if (item.kind === 'ed2k') patch.ed2kListenPort = item.newPort
           if (item.kind === 'ed2kUdp') patch.ed2kUdpListenPort = item.newPort
         }
@@ -303,7 +219,6 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
           rpc: t('preferences.rpc-listen-port'),
           extensionApi: t('preferences.extension-api-port'),
           bt: t('preferences.bt-port'),
-          dht: t('preferences.dht-port'),
           ed2k: t('preferences.ed2k-listen-port'),
           ed2kUdp: t('preferences.ed2k-udp-listen-port'),
         }
@@ -324,10 +239,6 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
     )
 
     return {
-      unlistenEngineCrashed,
-      unwatchEngineState,
-      unlistenEngineRecovered,
-      unlistenEngineStopped,
       unlistenPortAutoSwitched,
       unlistenPortAutoSwitchFailed,
     }
@@ -566,13 +477,19 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
           if (await mainWindow.isVisible()) return
           const { invoke } = await import('@tauri-apps/api/core')
           await invoke('minimize_to_tray')
-          logger.info('ExternalInput', formatLogFields({ traceId, stage: 'silent-cleanup', result: 'ok' }))
+          logger.info('ExternalInput', 'silent_cleanup_completed', {
+            trace_id: traceId,
+            stage: 'silent-cleanup',
+            result: 'ok',
+          })
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error)
-          logger.debug(
-            'ExternalInput',
-            formatLogFields({ traceId, stage: 'silent-cleanup', result: 'skipped', reason }),
-          )
+          logger.debug('ExternalInput', 'silent_cleanup_skipped', {
+            trace_id: traceId,
+            stage: 'silent-cleanup',
+            result: 'skipped',
+            reason,
+          })
         }
       })()
     }, 7000)
@@ -581,16 +498,13 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
   async function processIncomingDeepLinks(urls: string[], options: { silent?: boolean } = {}) {
     const traceId = createExternalInputTraceId()
     const silent = options.silent === true
-    logger.info(
-      'ExternalInput',
-      formatLogFields({
-        traceId,
-        stage: 'received',
-        route: route.path,
-        silent,
-        ...summarizeExternalInputBatch(urls),
-      }),
-    )
+    logger.info('ExternalInput', 'deep_links_received', {
+      trace_id: traceId,
+      stage: 'received',
+      route: route.path,
+      silent,
+      ...summarizeExternalInputBatch(urls),
+    })
     if (!silent) {
       const mainWindow = getCurrentWindow()
       await runExternalInputWindowStage(traceId, 'unminimize', () => mainWindow.unminimize())
@@ -605,34 +519,48 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
     if (!silent && hasNewTask && route.path !== '/task/all') {
       try {
         await router.push('/task/all')
-        logger.debug('ExternalInput', formatLogFields({ traceId, stage: 'navigate', result: 'ok', route: '/task/all' }))
+        logger.debug('ExternalInput', 'navigation_completed', {
+          trace_id: traceId,
+          stage: 'navigate',
+          result: 'ok',
+          route: '/task/all',
+        })
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error)
-        logger.warn(
-          'ExternalInput',
-          formatLogFields({ traceId, stage: 'navigate', result: 'failed', route: '/task/all', reason }),
-        )
+        logger.warn('ExternalInput', 'navigation_failed', {
+          trace_id: traceId,
+          stage: 'navigate',
+          result: 'failed',
+          route: '/task/all',
+          reason,
+        })
       }
     }
 
-    logger.info('ExternalInput', formatLogFields({ traceId, stage: 'route-download', result: 'start' }))
+    logger.debug('ExternalInput', 'download_routing_started', {
+      trace_id: traceId,
+      stage: 'route-download',
+      result: 'start',
+    })
     try {
       const handlingResult = appStore.handleDeepLinkUrls(urls)
-      logger.info(
-        'ExternalInput',
-        formatLogFields({
-          traceId,
-          stage: 'route-download',
-          result: 'ok',
-          received: handlingResult?.received ?? 'unknown',
-          queued: handlingResult?.queued ?? 'unknown',
-          autoSubmitted: handlingResult?.autoSubmitted ?? 'unknown',
-          ignored: handlingResult?.ignored ?? 'unknown',
-        }),
-      )
+      logger.info('ExternalInput', 'download_routing_completed', {
+        trace_id: traceId,
+        stage: 'route-download',
+        result: 'ok',
+        received: handlingResult?.received ?? 'unknown',
+        queued: handlingResult?.queued ?? 'unknown',
+        auto_submitted: handlingResult?.autoSubmitted ?? 'unknown',
+        ignored: handlingResult?.ignored ?? 'unknown',
+      })
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
-      logger.error('ExternalInput', formatLogFields({ traceId, stage: 'route-download', result: 'failed', reason }))
+      logger.error('ExternalInput', error, {
+        trace_id: traceId,
+        stage: 'route-download',
+        result: 'failed',
+        reason,
+      })
       throw error
     }
     if (silent) {
@@ -643,20 +571,17 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
   async function processIncomingExternalInputs(inputs: ExternalDownloadInput[], options: { silent?: boolean } = {}) {
     const traceId = createExternalInputTraceId()
     const silent = options.silent === true
-    logger.info(
-      'ExternalInput',
-      formatLogFields({
-        traceId,
-        stage: 'received',
-        source: 'structured',
-        route: route.path,
-        silent,
-        count: inputs.length,
-        hasCookie: inputs.some((input) => Boolean(input.cookie)),
-        hasUserAgent: inputs.some((input) => Boolean(input.userAgent)),
-        headerCount: inputs.reduce((count, input) => count + (input.requestHeaders?.length ?? 0), 0),
-      }),
-    )
+    logger.info('ExternalInput', 'structured_inputs_received', {
+      trace_id: traceId,
+      stage: 'received',
+      input_source: 'structured',
+      route: route.path,
+      silent,
+      count: inputs.length,
+      has_cookie: inputs.some((input) => Boolean(input.cookie)),
+      has_user_agent: inputs.some((input) => Boolean(input.userAgent)),
+      header_count: inputs.reduce((count, input) => count + (input.requestHeaders?.length ?? 0), 0),
+    })
     if (!silent) {
       const mainWindow = getCurrentWindow()
       await runExternalInputWindowStage(traceId, 'unminimize', () => mainWindow.unminimize())
@@ -667,35 +592,49 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
     if (!silent && inputs.length > 0 && route.path !== '/task/all') {
       try {
         await router.push('/task/all')
-        logger.debug('ExternalInput', formatLogFields({ traceId, stage: 'navigate', result: 'ok', route: '/task/all' }))
+        logger.debug('ExternalInput', 'navigation_completed', {
+          trace_id: traceId,
+          stage: 'navigate',
+          result: 'ok',
+          route: '/task/all',
+        })
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error)
-        logger.warn(
-          'ExternalInput',
-          formatLogFields({ traceId, stage: 'navigate', result: 'failed', route: '/task/all', reason }),
-        )
+        logger.warn('ExternalInput', 'navigation_failed', {
+          trace_id: traceId,
+          stage: 'navigate',
+          result: 'failed',
+          route: '/task/all',
+          reason,
+        })
       }
     }
 
-    logger.info('ExternalInput', formatLogFields({ traceId, stage: 'route-download', result: 'start' }))
+    logger.debug('ExternalInput', 'download_routing_started', {
+      trace_id: traceId,
+      stage: 'route-download',
+      result: 'start',
+    })
     try {
       const tracedInputs = inputs.map((input) => ({ ...input, traceId }))
       const handlingResult = appStore.handleExternalInputs(tracedInputs)
-      logger.info(
-        'ExternalInput',
-        formatLogFields({
-          traceId,
-          stage: 'route-download',
-          result: 'ok',
-          received: handlingResult?.received ?? 'unknown',
-          queued: handlingResult?.queued ?? 'unknown',
-          autoSubmitted: handlingResult?.autoSubmitted ?? 'unknown',
-          ignored: handlingResult?.ignored ?? 'unknown',
-        }),
-      )
+      logger.info('ExternalInput', 'download_routing_completed', {
+        trace_id: traceId,
+        stage: 'route-download',
+        result: 'ok',
+        received: handlingResult?.received ?? 'unknown',
+        queued: handlingResult?.queued ?? 'unknown',
+        auto_submitted: handlingResult?.autoSubmitted ?? 'unknown',
+        ignored: handlingResult?.ignored ?? 'unknown',
+      })
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
-      logger.error('ExternalInput', formatLogFields({ traceId, stage: 'route-download', result: 'failed', reason }))
+      logger.error('ExternalInput', error, {
+        trace_id: traceId,
+        stage: 'route-download',
+        result: 'failed',
+        reason,
+      })
       throw error
     }
     if (silent) {
@@ -755,7 +694,7 @@ export function useAppEvents(deps: AppEventsDeps): AppEventsReturn {
     teardown()
     setupExternalInputHandlers()
 
-    await setupEngineWatchers()
+    await setupPortWatchers()
     setupNavGuard()
 
     const { unlistenDeepLink, unlistenExternalInput, unlistenSingleInstance } = await setupExternalInputListeners()

@@ -63,7 +63,6 @@ const MAX_HEADER_VALUE_LENGTH = 8192
 const CANONICAL_BROWSER_HEADERS = new Map<string, string>([
   ['accept', 'Accept'],
   ['accept-language', 'Accept-Language'],
-  ['accept-encoding', 'Accept-Encoding'],
   ['sec-ch-ua', 'Sec-CH-UA'],
   ['sec-ch-ua-mobile', 'Sec-CH-UA-Mobile'],
   ['sec-ch-ua-platform', 'Sec-CH-UA-Platform'],

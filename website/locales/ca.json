@@ -58,7 +58,7 @@
   "motion.tokens.desc": "Totes les durades i corbes són propietats CSS personalitzades, assegurant un ritme unificat en 12+ components.",
   "features.title": "Funcions",
   "features.protocol.title": "Multiprotocol",
-  "features.protocol.desc": "HTTP, FTP, ED2K, BitTorrent i enllaços Magnet.",
+  "features.protocol.desc": "HTTP, SFTP, ED2K, BitTorrent i enllaços Magnet.",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "Descàrrega selectiva de fitxers, DHT, intercanvi de parells, xifratge.",
   "features.tracker.title": "Gestió de trackers",

@@ -58,7 +58,7 @@
   "motion.tokens.desc": "Tüm süreler ve eğriler CSS özel özellikleridir, 12+ bileşende birleşik ritim sağlar.",
   "features.title": "Özellikler",
   "features.protocol.title": "Çoklu protokol",
-  "features.protocol.desc": "HTTP, FTP, ED2K, BitTorrent ve Magnet bağlantıları.",
+  "features.protocol.desc": "HTTP, SFTP, ED2K, BitTorrent ve Magnet bağlantıları.",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "Seçici dosya indirme, DHT, eş değişimi, şifreleme.",
   "features.tracker.title": "İzleyici yönetimi",

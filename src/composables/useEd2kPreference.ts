@@ -6,6 +6,7 @@
  * restart instead of hot reloading through changeGlobalOption.
  */
 import type { AppConfig } from '@shared/types'
+import type { I18nKey } from '@shared/i18nTypes'
 import { PORT_RECOVERY_RANGE_END, PORT_RECOVERY_RANGE_START, DEFAULT_APP_CONFIG as D } from '@shared/constants'
 import { convertCommaToLine, convertLineToComma, generateRandomInt } from '@shared/utils'
 
@@ -28,6 +29,8 @@ export interface Ed2kForm {
   ed2kBootstrapAutoSync: boolean
   ed2kBootstrapSyncIntervalHours: number
   ed2kUploadSlots: number
+  ed2kMaxConnections: number
+  ed2kPreviewPriority: boolean
   ed2kSearchTimeout: number
 }
 
@@ -52,6 +55,8 @@ export function buildEd2kForm(config: AppConfig): Ed2kForm {
     ed2kBootstrapAutoSync: config.ed2kBootstrapAutoSync ?? D.ed2kBootstrapAutoSync,
     ed2kBootstrapSyncIntervalHours: Number(config.ed2kBootstrapSyncIntervalHours ?? D.ed2kBootstrapSyncIntervalHours),
     ed2kUploadSlots: Number(config.ed2kUploadSlots ?? D.ed2kUploadSlots),
+    ed2kMaxConnections: Number(config.ed2kMaxConnections ?? D.ed2kMaxConnections),
+    ed2kPreviewPriority: config.ed2kPreviewPriority ?? D.ed2kPreviewPriority,
     ed2kSearchTimeout: Number(config.ed2kSearchTimeout ?? D.ed2kSearchTimeout),
   }
 }
@@ -62,6 +67,8 @@ export function buildEd2kSystemConfig(f: Ed2kForm): Record<string, string> {
     'ed2k-udp-listen-port': String(f.ed2kUdpListenPort),
     'ed2k-server': convertLineToComma(joinLines(f.ed2kServer)),
     'ed2k-upload-slots': String(f.ed2kUploadSlots),
+    'ed2k-max-connections': String(f.ed2kMaxConnections),
+    'ed2k-preview-priority': String(f.ed2kPreviewPriority),
   }
 }
 
@@ -75,6 +82,8 @@ export function transformEd2kForStore(f: Ed2kForm): Partial<AppConfig> {
     ed2kBootstrapAutoSync: !!f.ed2kBootstrapAutoSync,
     ed2kBootstrapSyncIntervalHours: Number(f.ed2kBootstrapSyncIntervalHours),
     ed2kUploadSlots: Number(f.ed2kUploadSlots),
+    ed2kMaxConnections: Number(f.ed2kMaxConnections),
+    ed2kPreviewPriority: !!f.ed2kPreviewPriority,
     ed2kSearchTimeout: Number(f.ed2kSearchTimeout),
   }
 }
@@ -108,6 +117,9 @@ export function validateEd2kForm(f: Ed2kForm): string | null {
   if (!Number.isInteger(f.ed2kUploadSlots) || f.ed2kUploadSlots < 1 || f.ed2kUploadSlots > 100) {
     return 'preferences.ed2k-invalid-upload-slots'
   }
+  if (!Number.isInteger(f.ed2kMaxConnections) || f.ed2kMaxConnections < 1 || f.ed2kMaxConnections > 1024) {
+    return 'preferences.ed2k-invalid-max-connections'
+  }
   if (
     !Number.isInteger(f.ed2kSearchTimeout) ||
     f.ed2kSearchTimeout < ED2K_SEARCH_MIN_TIMEOUT_SECONDS ||
@@ -128,7 +140,7 @@ export function randomEd2kPort(): number {
   return generateRandomInt(PORT_RECOVERY_RANGE_START, PORT_RECOVERY_RANGE_END + 1)
 }
 
-export function getEd2kSearchToastKey(outcome: Ed2kSearchOutcome, resultCount: number): string {
+export function getEd2kSearchToastKey(outcome: Ed2kSearchOutcome, resultCount: number): I18nKey {
   if (outcome === 'cancelled') {
     return resultCount > 0 ? 'preferences.ed2k-search-cancelled-with-results' : 'preferences.ed2k-search-cancelled'
   }

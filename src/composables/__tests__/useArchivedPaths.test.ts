@@ -4,15 +4,12 @@
  * Validates the Map-based gid→newPath resolution, Vue reactivity bridge,
  * and the global recheck trigger mechanism.
  */
-import { describe, it, expect, beforeEach } from 'vitest'
-import {
-  setArchivedPath,
-  getArchivedPath,
-  clearArchivedPath,
-  resolveTaskFilePath,
-  requestFileRecheck,
-  recheckTrigger,
-} from '../useArchivedPaths'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+let paths: typeof import('../useArchivedPaths')
+let setArchivedPath: typeof paths.setArchivedPath
+let resolveTaskFilePath: typeof paths.resolveTaskFilePath
+let requestFileRecheck: typeof paths.requestFileRecheck
+let recheckTrigger: typeof paths.recheckTrigger
 import type { Aria2Task } from '@shared/types'
 
 /** Minimal task factory for testing. */
@@ -41,41 +38,10 @@ function makeTask(overrides: Partial<Aria2Task> = {}): Aria2Task {
   }
 }
 
-// Reset Map state between tests to prevent cross-contamination
-beforeEach(() => {
-  clearArchivedPath('abc123')
-  clearArchivedPath('def456')
-  clearArchivedPath('ghi789')
-})
-
-// ── Map CRUD ────────────────────────────────────────────────────────
-
-describe('setArchivedPath / getArchivedPath / clearArchivedPath', () => {
-  it('stores and retrieves an archived path', () => {
-    setArchivedPath('abc123', '/downloads/Archives/file.zip')
-    expect(getArchivedPath('abc123')).toBe('/downloads/Archives/file.zip')
-  })
-
-  it('returns undefined for unknown gid', () => {
-    expect(getArchivedPath('nonexistent')).toBeUndefined()
-  })
-
-  it('overwrites existing entry', () => {
-    setArchivedPath('abc123', '/old/path')
-    setArchivedPath('abc123', '/new/path')
-    expect(getArchivedPath('abc123')).toBe('/new/path')
-  })
-
-  it('clears a specific entry', () => {
-    setArchivedPath('abc123', '/archived')
-    clearArchivedPath('abc123')
-    expect(getArchivedPath('abc123')).toBeUndefined()
-  })
-
-  it('clear is a no-op for unknown gid', () => {
-    // Should not throw
-    clearArchivedPath('nonexistent')
-  })
+beforeEach(async () => {
+  vi.resetModules()
+  paths = await import('../useArchivedPaths')
+  ;({ setArchivedPath, resolveTaskFilePath, requestFileRecheck, recheckTrigger } = paths)
 })
 
 // ── resolveTaskFilePath ─────────────────────────────────────────────

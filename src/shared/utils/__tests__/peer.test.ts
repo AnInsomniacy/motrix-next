@@ -1,6 +1,6 @@
 /** @fileoverview Tests for peer identification and bitfield parsing utilities. */
 import { describe, it, expect } from 'vitest'
-import { peerIdParser, bitfieldToPercent, bitfieldToGraphic } from '../peer'
+import { peerIdParser, bitfieldToPercent } from '../peer'
 
 describe('peerIdParser', () => {
   it('parses Azureus-style peer ID', () => {
@@ -57,26 +57,5 @@ describe('bitfieldToPercent', () => {
 
   it('returns 0 for zero bitfield', () => {
     expect(bitfieldToPercent('00')).toBe('0')
-  })
-})
-
-describe('bitfieldToGraphic', () => {
-  it('returns empty for empty input', () => {
-    expect(bitfieldToGraphic('')).toBe('')
-  })
-
-  it('returns graphic blocks for valid bitfield', () => {
-    const result = bitfieldToGraphic('ff')
-    expect(result.length).toBeGreaterThan(0)
-  })
-
-  it('maps hex to GRAPHIC characters (░▒▓█)', () => {
-    // GRAPHIC = '░▒▓█', index = Math.floor(hex/4)
-    // hex 0 -> 0/4=0 -> ░
-    // hex f (15) -> 15/4=3 -> █
-    const result0 = bitfieldToGraphic('0')
-    expect(result0.trim()).toBe('░')
-    const resultF = bitfieldToGraphic('f')
-    expect(resultF.trim()).toBe('█')
   })
 })

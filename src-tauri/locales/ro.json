@@ -1,0 +1,15 @@
+{
+  "_version": 1,
+  "notification.bt-complete-body": "Se distribuie: %{task_name}",
+  "notification.bt-complete-title": "Descărcare BT finalizată",
+  "notification.download-batch-start-body": "Se descarcă: %{task_name} și alte %{count} sarcini",
+  "notification.download-complete-body": "Salvat: %{task_name}",
+  "notification.download-complete-title": "Descărcare finalizată",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "Descărcarea a eșuat",
+  "notification.download-start-body": "Se descarcă: %{task_name}",
+  "notification.download-start-title": "Descărcare începută",
+  "notification.ed2k-complete-body": "Se distribuie: %{task_name}",
+  "notification.ed2k-complete-title": "Descărcare ED2K finalizată",
+  "notification.error-unknown": "Unknown error"
+}

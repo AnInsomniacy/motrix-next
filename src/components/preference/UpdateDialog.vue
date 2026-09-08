@@ -18,10 +18,11 @@ import {
   CloseCircleOutline,
   ArrowUpCircleOutline,
   ArrowDownCircleOutline,
+  CloudDownloadOutline,
 } from '@vicons/ionicons5'
 import { usePreferenceStore } from '@/stores/preference'
 import { logger } from '@shared/logger'
-import type { ResolvedUpdateChannel, UpdateChannel } from '@shared/types'
+import type { ResolvedUpdateChannel, TauriUpdate, UpdateChannel } from '@shared/types'
 import {
   isActionDisabled,
   getActionLabel,
@@ -35,16 +36,6 @@ import {
   formatUpdateError,
   type DownloadUpdateResult,
 } from '@/composables/useUpdateFlow'
-
-interface UpdateMetadata {
-  version: string
-  body: string | null
-  date: string | null
-  channel: ResolvedUpdateChannel
-  requestedChannel: UpdateChannel
-  /** Computed by Rust via the semver crate — true for cross-channel downgrades. */
-  isRollback: boolean
-}
 
 interface UpdateProgressStarted {
   event: 'Started'
@@ -85,6 +76,7 @@ const downloadCancelled = ref(false)
 const activeChannel = ref<ResolvedUpdateChannel>('stable')
 const requestedChannel = ref<UpdateChannel>('stable')
 let progressUnlisten: UnlistenFn | null = null
+let operationId = 0
 const dialogClosable = computed(() => shouldAllowUpdateDialogClose(phase.value))
 const displayChannel = computed<UpdateChannel>(() =>
   requestedChannel.value === 'latest' ? 'latest' : activeChannel.value,
@@ -119,6 +111,7 @@ const downloadedMB = computed(() => bytesToMB(downloadReceived.value))
 const totalMB = computed(() => bytesToMB(downloadTotal.value))
 
 async function open(channel?: string) {
+  const currentOperationId = ++operationId
   const ch = (channel || preferenceStore.config.updateChannel || 'stable') as UpdateChannel
   requestedChannel.value = ch
   activeChannel.value = ch === 'beta' ? 'beta' : 'stable'
@@ -132,12 +125,14 @@ async function open(channel?: string) {
   downloadReceived.value = 0
   downloadCancelled.value = false
   currentVersion.value = await getVersion()
+  if (currentOperationId !== operationId) return
 
   try {
-    const update = await invoke<UpdateMetadata | null>('check_for_update', {
+    const update = await invoke<TauriUpdate | null>('check_for_update', {
       channel: ch,
       proxy: getUpdateProxy(),
     })
+    if (currentOperationId !== operationId) return
 
     if (update) {
       version.value = update.version
@@ -156,10 +151,32 @@ async function open(channel?: string) {
     }
     preferenceStore.updateAndSave({ lastCheckUpdateTime: Date.now() })
   } catch (e) {
+    if (currentOperationId !== operationId) return
     logger.error('Updater', e)
     errorMsg.value = formatUpdateError(e)
     phase.value = 'error'
   }
+}
+
+async function present(update: TauriUpdate) {
+  const currentOperationId = ++operationId
+  requestedChannel.value = update.requestedChannel
+  activeChannel.value = update.channel
+  show.value = true
+  phase.value = 'checking'
+  version.value = ''
+  releaseNotes.value = ''
+  errorMsg.value = ''
+  downloadTotal.value = 0
+  downloadReceived.value = 0
+  downloadCancelled.value = false
+  currentVersion.value = await getVersion()
+  if (currentOperationId !== operationId) return
+
+  version.value = update.version
+  releaseNotes.value = update.body || ''
+  isRollback.value = update.isRollback
+  phase.value = 'available'
 }
 
 async function startDownload() {
@@ -218,9 +235,8 @@ async function handleInstallAndRelaunch() {
     await invoke('apply_update', { channel: ch, proxy: getUpdateProxy() })
     relaunch()
   } catch (e) {
-    // Engine recovery is handled entirely by Rust (on_engine_ready).
-    // engine-crashed → useAppEvents listener handles UI overlay state.
-    // This catch block only manages UpdateDialog UI state.
+    // Engine recovery is owned by the Rust supervisor. This block only
+    // manages the update dialog state.
     logger.error('Updater', e)
     errorMsg.value = formatUpdateError(e)
     phase.value = 'error'
@@ -231,6 +247,7 @@ function close() {
   if (!shouldAllowUpdateDialogClose(phase.value)) {
     return
   }
+  operationId += 1
   show.value = false
 }
 
@@ -238,7 +255,7 @@ onUnmounted(() => {
   progressUnlisten?.()
 })
 
-defineExpose({ open })
+defineExpose({ open, present })
 </script>
 
 <template>
@@ -254,314 +271,342 @@ defineExpose({ open })
       }
     "
   >
-    <div class="update-dialog">
-      <div class="update-dialog-header">
+    <section class="update-dialog" :data-phase="phase" aria-live="polite">
+      <header class="update-dialog-header">
         <div class="update-dialog-title-group">
           <span class="update-dialog-title">{{ t('preferences.auto-update') }}</span>
           <NTag :type="channelTagType" size="small" round :bordered="false">
             {{ t(`preferences.update-channel-${displayChannel}`) }}
           </NTag>
         </div>
-        <button class="update-dialog-close" :disabled="!dialogClosable" @click="close">×</button>
-      </div>
-      <div class="update-dialog-body">
-        <Transition name="phase-switch" mode="out-in">
-          <div v-if="phase === 'checking'" key="checking" class="update-phase">
-            <NSpin size="medium" />
-            <NText depth="2" class="update-hint">{{ t('app.checking-for-updates') }}</NText>
+        <button class="update-dialog-close" :disabled="!dialogClosable" :aria-label="t('app.close')" @click="close">
+          ×
+        </button>
+      </header>
+
+      <div class="update-dialog-viewport">
+        <Transition name="update-panel">
+          <div v-if="phase === 'checking'" key="checking" class="update-panel update-panel--centered">
+            <NSpin size="large" />
+            <div class="update-copy">
+              <h2>{{ t('app.checking-for-updates') }}</h2>
+              <p>v{{ currentVersion }}</p>
+            </div>
           </div>
 
-          <div v-else-if="phase === 'up-to-date'" key="up-to-date" class="update-phase">
-            <div class="update-icon-wrap update-icon-success">
-              <NIcon :size="40"><CheckmarkCircleOutline /></NIcon>
+          <div v-else-if="phase === 'up-to-date'" key="up-to-date" class="update-panel update-panel--centered">
+            <div class="update-status-icon update-status-icon--success">
+              <NIcon :size="38"><CheckmarkCircleOutline /></NIcon>
             </div>
-            <NText class="update-main-text">{{ t('preferences.is-latest-version') }}</NText>
-            <NText depth="3" class="update-hint">v{{ currentVersion }}</NText>
+            <div class="update-copy">
+              <h2>{{ t('preferences.is-latest-version') }}</h2>
+              <p>v{{ currentVersion }}</p>
+            </div>
           </div>
 
-          <div v-else-if="phase === 'available'" key="available" class="update-phase">
-            <div class="update-icon-wrap" :class="isRollback ? 'update-icon-warn' : 'update-icon-new'">
-              <NIcon :size="40">
-                <ArrowDownCircleOutline v-if="isRollback" />
-                <ArrowUpCircleOutline v-else />
-              </NIcon>
-            </div>
-            <div class="update-version-info">
-              <NText class="update-main-text">
-                {{ isRollback ? t('app.older-version-available') : t('app.new-version-available') }}
-              </NText>
-              <div class="update-version-tags">
-                <span class="version-tag version-old">v{{ currentVersion }}</span>
-                <span class="version-arrow">→</span>
-                <span class="version-tag version-new">v{{ version }}</span>
+          <div v-else-if="phase === 'available'" key="available" class="update-panel update-panel--document">
+            <div class="update-summary">
+              <div
+                class="update-status-icon"
+                :class="isRollback ? 'update-status-icon--warning' : 'update-status-icon--primary'"
+              >
+                <NIcon :size="30">
+                  <ArrowDownCircleOutline v-if="isRollback" />
+                  <ArrowUpCircleOutline v-else />
+                </NIcon>
+              </div>
+              <div class="update-copy update-copy--left">
+                <h2>{{ isRollback ? t('app.older-version-available') : t('app.new-version-available') }}</h2>
+                <div class="update-version-flow">
+                  <span>v{{ currentVersion }}</span>
+                  <span class="update-version-arrow">→</span>
+                  <strong>v{{ version }}</strong>
+                </div>
               </div>
             </div>
-            <div v-if="releaseNotes" class="update-notes">
+            <div class="update-document" tabindex="0">
               <!-- eslint-disable-next-line vue/no-v-html -- sanitizedReleaseNotesHtml is DOMPurify output -->
-              <div class="update-notes-text" v-html="sanitizedReleaseNotesHtml" />
+              <div v-if="releaseNotes" class="update-notes-text" v-html="sanitizedReleaseNotesHtml" />
+              <NText v-else depth="3">—</NText>
             </div>
           </div>
 
-          <div v-else-if="phase === 'downloading'" key="downloading" class="update-phase">
-            <div class="update-icon-wrap" :class="isRollback ? 'update-icon-warn' : 'update-icon-new'">
-              <NIcon :size="40">
-                <ArrowDownCircleOutline v-if="isRollback" />
-                <ArrowUpCircleOutline v-else />
-              </NIcon>
+          <div v-else-if="phase === 'downloading'" key="downloading" class="update-panel update-panel--centered">
+            <div class="update-status-icon update-status-icon--primary">
+              <NIcon :size="34"><CloudDownloadOutline /></NIcon>
+            </div>
+            <div class="update-copy">
+              <h2>{{ t('preferences.download-update') }}</h2>
+              <p>v{{ version }}</p>
             </div>
             <div class="update-progress-wrap">
-              <NProgress
-                type="line"
-                :percentage="progressPercent"
-                :show-indicator="true"
-                indicator-placement="inside"
-                processing
-              />
-              <NText depth="3" class="update-hint update-progress-meta">
-                {{ downloadedMB }} / {{ totalMB }} MB · {{ progressPercent }}%
-              </NText>
+              <NProgress type="line" :percentage="progressPercent" :show-indicator="false" processing />
+              <div class="update-progress-meta">
+                <span>{{ downloadedMB }} / {{ totalMB }} MB</span>
+                <strong>{{ progressPercent }}%</strong>
+              </div>
             </div>
           </div>
 
-          <div v-else-if="phase === 'ready'" key="ready" class="update-phase">
-            <div class="update-icon-wrap update-icon-success">
-              <NIcon :size="40"><CheckmarkCircleOutline /></NIcon>
+          <div v-else-if="phase === 'ready'" key="ready" class="update-panel update-panel--centered">
+            <div class="update-status-icon update-status-icon--success">
+              <NIcon :size="38"><CheckmarkCircleOutline /></NIcon>
             </div>
-            <NText class="update-main-text">{{ t('preferences.update-download-complete') }}</NText>
+            <div class="update-copy">
+              <h2>{{ t('preferences.update-download-complete') }}</h2>
+              <p>v{{ version }}</p>
+            </div>
           </div>
 
-          <div v-else-if="phase === 'installing'" key="installing" class="update-phase">
-            <NSpin size="medium" />
-            <NText depth="2" class="update-hint">{{ t('preferences.installing') }}</NText>
+          <div v-else-if="phase === 'installing'" key="installing" class="update-panel update-panel--centered">
+            <NSpin size="large" />
+            <div class="update-copy">
+              <h2>{{ t('preferences.installing') }}</h2>
+              <p>v{{ version }}</p>
+            </div>
           </div>
 
-          <div v-else-if="phase === 'error'" key="error" class="update-phase">
-            <div class="update-icon-wrap update-icon-error">
-              <NIcon :size="40"><CloseCircleOutline /></NIcon>
+          <div v-else key="error" class="update-panel update-panel--document">
+            <div class="update-summary">
+              <div class="update-status-icon update-status-icon--error">
+                <NIcon :size="30"><CloseCircleOutline /></NIcon>
+              </div>
+              <div class="update-copy update-copy--left">
+                <h2>{{ t('preferences.check-update-failed') }}</h2>
+              </div>
             </div>
-            <NText class="update-main-text">{{ t('preferences.check-update-failed') }}</NText>
-            <div class="update-error-detail">
-              <NText depth="3" class="update-error-msg">{{ errorMsg }}</NText>
-            </div>
+            <pre class="update-error-detail" tabindex="0"><code>{{ errorMsg }}</code></pre>
           </div>
         </Transition>
       </div>
-      <!-- Fixed action footer — always rendered with 2 buttons -->
-      <div class="update-dialog-footer">
+
+      <footer class="update-dialog-footer">
         <NButton class="update-dialog-close-action" :disabled="!dialogClosable" @click="close">
           {{ t('app.close') }}
         </NButton>
-        <NButton
-          class="action-btn"
-          :class="{ 'action-btn--active': !actionDisabled }"
-          :type="actionType"
-          :disabled="actionDisabled"
-          @click="handleActionClick"
-        >
-          {{ t(actionLabel) }}
+        <NButton class="action-btn" :type="actionType" :disabled="actionDisabled" @click="handleActionClick">
+          <span class="action-label">
+            <Transition name="action-label-swap" mode="out-in">
+              <span :key="actionLabel">{{ t(actionLabel) }}</span>
+            </Transition>
+          </span>
         </NButton>
-      </div>
-    </div>
+      </footer>
+    </section>
   </NModal>
 </template>
 
 <style scoped>
 .update-dialog {
-  width: 460px;
+  width: min(558px, calc(100vw - 40px));
+  height: min(513px, calc(100vh - 40px));
+  display: grid;
+  grid-template-rows: 66px minmax(0, 1fr) 74px;
+  color: var(--m3-on-surface);
   background: var(--m3-surface-container-high);
-  border-radius: 14px;
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 12px 40px var(--m3-shadow);
+  box-shadow: 0 18px 56px var(--m3-shadow);
 }
 .update-dialog-header {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 22px 0;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--m3-outline-variant);
 }
 .update-dialog-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--m3-on-surface);
+  font-size: 16px;
+  font-weight: 650;
 }
 .update-dialog-close {
-  background: none;
+  width: 32px;
+  height: 32px;
   border: none;
+  border-radius: 50%;
+  background: transparent;
   color: var(--m3-outline);
   font-size: 20px;
   cursor: pointer;
-  padding: 0 4px;
-  line-height: 1;
-  opacity: 0.5;
-  transition: opacity 0.2s;
+  line-height: 30px;
+  transition:
+    background-color 0.2s cubic-bezier(0.2, 0, 0, 1),
+    color 0.2s cubic-bezier(0.2, 0, 0, 1);
 }
 .update-dialog-close:hover {
-  opacity: 1;
+  color: var(--m3-on-surface);
+  background: var(--m3-surface-container-highest);
 }
-.update-dialog-body {
+.update-dialog-close:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+.update-dialog-viewport {
   position: relative;
-  padding: 14px 30px 12px;
-  height: 380px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
 }
 .update-dialog-footer {
   display: flex;
-  justify-content: center;
+  align-items: center;
+  justify-content: flex-end;
   gap: 12px;
-  padding: 16px 30px 22px;
+  padding: 0 24px;
   border-top: 1px solid var(--m3-outline-variant);
 }
-.update-progress-meta {
-  margin-top: 6px;
-}
 .update-dialog-close-action {
-  min-width: 120px;
+  min-width: 96px;
 }
 .action-btn {
-  min-width: 180px;
-  transition: all 0.4s ease;
-  opacity: 0.5;
+  min-width: 150px;
 }
-.action-btn--active {
-  opacity: 1;
-  animation: action-pulse 0.4s ease;
+.action-label {
+  display: inline-grid;
+  place-items: center;
 }
-@keyframes action-pulse {
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.04);
-  }
-  100% {
-    transform: scale(1);
-  }
+.action-label > span {
+  grid-area: 1 / 1;
 }
 .update-dialog-title-group {
   display: flex;
   align-items: center;
   gap: 10px;
 }
-.update-phase {
+.update-panel {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  padding: 28px 32px;
+}
+.update-panel--centered {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  text-align: center;
-  width: 100%;
-}
-
-.update-icon-wrap {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 4px;
+  gap: 18px;
+  text-align: center;
 }
-.update-icon-success {
-  background: color-mix(in srgb, var(--m3-success) 12%, transparent);
-  color: var(--m3-success);
+.update-panel--document {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 22px;
 }
-.update-icon-new {
-  background: color-mix(in srgb, var(--m3-primary) 12%, transparent);
-  color: var(--m3-primary);
-}
-.update-icon-warn {
-  background: var(--m3-warning-container);
-  color: var(--m3-on-warning-container);
-}
-.update-icon-error {
-  background: color-mix(in srgb, var(--m3-error) 12%, transparent);
-  color: var(--m3-error);
-}
-
-.update-main-text {
-  font-size: 15px;
-  font-weight: 600;
-}
-.update-hint {
-  font-size: 12px;
-}
-
-.update-version-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-.update-version-tags {
+.update-summary {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 16px;
 }
-.version-tag {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-family: 'SF Mono', 'Fira Code', monospace;
+.update-status-icon {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  place-items: center;
 }
-.version-old {
-  background: color-mix(in srgb, var(--n-text-color) 12%, transparent);
-  color: var(--m3-outline);
-  opacity: 0.7;
-}
-.version-new {
-  background: var(--m3-primary-container);
+.update-status-icon--primary {
   color: var(--m3-on-primary-container);
+  background: var(--m3-primary-container);
 }
-.version-arrow {
-  font-size: 12px;
-  opacity: 0.3;
+.update-status-icon--success {
+  color: var(--m3-on-success-container);
+  background: var(--m3-success-container);
 }
-
+.update-status-icon--warning {
+  color: var(--m3-on-warning-container);
+  background: var(--m3-warning-container);
+}
+.update-status-icon--error {
+  color: var(--m3-on-error-container);
+  background: var(--m3-error-container);
+}
+.update-copy h2 {
+  margin: 0;
+  color: var(--m3-on-surface);
+  font-size: 19px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+.update-copy p {
+  margin: 6px 0 0;
+  color: var(--m3-on-surface-variant);
+  font-size: 13px;
+}
+.update-copy--left {
+  text-align: left;
+}
+.update-version-flow {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-top: 6px;
+  color: var(--m3-on-surface-variant);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+.update-version-flow strong {
+  color: var(--m3-primary);
+  font-size: 15px;
+}
+.update-version-arrow {
+  color: var(--m3-outline);
+}
 .update-progress-wrap {
-  width: 100%;
-  padding: 0 8px;
+  width: min(100%, 430px);
 }
-
-.update-notes {
-  width: 100%;
-  background: color-mix(in srgb, var(--m3-on-surface) 6%, transparent);
-  border-radius: 8px;
-  padding: 10px 14px;
-  max-height: 200px;
-  flex: 1;
-  overflow-y: auto;
+.update-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  color: var(--m3-on-surface-variant);
+  font-size: 12px;
+}
+.update-progress-meta strong {
+  color: var(--m3-primary);
+  font-weight: 650;
+}
+.update-document,
+.update-error-detail {
+  min-height: 0;
+  margin: 0;
+  padding: 18px 20px;
+  overflow: auto;
+  border: 1px solid var(--m3-outline-variant);
+  border-radius: 12px;
+  background: var(--m3-surface-container);
+  scrollbar-gutter: stable;
 }
 .update-notes-text {
-  font-size: 12.5px;
-  line-height: 1.6;
-  opacity: 0.65;
+  font-size: 13px;
+  line-height: 1.65;
   color: var(--m3-on-surface-variant);
 }
 .update-notes-text :deep(h2) {
-  font-size: 13px;
-  font-weight: 600;
-  margin: 0 0 4px;
+  margin: 18px 0 8px;
+  color: var(--m3-on-surface);
+  font-size: 15px;
+  font-weight: 650;
+}
+.update-notes-text :deep(h2:first-child) {
+  margin-top: 0;
 }
 .update-notes-text :deep(h3) {
-  font-size: 12.5px;
-  font-weight: 600;
-  margin: 6px 0 2px;
+  margin: 14px 0 6px;
+  color: var(--m3-on-surface);
+  font-size: 14px;
+  font-weight: 650;
 }
 .update-notes-text :deep(p) {
-  margin: 2px 0;
+  margin: 6px 0;
 }
 .update-notes-text :deep(ul),
 .update-notes-text :deep(ol) {
-  margin: 2px 0;
-  padding-left: 18px;
+  margin: 6px 0;
+  padding-left: 20px;
 }
 .update-notes-text :deep(li) {
-  margin: 1px 0;
+  margin: 4px 0;
 }
 
 /* ── Table ─────────────────────────────────────────────────────────── */
@@ -694,36 +739,71 @@ defineExpose({ open })
 }
 
 .update-error-detail {
-  width: 100%;
-  background: var(--m3-error-container);
-  color: var(--m3-on-error-container);
-  border-radius: 8px;
-  padding: 10px 14px;
-  max-height: 72px;
-  overflow-y: auto;
+  box-sizing: border-box;
+  border-color: color-mix(in srgb, var(--m3-error) 32%, var(--m3-outline-variant));
+  background: color-mix(in srgb, var(--m3-error) 7%, var(--m3-surface-container));
+  color: var(--m3-on-surface);
+  white-space: pre-wrap;
 }
-.update-error-msg {
+.update-error-detail code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12.5px;
-  word-break: break-all;
-  line-height: 1.5;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
-.phase-switch-enter-active {
+.update-panel-enter-active,
+.update-panel-leave-active {
   transition:
-    opacity 0.3s cubic-bezier(0.2, 0, 0, 1),
-    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    opacity 0.48s cubic-bezier(0.2, 0, 0, 1),
+    transform 0.56s cubic-bezier(0.2, 0, 0, 1);
 }
-.phase-switch-leave-active {
-  transition:
-    opacity 0.15s cubic-bezier(0.3, 0, 0.8, 0.15),
-    transform 0.25s cubic-bezier(0.4, 0, 1, 1);
-}
-.phase-switch-enter-from {
+.update-panel-enter-from {
   opacity: 0;
-  transform: scale(0.92) translateY(8px);
+  transform: translateY(8px);
 }
-.phase-switch-leave-to {
+.update-panel-leave-to {
   opacity: 0;
-  transform: scale(0.96) translateY(-4px);
+  transform: translateY(-5px);
+}
+
+@media (max-width: 680px) {
+  .update-dialog {
+    width: calc(100vw - 24px);
+    height: calc(100vh - 24px);
+  }
+
+  .update-panel {
+    padding: 22px 20px;
+  }
+
+  .update-dialog-header,
+  .update-dialog-footer {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+}
+</style>
+
+<style>
+.action-label-swap-enter-active {
+  animation: action-pulse 0.4s ease;
+  transition: opacity 0.28s cubic-bezier(0.05, 0.7, 0.1, 1);
+}
+.action-label-swap-leave-active {
+  transition: opacity 0.18s cubic-bezier(0.3, 0, 0.8, 0.15);
+}
+.action-label-swap-enter-from,
+.action-label-swap-leave-to {
+  opacity: 0;
+}
+@keyframes action-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
 }
 </style>

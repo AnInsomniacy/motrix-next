@@ -1,0 +1,14 @@
+[package]
+name = "motrix-next-browser-launcher"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+open = "=5.3.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+[lints.clippy]
+unwrap_used = "deny"

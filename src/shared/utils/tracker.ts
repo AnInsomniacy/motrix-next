@@ -2,7 +2,7 @@
 import { isEmpty } from 'lodash-es'
 import type { ProxyConfig } from '@shared/types'
 import { invoke } from '@tauri-apps/api/core'
-import { MAX_BT_TRACKER_LENGTH, PROXY_SCOPES } from '@shared/constants'
+import { PROXY_SCOPES } from '@shared/constants'
 import { logger } from '@shared/logger'
 import { resolveAppProxyUrl } from '@shared/utils/proxy'
 
@@ -82,18 +82,4 @@ export const convertTrackerDataToComma = (arr: string[] = []): string => {
   return convertTrackerDataToLine(arr)
     .replace(/(?:\r\n|\r|\n)/g, ',')
     .trim()
-}
-
-export const reduceTrackerString = (str = ''): string => {
-  if (str.length <= MAX_BT_TRACKER_LENGTH) {
-    return str
-  }
-
-  const subStr = str.substring(0, MAX_BT_TRACKER_LENGTH)
-  const index = subStr.lastIndexOf(',')
-  if (index === -1) {
-    return subStr
-  }
-
-  return subStr.substring(0, index)
 }

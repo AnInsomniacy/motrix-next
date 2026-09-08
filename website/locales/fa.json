@@ -58,7 +58,7 @@
   "motion.tokens.desc": "تمام مدت‌ها و منحنی‌ها ویژگی‌های سفارشی CSS هستند و ریتم یکپارچه در ۱۲+ مؤلفه را تضمین می‌کنند.",
   "features.title": "ویژگی‌ها",
   "features.protocol.title": "چند پروتکلی",
-  "features.protocol.desc": "HTTP، FTP، ED2K، BitTorrent و لینک‌های Magnet.",
+  "features.protocol.desc": "HTTP، SFTP، ED2K، BitTorrent و لینک‌های Magnet.",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "دانلود انتخابی فایل، DHT، تبادل همتا، رمزنگاری.",
   "features.tracker.title": "مدیریت ردیاب‌ها",

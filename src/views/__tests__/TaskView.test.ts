@@ -49,13 +49,16 @@ vi.mock('@/composables/useTaskActions', () => ({
   useTaskActions: () => ({
     handlePauseTask: vi.fn(),
     handleResumeTask: vi.fn(),
+    handleRetryTask: vi.fn(),
+    handleRedownloadTask: vi.fn(),
     handleDeleteTask: vi.fn(),
     handleDeleteRecord: vi.fn(),
     handleCopyLink: vi.fn(),
     handleShowInfo: vi.fn(),
     handleShowInFolder: vi.fn(),
     handleOpenFile: vi.fn(),
-    handleStopSeeding: vi.fn(),
+    handleFinishSharing: vi.fn(),
+    handleSelectFiles: vi.fn(),
   }),
 }))
 
@@ -112,10 +115,10 @@ describe('TaskView', () => {
     fetchListMock.mockResolvedValue(undefined)
 
     const wrapper = mount(TaskView, {
-      props: { status: 'active' },
+      props: { status: 'progress' },
     })
 
-    expect(changeCurrentListMock).toHaveBeenCalledWith('active')
+    expect(changeCurrentListMock).toHaveBeenCalledWith('progress')
 
     wrapper.unmount()
     pendingChange.resolve()

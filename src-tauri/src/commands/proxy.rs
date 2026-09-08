@@ -115,7 +115,7 @@ fn parse_windows_proxy_server(raw: &str) -> (String, bool) {
                     "http" => http_val = Some(addr.trim()),
                     "https" => https_val = Some(addr.trim()),
                     "socks" | "socks4" | "socks5" => socks_val = Some(addr.trim()),
-                    _ => {} // ftp etc. — ignored
+                    _ => {}
                 }
             }
         }
@@ -661,7 +661,7 @@ mod tests {
     #[cfg(target_os = "windows")]
     #[test]
     fn parse_windows_multi_protocol_falls_back_to_https() {
-        let raw = "https=10.0.0.1:443;ftp=10.0.0.1:21";
+        let raw = "https=10.0.0.1:443;custom=10.0.0.1:21";
         let (server, is_socks) = parse_windows_proxy_server(raw);
         assert_eq!(server, "http://10.0.0.1:443");
         assert!(!is_socks);
@@ -674,15 +674,6 @@ mod tests {
         let (server, is_socks) = parse_windows_proxy_server(raw);
         assert_eq!(server, "socks5://192.168.1.1:1080");
         assert!(is_socks);
-    }
-
-    #[cfg(target_os = "windows")]
-    #[test]
-    fn parse_windows_multi_protocol_unknown_only_returns_empty() {
-        let raw = "ftp=10.0.0.1:21";
-        let (server, is_socks) = parse_windows_proxy_server(raw);
-        assert!(server.is_empty());
-        assert!(!is_socks);
     }
 
     #[cfg(target_os = "windows")]

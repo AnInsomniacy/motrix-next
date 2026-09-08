@@ -1,0 +1,15 @@
+{
+  "_version": 1,
+  "notification.bt-complete-body": "Seeding: %{task_name}",
+  "notification.bt-complete-title": "Unduhan BT selesai",
+  "notification.download-batch-start-body": "Mengunduh: %{task_name} dan %{count} tugas lainnya",
+  "notification.download-complete-body": "Disimpan: %{task_name}",
+  "notification.download-complete-title": "Unduhan selesai",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "Unduhan gagal",
+  "notification.download-start-body": "Mengunduh: %{task_name}",
+  "notification.download-start-title": "Unduhan dimulai",
+  "notification.ed2k-complete-body": "Berbagi: %{task_name}",
+  "notification.ed2k-complete-title": "Unduhan ED2K selesai",
+  "notification.error-unknown": "Unknown error"
+}

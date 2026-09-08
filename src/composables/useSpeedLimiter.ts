@@ -170,18 +170,3 @@ export async function applyCustomLimit(
   })
   logger.info('SpeedLimiter.applyCustom', `dl=${downloadLimit} ul=${uploadLimit} enabled=${hasLimit}`)
 }
-
-/**
- * One-click speed limit removal. Sends 0/0 to aria2 to lift all limits
- * and disables the speed limit toggle, but does NOT overwrite the
- * configured limit values in the store — they are preserved so the user
- * can re-enable previous limits with a single left-click toggle.
- */
-export async function removeSpeedLimit(deps: SpeedLimiterDeps): Promise<void> {
-  await deps.changeGlobalOption({
-    maxOverallDownloadLimit: '0',
-    maxOverallUploadLimit: '0',
-  })
-  await deps.updateAndSave({ speedLimitEnabled: false })
-  logger.info('SpeedLimiter.remove', 'cleared — sent 0/0 to aria2')
-}

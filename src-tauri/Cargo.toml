@@ -1,9 +1,14 @@
 [package]
 name = "motrix-next"
-version = "3.9.7"
+version = "3.9.9-beta.2"
 description = "A full-featured download manager"
 authors = ["AnInsomniacy"]
+license = "MIT"
 edition = "2021"
+
+[workspace]
+members = [".", "native-messaging"]
+resolver = "2"
 
 [lib]
 name = "motrix_next_lib"
@@ -30,7 +35,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 semver = "1"
 tokio = { version = "1", features = ["full"] }
-log = "0.4"
+log = { version = "0.4", features = ["kv"] }
+anstream = "1"
+anstyle = "1"
 thiserror = "2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 tauri-plugin-locale = "2.0.1"
@@ -51,11 +58,9 @@ dunce = "1"
 os_info = "3"
 sys-locale = "0.3"
 rusqlite = { version = "0.31", features = ["bundled"] }
-rfd = { version = "0.16", default-features = false }
 maxminddb = { version = "0.27", features = ["mmap"] }
 axum = "0.8"
 tower-http = { version = "0.6", features = ["cors"] }
-keepawake = "0.6"
 mime2ext = "0.1"
 urlencoding = "2"
 sanitize-filename = "0.6"
@@ -63,10 +68,14 @@ content_disposition = "0.4"
 rfc2047-decoder = "1.1"
 strip-ansi-escapes = "0.2.1"
 tempfile = "3"
+motrix-next-browser-launcher = { path = "native-messaging" }
+rust-i18n = "4.2.1"
+fluent-langneg = { version = "0.14.2", features = ["cldr"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [
-    "Win32_Graphics_Dwm",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_Networking_WinSock",
     "Win32_System_Power",
     "Win32_System_Com",
     "Win32_System_Registry",
@@ -78,9 +87,11 @@ windows-sys = { version = "0.59", features = [
 winreg = "0.56"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-notify-rust = "4.14"
+ashpd = { version = "0.13.13", default-features = false, features = ["tokio", "inhibit"] }
+notify-rust = { version = "4.14", default-features = false, features = ["z-with-tokio"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+keepawake = "0.6"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = ["NSWorkspace", "NSDockTile", "NSApplication"] }
 objc2-foundation = { version = "0.3", features = ["NSURL", "NSString", "NSBundle"] }

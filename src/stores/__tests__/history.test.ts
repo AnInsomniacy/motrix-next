@@ -1,12 +1,11 @@
 /** @fileoverview TDD tests for the download history Pinia store (SQLite-backed).
  *
- * Tests are written BEFORE implementation per the TDD Iron Law.
  * The `@tauri-apps/plugin-sql` module is mocked to use an in-memory
  * array, keeping tests synchronous and deterministic.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import type { Aria2Task, HistoryRecord } from '@shared/types'
+import type { HistoryRecord } from '@shared/types'
 
 // ── Mock: in-memory SQLite substitute ────────────────────────────────
 let rows: HistoryRecord[] = []
@@ -112,9 +111,11 @@ function mockSelect(query: string, params: unknown[]): unknown[] {
   }
 
   if (q.includes('COUNT(DISTINCT GID)')) {
-    const values = new Set(params.map(String))
+    const status = String(params[0])
+    const values = new Set(params.slice(1).map(String))
     const matchedGids = new Set<string>()
     for (const row of rows) {
+      if (row.status !== status) continue
       let meta: Record<string, unknown> = {}
       try {
         meta = row.meta ? (JSON.parse(row.meta) as Record<string, unknown>) : {}
@@ -134,6 +135,11 @@ function mockSelect(query: string, params: unknown[]): unknown[] {
   }
 
   if (q.includes('COUNT(*)')) {
+    if (q.includes('GROUP BY STATUS')) {
+      return ['complete', 'error']
+        .map((status) => ({ status, count: rows.filter((row) => row.status === status).length }))
+        .filter((entry) => entry.count > 0)
+    }
     if (q.includes('WHERE STATUS')) {
       const status = params[0] as string
       return [{ count: rows.filter((r) => r.status === status).length }]
@@ -192,15 +198,6 @@ vi.mock('@tauri-apps/plugin-sql', () => ({
   },
 }))
 
-vi.mock('@tauri-apps/plugin-fs', () => ({
-  exists: vi.fn().mockResolvedValue(false),
-  remove: vi.fn().mockResolvedValue(undefined),
-}))
-
-vi.mock('@tauri-apps/api/path', () => ({
-  appDataDir: vi.fn().mockResolvedValue('/mock/data'),
-}))
-
 vi.mock('@shared/logger', () => ({
   logger: {
     info: vi.fn(),
@@ -229,23 +226,9 @@ function makeRecord(overrides: Partial<HistoryRecord> = {}): HistoryRecord {
   }
 }
 
-function makeTask(overrides: Partial<Aria2Task> = {}): Aria2Task {
-  return {
-    gid: 'task-gid',
-    status: 'active',
-    totalLength: '1',
-    completedLength: '1',
-    uploadLength: '0',
-    downloadSpeed: '0',
-    uploadSpeed: '0',
-    connections: '0',
-    dir: '/downloads',
-    files: [],
-    ...overrides,
-  }
-}
-
 // ── Tests ────────────────────────────────────────────────────────────
+
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn().mockResolvedValue(false) }))
 
 describe('HistoryStore', () => {
   let store: ReturnType<typeof useHistoryStore>
@@ -309,38 +292,6 @@ describe('HistoryStore', () => {
       expect(results[0].gid).toBe('min1')
     })
   })
-
-  describe('countRecordsMatchingTaskIdentities', () => {
-    it('counts history records that match live task identities without double-counting', async () => {
-      rows = [
-        makeRecord({ gid: 'same-gid' }),
-        makeRecord({
-          gid: 'old-bt-gid',
-          task_type: 'bt',
-          meta: JSON.stringify({ infoHash: 'bt-hash' }),
-        }),
-        makeRecord({
-          gid: 'old-ed2k-gid',
-          task_type: 'ed2k',
-          meta: JSON.stringify({ ed2kHash: 'ed2k-hash', ed2kLink: 'ed2k://|file|demo|1|hash|/' }),
-        }),
-        makeRecord({ gid: 'unrelated' }),
-      ]
-
-      const liveTasks = [
-        makeTask({ gid: 'same-gid' }),
-        makeTask({ gid: 'new-bt-gid', bittorrent: { info: { name: 'bt' } }, infoHash: 'bt-hash' }),
-        makeTask({
-          gid: 'new-ed2k-gid',
-          ed2k: { hash: 'ed2k-hash', ed2kLink: 'ed2k://|file|demo|1|hash|/' },
-        }),
-      ]
-
-      await expect(store.countRecordsMatchingTaskIdentities(liveTasks)).resolves.toBe(3)
-    })
-  })
-
-  // ── getRecords ─────────────────────────────────────────────────
 
   describe('getRecords', () => {
     it('returns all records when no filter is specified', async () => {
@@ -587,36 +538,6 @@ describe('HistoryStore', () => {
     })
   })
 
-  // ── PRAGMA initialization ──────────────────────────────────────
-
-  describe('PRAGMA initialization', () => {
-    it('sets WAL journal mode on init', async () => {
-      const walQueries = executedQueries.filter(
-        (q) => q.toUpperCase().includes('JOURNAL_MODE') && q.toUpperCase().includes('WAL'),
-      )
-      expect(walQueries.length).toBeGreaterThanOrEqual(1)
-    })
-
-    it('sets synchronous=NORMAL on init', async () => {
-      const syncQueries = executedQueries.filter(
-        (q) => q.toUpperCase().includes('SYNCHRONOUS') && q.toUpperCase().includes('NORMAL'),
-      )
-      expect(syncQueries.length).toBeGreaterThanOrEqual(1)
-    })
-
-    it('sets busy_timeout on init', async () => {
-      const busyQueries = executedQueries.filter((q) => q.toUpperCase().includes('BUSY_TIMEOUT'))
-      expect(busyQueries.length).toBeGreaterThanOrEqual(1)
-    })
-
-    it('sets foreign_keys=ON on init', async () => {
-      const fkQueries = executedQueries.filter(
-        (q) => q.toUpperCase().includes('FOREIGN_KEYS') && q.toUpperCase().includes('ON'),
-      )
-      expect(fkQueries.length).toBeGreaterThanOrEqual(1)
-    })
-  })
-
   // ── checkIntegrity ─────────────────────────────────────────────
 
   describe('checkIntegrity', () => {
@@ -630,97 +551,6 @@ describe('HistoryStore', () => {
       await store.checkIntegrity()
       const integrityQueries = executedQueries.filter((q) => q.toUpperCase().includes('INTEGRITY_CHECK'))
       expect(integrityQueries.length).toBe(1)
-    })
-  })
-
-  // ── closeConnection ────────────────────────────────────────────
-
-  describe('closeConnection', () => {
-    it('closes the database connection and allows re-initialization', async () => {
-      // Add a record before closing
-      await store.addRecord(makeRecord({ gid: 'before-close' }))
-      await store.closeConnection()
-
-      // After closing, the next operation should re-initialize the database
-      // (initPromise is reset so getDb() triggers a fresh init)
-      const results = await store.getRecords()
-      // The mock Database.load creates a fresh connection,
-      // so in-memory mock rows still contain the record
-      expect(results).toHaveLength(1)
-      expect(results[0].gid).toBe('before-close')
-    })
-  })
-
-  // ── init recovery after total failure ──────────────────────────
-
-  describe('init recovery after rebuild failure', () => {
-    it('allows re-initialization when both initial load and rebuild fail', async () => {
-      // Reset to a clean slate so we can control the init sequence
-      await store.closeConnection()
-
-      const Database = (await import('@tauri-apps/plugin-sql')).default
-      const loadFn = Database.load as ReturnType<typeof vi.fn>
-
-      // Force TWO consecutive failures:
-      //   1st rejection → init() catches it, tries rebuildDatabase()
-      //   2nd rejection → rebuildDatabase() also fails
-      // After this, initPromise MUST be reset so a future init() can retry.
-      loadFn.mockRejectedValueOnce(new Error('simulated disk full'))
-      loadFn.mockRejectedValueOnce(new Error('simulated disk full'))
-
-      // This init() will fail internally but should NOT throw — it
-      // swallows errors via the health callback. The critical invariant
-      // is that the store doesn't permanently wedge itself.
-      await store.init()
-
-      // Restore normal Database.load behavior for the retry
-      loadFn.mockResolvedValue({
-        execute: vi.fn((q: string, p: unknown[]) => Promise.resolve(mockExecute(q, p))),
-        select: vi.fn((q: string, p: unknown[]) => Promise.resolve(mockSelect(q, p))),
-        close: vi.fn().mockResolvedValue(undefined),
-      })
-
-      // CRITICAL ASSERTION: A second init() call must trigger a fresh
-      // initialization attempt — not silently reuse the old failed promise.
-      await store.init()
-
-      // If initPromise was not reset, getRecords() would crash on `db!`
-      // being null. A successful call here proves the store recovered.
-      const results = await store.getRecords()
-      expect(results).toBeDefined()
-      expect(Array.isArray(results)).toBe(true)
-    })
-
-    it('recovered store supports full CRUD after retry', async () => {
-      // Start from a failure state
-      await store.closeConnection()
-
-      const Database = (await import('@tauri-apps/plugin-sql')).default
-      const loadFn = Database.load as ReturnType<typeof vi.fn>
-
-      loadFn.mockRejectedValueOnce(new Error('corruption'))
-      loadFn.mockRejectedValueOnce(new Error('corruption'))
-
-      await store.init()
-
-      // Restore
-      loadFn.mockResolvedValue({
-        execute: vi.fn((q: string, p: unknown[]) => Promise.resolve(mockExecute(q, p))),
-        select: vi.fn((q: string, p: unknown[]) => Promise.resolve(mockSelect(q, p))),
-        close: vi.fn().mockResolvedValue(undefined),
-      })
-
-      // Retry — should recover
-      await store.init()
-
-      // Full CRUD cycle to prove the store is fully operational
-      await store.addRecord(makeRecord({ gid: 'after-recovery', name: 'recovered.zip' }))
-      const records = await store.getRecords()
-      expect(records.some((r) => r.gid === 'after-recovery')).toBe(true)
-
-      await store.removeRecord('after-recovery')
-      const afterRemove = await store.getRecords()
-      expect(afterRemove.every((r) => r.gid !== 'after-recovery')).toBe(true)
     })
   })
 })

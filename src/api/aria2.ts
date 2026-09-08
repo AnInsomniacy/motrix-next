@@ -12,32 +12,29 @@ import type {
   Aria2Peer,
   Aria2EngineOptions,
   Aria2File,
+  Aria2BtTracker,
+  Aria2BtTrackerConfig,
+  Aria2BtPeerAddResult,
   AppConfig,
   Ed2kSearchOptions,
   Ed2kSearchResults,
   ExternalDownloadContext,
+  TorrentInspection,
+  BatchDeleteTaskTarget,
+  BatchTaskOperationResult,
+  ResumeEligibleResult,
 } from '@shared/types'
-import { formatLogFields, logger } from '@shared/logger'
+import { logger } from '@shared/logger'
 import { resolveDownloadDir } from '@shared/utils/fileCategory'
-import { sanitizeAria2OutHint } from '@shared/utils/batchHelpers'
+import { extractDecodedFilename, sanitizeAria2OutHint } from '@shared/utils/batchHelpers'
 import { summarizeAria2Options, summarizeExternalInput } from '@shared/utils/externalInputDiagnostics'
-
-/**
- * Engine readiness state.
- * With the Rust backend transport, readiness is determined by the engine
- * lifecycle commands — the Aria2Client is always available once credentials
- * are set by `on_engine_ready`.
- */
-let engineReady = false
+import { useEngineStore } from '@/stores/engine'
+import { getActivePinia } from 'pinia'
 
 /** Returns true when the aria2 engine has started and is accepting RPC. */
 export function isEngineReady(): boolean {
-  return engineReady
-}
-
-/** Marks the engine as ready/unready. */
-export function setEngineReady(ready: boolean): void {
-  engineReady = ready
+  const pinia = getActivePinia()
+  return pinia ? useEngineStore(pinia).isReady : false
 }
 
 function withBtSafetyOptions(options: Aria2EngineOptions): Aria2EngineOptions {
@@ -51,12 +48,6 @@ function withBtSafetyOptions(options: Aria2EngineOptions): Aria2EngineOptions {
 /** Retrieves aria2 engine version and list of enabled features. */
 export async function getVersion(): Promise<{ version: string; enabledFeatures: string[] }> {
   return invoke<{ version: string; enabledFeatures: string[] }>('aria2_get_version')
-}
-
-/** Fetches all global aria2 configuration options as camelCase keys. */
-export async function getGlobalOption(): Promise<Record<string, string>> {
-  const data = await invoke<Record<string, string>>('aria2_get_global_option')
-  return changeKeysToCamelCase(data) as Record<string, string>
 }
 
 /** Fetches aggregated download/upload statistics from aria2. */
@@ -89,12 +80,32 @@ export async function getFiles(params: { gid: string }): Promise<Aria2File[]> {
   return data.map((f) => changeKeysToCamelCase(f)) as unknown as Aria2File[]
 }
 
+export async function getBtTrackers(params: { gid: string }): Promise<Aria2BtTracker[]> {
+  return invoke<Aria2BtTracker[]>('aria2_get_bt_trackers', { gid: params.gid })
+}
+
+export async function forceBtRecheck(params: { gid: string }): Promise<void> {
+  await invoke<string>('aria2_force_bt_recheck', params)
+}
+
+export async function replaceBtTrackers(params: { gid: string; trackers: Aria2BtTrackerConfig[] }): Promise<void> {
+  await invoke<string>('aria2_replace_bt_trackers', params)
+}
+
+export async function replaceBtWebSeeds(params: { gid: string; webSeeds: string[] }): Promise<void> {
+  await invoke<string>('aria2_replace_bt_web_seeds', params)
+}
+
+export async function addBtPeers(params: { gid: string; peers: string[] }): Promise<Aria2BtPeerAddResult> {
+  return invoke<Aria2BtPeerAddResult>('aria2_add_bt_peers', params)
+}
+
 /** Fetches only active tasks (no waiting). */
 export async function fetchActiveTaskList(): Promise<Aria2Task[]> {
   return invoke<Aria2Task[]>('aria2_fetch_active_task_list')
 }
 
-/** Fetches task list by status type: active+waiting or stopped. */
+/** Fetches a native task snapshot: all, active+waiting, or stopped. */
 export async function fetchTaskList(params: { type: string; limit?: number }): Promise<Aria2Task[]> {
   return invoke<Aria2Task[]>('aria2_fetch_task_list', {
     type: params.type,
@@ -139,24 +150,27 @@ export async function addUri(params: {
     // Smart file classification: resolve per-URI download directory
     if (fileCategory?.enabled && fileCategory.categories.length > 0) {
       const context = fileCategory.contexts?.[uri]
-      opts.dir = resolveDownloadDir(opts.out || uri, opts.dir || '', true, fileCategory.categories, {
-        urls: [uri, context?.finalUrl ?? '', context?.url ?? '', context?.referer ?? ''],
-      })
+      opts.dir = resolveDownloadDir(
+        opts.out || extractDecodedFilename(uri) || uri,
+        opts.dir || '',
+        true,
+        fileCategory.categories,
+        {
+          urls: [uri, context?.finalUrl ?? '', context?.url ?? '', context?.referer ?? ''],
+        },
+      )
     }
 
     return invoke<string>('aria2_add_uri', { uris: [uri], options: opts })
   })
 
   const gids = await Promise.all(tasks)
-  logger.info(
-    'aria2.addUri',
-    formatLogFields({
-      added: gids.length,
-      gids: `[${gids.join(',')}]`,
-      first: uris[0] ? summarizeExternalInput(uris[0]) : 'none',
-      ...summarizeAria2Options(engineOptions),
-    }),
-  )
+  logger.info('aria2.addUri', 'downloads_added', {
+    added: gids.length,
+    gids: gids.join(','),
+    first: uris[0] ? summarizeExternalInput(uris[0]) : 'none',
+    ...summarizeAria2Options(engineOptions),
+  })
   return gids
 }
 
@@ -177,6 +191,11 @@ export async function addTorrent(params: { torrent: string; options: Aria2Engine
   const gid = await invoke<string>('aria2_add_torrent', { torrent: params.torrent, options: engineOptions })
   logger.info('aria2.addTorrent', `gid=${gid}`)
   return gid
+}
+
+/** Inspects torrent metainfo without creating a task or engine state. */
+export async function inspectTorrent(params: { torrent: string }): Promise<TorrentInspection> {
+  return invoke<TorrentInspection>('aria2_inspect_torrent', { torrent: params.torrent })
 }
 
 /** Starts an ED2K search and returns the search GID. */
@@ -202,9 +221,37 @@ export async function removeTask(params: { gid: string }): Promise<string> {
   return invoke<string>('aria2_force_remove', { gid: params.gid })
 }
 
+/** Deletes a task across live, transitioning, stopped, and history states. */
+export async function deleteTask(params: { gid: string; infoHash?: string }): Promise<void> {
+  return invoke<void>('aria2_delete_task', {
+    gid: params.gid,
+    infoHash: params.infoHash ?? null,
+  })
+}
+
+/** Ends one P2P sharing task while preserving files and completed history. */
+export async function finishSharing(params: { gid: string }): Promise<void> {
+  return invoke<void>('aria2_finish_sharing', params)
+}
+
+/** Ends multiple P2P sharing tasks in one native application transaction. */
+export async function batchFinishSharing(params: { gids: string[] }): Promise<BatchTaskOperationResult> {
+  return invoke<BatchTaskOperationResult>('aria2_batch_finish_sharing', params)
+}
+
+/** Deletes multiple tasks with native engine and history cleanup. */
+export async function batchDeleteTasks(params: { tasks: BatchDeleteTaskTarget[] }): Promise<BatchTaskOperationResult> {
+  return invoke<BatchTaskOperationResult>('aria2_batch_delete_tasks', params)
+}
+
 /** Forcefully pauses a download task by GID. */
 export async function forcePauseTask(params: { gid: string }): Promise<string> {
   return invoke<string>('aria2_force_pause', { gid: params.gid })
+}
+
+/** Forcefully pauses every active task through Aria2 Next's native RPC. */
+export async function forcePauseAll(): Promise<string> {
+  return invoke<string>('aria2_force_pause_all')
 }
 
 /** Pauses a download task by GID (graceful). */
@@ -217,6 +264,11 @@ export async function resumeTask(params: { gid: string }): Promise<string> {
   return invoke<string>('aria2_unpause', { gid: params.gid })
 }
 
+/** Resumes all eligible paused tasks while preserving magnet selection guards. */
+export async function resumeEligible(): Promise<ResumeEligibleResult> {
+  return invoke<ResumeEligibleResult>('aria2_resume_eligible')
+}
+
 /** Saves the current aria2 session to disk. */
 export async function saveSession(): Promise<string> {
   return invoke<string>('aria2_save_session')
@@ -227,39 +279,19 @@ export async function removeTaskRecord(params: { gid: string }): Promise<string>
   return invoke<string>('aria2_remove_download_result', { gid: params.gid })
 }
 
-/** Purges all completed/errored task records from the download list. */
-export async function purgeTaskRecord(): Promise<string> {
-  return invoke<string>('aria2_purge_download_result')
-}
-
-/** Batch-resumes multiple tasks by GID array via multicall. */
-export async function batchResumeTask(params: { gids: string[] }): Promise<unknown[][]> {
-  return invoke<unknown[][]>('aria2_batch_unpause', { gids: params.gids })
-}
-
-/** Batch-pauses multiple tasks by GID array via multicall (force). */
-export async function batchPauseTask(params: { gids: string[] }): Promise<unknown[][]> {
-  return invoke<unknown[][]>('aria2_batch_force_pause', { gids: params.gids })
-}
-
-/** Alias for batchPauseTask — force-pauses multiple tasks. */
-export async function batchForcePauseTask(params: { gids: string[] }): Promise<unknown[][]> {
-  return batchPauseTask(params)
-}
-
-/** Batch-removes multiple tasks by GID array via multicall (force). */
-export async function batchRemoveTask(params: { gids: string[] }): Promise<unknown[][]> {
-  return invoke<unknown[][]>('aria2_batch_force_remove', { gids: params.gids })
+/** Clears application history and purges completed engine results. */
+export async function purgeTaskRecords(): Promise<void> {
+  return invoke<void>('aria2_purge_task_records')
 }
 
 const api = {
   getVersion,
-  getGlobalOption,
   getGlobalStat,
   changeGlobalOption,
   getOption,
   changeOption,
   getFiles,
+  getBtTrackers,
   fetchActiveTaskList,
   fetchTaskList,
   fetchTaskItem,
@@ -267,20 +299,23 @@ const api = {
   addUri,
   addUriAtomic,
   addTorrent,
+  inspectTorrent,
   ed2kSearch,
   getEd2kSearchResults,
   cleanupEd2kSearch,
   removeTask,
+  deleteTask,
+  batchDeleteTasks,
+  finishSharing,
+  batchFinishSharing,
   forcePauseTask,
+  forcePauseAll,
   pauseTask,
   resumeTask,
+  resumeEligible,
   saveSession,
   removeTaskRecord,
-  purgeTaskRecord,
-  batchResumeTask,
-  batchPauseTask,
-  batchForcePauseTask,
-  batchRemoveTask,
+  purgeTaskRecords,
 }
 
 export default api

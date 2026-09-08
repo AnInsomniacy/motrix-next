@@ -6,11 +6,9 @@
  * whether the file should be moved to a category directory based on its real
  * filename (as resolved by aria2 via Content-Disposition or URL path).
  *
- * Design:
- *   - Pure function, no side effects (actual file move is handled by caller)
- *   - Skips BT tasks (multi-file torrents have their own directory structure)
- *   - Skips files already in the correct category directory
- *   - Only processes the first file (files[0]) for single-file HTTP downloads
+ * This is a fallback for stream downloads whose final filename was unavailable
+ * before submission. P2P tasks resolve their target directory from native
+ * metadata before payload transfer starts.
  */
 import type { Aria2Task, FileCategory } from '@shared/types'
 import { logger } from '@shared/logger'
@@ -54,12 +52,6 @@ export function resolveArchiveAction(
   }
   if (categories.length === 0) {
     logger.debug('AutoArchive.skip', 'empty categories array')
-    return null
-  }
-
-  // Skip BT tasks — multi-file torrents manage their own directory structure
-  if (task.bittorrent) {
-    logger.debug('AutoArchive.skip', 'BT task')
     return null
   }
 

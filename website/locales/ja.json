@@ -58,7 +58,7 @@
   "motion.tokens.desc": "すべての持続時間と曲線はCSSカスタムプロパティで、12以上のコンポーネントで統一されたリズムを確保。",
   "features.title": "機能",
   "features.protocol.title": "マルチプロトコル",
-  "features.protocol.desc": "HTTP、FTP、ED2K、BitTorrent、Magnet リンク。",
+  "features.protocol.desc": "HTTP、SFTP、ED2K、BitTorrent、Magnet リンク。",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "選択的ファイルダウンロード、DHT、ピア交換、暗号化。",
   "features.tracker.title": "トラッカー管理",

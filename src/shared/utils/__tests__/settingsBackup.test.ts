@@ -63,24 +63,23 @@ describe('buildSystemConfigFromAppConfig', () => {
       ...DEFAULT_APP_CONFIG,
       dir: '/Downloads',
       maxConcurrentDownloads: 9,
-      split: 12,
-      maxConnectionPerServer: 6,
+      streamMaxConnections: 12,
       btMaxPeers: 88,
-      asyncDns: true,
       rpcListenPort: 29199,
       rpcSecret: 'imported-rpc',
       extensionApiSecret: 'imported-api',
+      btTracker: 'udp://tracker.example:6969/announce,'.repeat(4000).slice(0, -1),
     } as AppConfig
 
     const system = buildSystemConfigFromAppConfig(config, '/Fallback')
 
     expect(system.dir).toBe('/Downloads')
     expect(system['max-concurrent-downloads']).toBe('9')
-    expect(system.split).toBe('12')
-    expect(system['max-connection-per-server']).toBe('6')
+    expect(system['stream-max-connections']).toBe('12')
     expect(system['bt-max-peers']).toBe('88')
-    expect(system['async-dns']).toBe('true')
     expect(system['rpc-listen-port']).toBe('29199')
     expect(system['rpc-secret']).toBe('imported-rpc')
+    expect(system['bt-tracker']).toBe(config.btTracker)
+    expect(system['bt-tracker'].length).toBeGreaterThan(100_000)
   })
 })

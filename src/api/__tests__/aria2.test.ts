@@ -5,7 +5,7 @@
  * calls the correct Tauri command with the expected arguments.
  *
  * Key behaviors under test:
- * - setEngineReady controls the readiness flag
+ * - readiness comes from the engine supervisor store
  * - All API methods invoke the correct Tauri command
  * - fetchTaskList routes by type (active vs stopped)
  * - addUri creates one invoke per URI with per-URI output filename override
@@ -13,11 +13,14 @@
  * - Batch operations use batch invoke commands
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 
 // ── Hoisted mocks ───────────────────────────────────────────────────
 const { mockInvoke } = vi.hoisted(() => ({
   mockInvoke: vi.fn().mockResolvedValue({}),
 }))
+
+const engineState = vi.hoisted(() => ({ isReady: false }))
 
 const loggerMock = vi.hoisted(() => ({
   debug: vi.fn(),
@@ -30,6 +33,10 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: (...args: unknown[]) => mockInvoke(...args),
 }))
 
+vi.mock('@/stores/engine', () => ({
+  useEngineStore: () => engineState,
+}))
+
 vi.mock('@shared/logger', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@shared/logger')>()
   return {
@@ -40,14 +47,16 @@ vi.mock('@shared/logger', async (importOriginal) => {
 
 import {
   isEngineReady,
-  setEngineReady,
   getVersion,
-  getGlobalOption,
   getGlobalStat,
   changeGlobalOption,
   getOption,
   changeOption,
   getFiles,
+  forceBtRecheck,
+  replaceBtTrackers,
+  replaceBtWebSeeds,
+  addBtPeers,
   fetchTaskList,
   fetchTaskItem,
   fetchTaskItemWithPeers,
@@ -55,31 +64,36 @@ import {
   addUri,
   addUriAtomic,
   addTorrent,
+  inspectTorrent,
   removeTask,
+  deleteTask,
+  batchDeleteTasks,
+  finishSharing,
+  batchFinishSharing,
   pauseTask,
   resumeTask,
   forcePauseTask,
+  forcePauseAll,
+  resumeEligible,
   saveSession,
   removeTaskRecord,
-  purgeTaskRecord,
-  batchResumeTask,
-  batchPauseTask,
-  batchRemoveTask,
+  purgeTaskRecords,
 } from '../aria2'
 
 describe('aria2 API (invoke transport)', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     vi.clearAllMocks()
-    setEngineReady(false)
+    engineState.isReady = false
   })
 
   // ── Client Lifecycle ────────────────────────────────────────────
 
   describe('client lifecycle', () => {
-    it('setEngineReady explicitly controls readiness flag', () => {
-      setEngineReady(true)
+    it('reads readiness from the supervisor store', () => {
+      engineState.isReady = true
       expect(isEngineReady()).toBe(true)
-      setEngineReady(false)
+      engineState.isReady = false
       expect(isEngineReady()).toBe(false)
     })
   })
@@ -88,7 +102,7 @@ describe('aria2 API (invoke transport)', () => {
 
   describe('RPC methods via invoke', () => {
     beforeEach(async () => {
-      setEngineReady(true)
+      engineState.isReady = true
     })
 
     it('getVersion invokes aria2_get_version', async () => {
@@ -96,13 +110,6 @@ describe('aria2 API (invoke transport)', () => {
       const result = await getVersion()
       expect(mockInvoke).toHaveBeenCalledWith('aria2_get_version')
       expect(result.version).toBe('1.37.0')
-    })
-
-    it('getGlobalOption invokes and converts to camelCase', async () => {
-      mockInvoke.mockResolvedValueOnce({ 'max-concurrent-downloads': '5' })
-      const result = await getGlobalOption()
-      expect(mockInvoke).toHaveBeenCalledWith('aria2_get_global_option')
-      expect(result).toHaveProperty('maxConcurrentDownloads')
     })
 
     it('getGlobalStat invokes aria2_get_global_stat', async () => {
@@ -122,22 +129,26 @@ describe('aria2 API (invoke transport)', () => {
 
     it('changeGlobalOption invokes with formatted options', async () => {
       mockInvoke.mockResolvedValueOnce('OK')
-      await changeGlobalOption({ maxConcurrentDownloads: 10 } as never)
-      expect(mockInvoke).toHaveBeenCalledWith('aria2_change_global_option', { options: expect.any(Object) })
+      await changeGlobalOption({ maxConcurrentDownloads: 10 })
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_change_global_option', {
+        options: { 'max-concurrent-downloads': '10' },
+      })
     })
 
     it('getOption invokes with gid and converts to camelCase', async () => {
       mockInvoke.mockResolvedValueOnce({ 'max-download-limit': '0', 'select-file': '2-9' })
       const result = await getOption({ gid: 'abc' })
       expect(mockInvoke).toHaveBeenCalledWith('aria2_get_option', { gid: 'abc' })
-      expect(result).toHaveProperty('maxDownloadLimit')
-      expect(result).toHaveProperty('selectFile', '2-9')
+      expect(result).toEqual({ maxDownloadLimit: '0', selectFile: '2-9' })
     })
 
     it('changeOption invokes with gid and formatted options', async () => {
       mockInvoke.mockResolvedValueOnce('OK')
-      await changeOption({ gid: 'abc', options: { maxDownloadLimit: '0' } as never })
-      expect(mockInvoke).toHaveBeenCalledWith('aria2_change_option', { gid: 'abc', options: expect.any(Object) })
+      await changeOption({ gid: 'abc', options: { 'max-download-limit': '0' } })
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_change_option', {
+        gid: 'abc',
+        options: { 'max-download-limit': '0' },
+      })
     })
 
     it('getFiles invokes and returns camelCase typed files', async () => {
@@ -166,6 +177,28 @@ describe('aria2 API (invoke transport)', () => {
       expect(result[0].path).toBe('/downloads/movie.mkv')
       expect(result[0].completedLength).toBe('0')
     })
+
+    it('delegates native BitTorrent task controls', async () => {
+      mockInvoke.mockResolvedValue('OK')
+      await forceBtRecheck({ gid: 'bt1' })
+      await replaceBtTrackers({ gid: 'bt1', trackers: [{ url: 'udp://tracker.example:6969', tier: 0 }] })
+      await replaceBtWebSeeds({ gid: 'bt1', webSeeds: ['https://seed.example/file'] })
+      await addBtPeers({ gid: 'bt1', peers: ['192.0.2.1:6881'] })
+
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_force_bt_recheck', { gid: 'bt1' })
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_replace_bt_trackers', {
+        gid: 'bt1',
+        trackers: [{ url: 'udp://tracker.example:6969', tier: 0 }],
+      })
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_replace_bt_web_seeds', {
+        gid: 'bt1',
+        webSeeds: ['https://seed.example/file'],
+      })
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_add_bt_peers', {
+        gid: 'bt1',
+        peers: ['192.0.2.1:6881'],
+      })
+    })
   })
 
   it('logs addUri option diagnostics without leaking header values or query tokens', async () => {
@@ -176,16 +209,16 @@ describe('aria2 API (invoke transport)', () => {
       outs: [''],
       options: {
         dir: '/downloads',
-        split: '16',
+        'stream-max-connections': '16',
         'user-agent': 'BrowserUA/1.0',
         referer: 'https://example.com/page?token=secret',
         header: ['Accept: application/octet-stream', 'Cookie: session=secret'],
       },
     })
 
-    const logs = loggerMock.info.mock.calls.flat().join(' ')
-    expect(logs).toContain('headerNames=Accept,Cookie')
-    expect(logs).toContain('hasCookieHeader=true')
+    const fields = loggerMock.info.mock.calls[0]?.[2]
+    const logs = JSON.stringify(fields)
+    expect(fields).toEqual(expect.objectContaining({ headerNames: 'Accept,Cookie', hasCookieHeader: true }))
     expect(logs).not.toContain('session=secret')
     expect(logs).not.toContain('token=secret')
     expect(logs).not.toContain('BrowserUA')
@@ -196,7 +229,7 @@ describe('aria2 API (invoke transport)', () => {
 
   describe('task fetching', () => {
     beforeEach(async () => {
-      setEngineReady(true)
+      engineState.isReady = true
     })
 
     it('fetchTaskList with type "active" invokes aria2_fetch_task_list', async () => {
@@ -285,7 +318,7 @@ describe('aria2 API (invoke transport)', () => {
 
   describe('task creation', () => {
     beforeEach(async () => {
-      setEngineReady(true)
+      engineState.isReady = true
     })
 
     it('addUri creates one invoke per URI with per-URI out option', async () => {
@@ -385,6 +418,26 @@ describe('aria2 API (invoke transport)', () => {
       })
     })
 
+    it('addUri classifies ED2K downloads by the canonical link filename', async () => {
+      mockInvoke.mockResolvedValue('gid1')
+      const uri = 'ed2k://|file|Ubuntu%2026.04.iso|123456789|0123456789abcdef0123456789abcdef|/'
+
+      await addUri({
+        uris: [uri],
+        outs: [],
+        options: { dir: '/downloads' },
+        fileCategory: {
+          enabled: true,
+          categories: [{ label: 'Archives', extensions: ['iso'], directory: '/downloads/Archives' }],
+        },
+      })
+
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_add_uri', {
+        uris: [uri],
+        options: { dir: '/downloads/Archives' },
+      })
+    })
+
     it('addUri classifies downloads by extension and URL context', async () => {
       mockInvoke.mockResolvedValue('gid1')
 
@@ -474,13 +527,13 @@ describe('aria2 API (invoke transport)', () => {
 
     it('addTorrent preserves caller-supplied options', async () => {
       mockInvoke.mockResolvedValueOnce('gid-torrent')
-      await addTorrent({ torrent: 'data', options: { dir: '/custom', split: '4' } })
+      await addTorrent({ torrent: 'data', options: { dir: '/custom', 'stream-max-connections': '4' } })
       const callArgs = mockInvoke.mock.calls[0][1] as Record<string, unknown>
       const options = callArgs.options as Record<string, string>
       expect(options['force-save']).toBe('true')
       expect(options['check-integrity']).toBe('true')
       expect(options.dir).toBe('/custom')
-      expect(options.split).toBe('4')
+      expect(options['stream-max-connections']).toBe('4')
     })
 
     it('addTorrent keeps explicit caller force-save value', async () => {
@@ -488,6 +541,21 @@ describe('aria2 API (invoke transport)', () => {
       await addTorrent({ torrent: 'data', options: { 'force-save': 'false' } })
       const callArgs = mockInvoke.mock.calls[0][1] as Record<string, unknown>
       expect((callArgs.options as Record<string, string>)['force-save']).toBe('false')
+    })
+
+    it('inspectTorrent returns native metainfo without task options', async () => {
+      const inspection = {
+        name: 'Bundle',
+        mode: 'multi' as const,
+        infoHashV1: 'a'.repeat(40),
+        infoHashV2: 'b'.repeat(64),
+        totalLength: '3',
+        files: [{ index: '1', path: 'Bundle/a.bin', length: '3' }],
+      }
+      mockInvoke.mockResolvedValueOnce(inspection)
+
+      await expect(inspectTorrent({ torrent: 'base64data' })).resolves.toEqual(inspection)
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_inspect_torrent', { torrent: 'base64data' })
     })
 
     it('addUri does NOT inject force-save (HTTP downloads must not persist)', async () => {
@@ -509,13 +577,23 @@ describe('aria2 API (invoke transport)', () => {
 
   describe('task control', () => {
     beforeEach(async () => {
-      setEngineReady(true)
+      engineState.isReady = true
       mockInvoke.mockResolvedValue('OK')
     })
 
     it('removeTask invokes aria2_force_remove', async () => {
       await removeTask({ gid: 'abc' })
       expect(mockInvoke).toHaveBeenCalledWith('aria2_force_remove', { gid: 'abc' })
+    })
+
+    it('deleteTask invokes the state-independent deletion command', async () => {
+      await deleteTask({ gid: 'abc', infoHash: 'hash' })
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_delete_task', { gid: 'abc', infoHash: 'hash' })
+    })
+
+    it('finishSharing invokes the terminal sharing command', async () => {
+      await finishSharing({ gid: 'abc' })
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_finish_sharing', { gid: 'abc' })
     })
 
     it('pauseTask invokes aria2_pause', async () => {
@@ -543,9 +621,9 @@ describe('aria2 API (invoke transport)', () => {
       expect(mockInvoke).toHaveBeenCalledWith('aria2_remove_download_result', { gid: 'abc' })
     })
 
-    it('purgeTaskRecord invokes aria2_purge_download_result', async () => {
-      await purgeTaskRecord()
-      expect(mockInvoke).toHaveBeenCalledWith('aria2_purge_download_result')
+    it('purgeTaskRecords invokes the native application transaction', async () => {
+      await purgeTaskRecords()
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_purge_task_records')
     })
   })
 
@@ -553,23 +631,29 @@ describe('aria2 API (invoke transport)', () => {
 
   describe('batch operations', () => {
     beforeEach(async () => {
-      setEngineReady(true)
-      mockInvoke.mockResolvedValue([['OK'], ['OK']])
+      engineState.isReady = true
+      mockInvoke.mockResolvedValue({ succeeded: ['g1', 'g2'], failed: [] })
     })
 
-    it('batchResumeTask invokes aria2_batch_unpause with gids', async () => {
-      await batchResumeTask({ gids: ['g1', 'g2'] })
-      expect(mockInvoke).toHaveBeenCalledWith('aria2_batch_unpause', { gids: ['g1', 'g2'] })
+    it('forcePauseAll invokes the native engine operation', async () => {
+      await forcePauseAll()
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_force_pause_all')
     })
 
-    it('batchPauseTask invokes aria2_batch_force_pause with gids', async () => {
-      await batchPauseTask({ gids: ['g1', 'g2'] })
-      expect(mockInvoke).toHaveBeenCalledWith('aria2_batch_force_pause', { gids: ['g1', 'g2'] })
+    it('resumeEligible invokes the guarded native batch operation', async () => {
+      await resumeEligible()
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_resume_eligible')
     })
 
-    it('batchRemoveTask invokes aria2_batch_force_remove with gids', async () => {
-      await batchRemoveTask({ gids: ['g1'] })
-      expect(mockInvoke).toHaveBeenCalledWith('aria2_batch_force_remove', { gids: ['g1'] })
+    it('batchDeleteTasks invokes the native deletion transaction', async () => {
+      const tasks = [{ gid: 'g1', infoHash: 'hash' }]
+      await batchDeleteTasks({ tasks })
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_batch_delete_tasks', { tasks })
+    })
+
+    it('batchFinishSharing invokes the native sharing transaction', async () => {
+      await batchFinishSharing({ gids: ['g1', 'g2'] })
+      expect(mockInvoke).toHaveBeenCalledWith('aria2_batch_finish_sharing', { gids: ['g1', 'g2'] })
     })
   })
 })

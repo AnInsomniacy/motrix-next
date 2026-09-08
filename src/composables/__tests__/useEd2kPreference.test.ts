@@ -28,6 +28,8 @@ const baseForm: Ed2kForm = {
   ed2kBootstrapAutoSync: true,
   ed2kBootstrapSyncIntervalHours: 24,
   ed2kUploadSlots: 3,
+  ed2kMaxConnections: 20,
+  ed2kPreviewPriority: false,
   ed2kSearchTimeout: 20,
 }
 
@@ -43,6 +45,8 @@ describe('buildEd2kForm', () => {
     expect(form.ed2kBootstrapAutoSync).toBe(true)
     expect(form.ed2kBootstrapSyncIntervalHours).toBe(24)
     expect(form.ed2kUploadSlots).toBe(3)
+    expect(form.ed2kMaxConnections).toBe(20)
+    expect(form.ed2kPreviewPriority).toBe(false)
     expect(form.ed2kSearchTimeout).toBe(20)
   })
 
@@ -67,6 +71,8 @@ describe('buildEd2kSystemConfig', () => {
       'ed2k-udp-listen-port': '29150',
       'ed2k-server': 'server-one.example:4661,server-two.example:4661',
       'ed2k-upload-slots': '3',
+      'ed2k-max-connections': '20',
+      'ed2k-preview-priority': 'false',
     })
   })
 })
@@ -92,6 +98,8 @@ describe('transformEd2kForStore', () => {
       ed2kBootstrapAutoSync: false,
       ed2kBootstrapSyncIntervalHours: 168,
       ed2kUploadSlots: 3,
+      ed2kMaxConnections: 20,
+      ed2kPreviewPriority: false,
       ed2kSearchTimeout: 120,
     })
   })
@@ -126,9 +134,6 @@ describe('validateEd2kForm', () => {
   })
 
   it('rejects invalid bootstrap URLs', () => {
-    expect(validateEd2kForm({ ...baseForm, ed2kServerMetUrl: 'ftp://example.test/server.met' })).toBe(
-      'preferences.ed2k-invalid-bootstrap-url',
-    )
     expect(validateEd2kForm({ ...baseForm, ed2kNodesDatUrl: 'not-a-url' })).toBe(
       'preferences.ed2k-invalid-bootstrap-url',
     )

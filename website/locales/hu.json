@@ -58,7 +58,7 @@
   "motion.tokens.desc": "Minden időtartam és görbe CSS egyéni tulajdonság, egységes ritmust biztosítva 12+ komponensben.",
   "features.title": "Funkciók",
   "features.protocol.title": "Több protokoll",
-  "features.protocol.desc": "HTTP, FTP, ED2K, BitTorrent és Magnet linkek.",
+  "features.protocol.desc": "HTTP, SFTP, ED2K, BitTorrent és Magnet linkek.",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "Szelektív fájlletöltés, DHT, peer csere, titkosítás.",
   "features.tracker.title": "Tracker kezelés",

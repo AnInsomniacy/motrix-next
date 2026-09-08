@@ -1,6 +1,6 @@
 /** @fileoverview Composable providing application-level message notifications. */
 import { h, type VNodeChild } from 'vue'
-import { useMessage, type MessageOptions } from 'naive-ui'
+import { useMessage, type MessageOptions, type MessageReactive, type MessageType } from 'naive-ui'
 import { MESSAGE_DURATION, MESSAGE_MAX_COUNT } from '@shared/timing'
 import { ellipsis } from '@shared/utils/format'
 
@@ -13,6 +13,12 @@ export type MessageContent = string | (() => VNodeChild)
 type MessageApi = ReturnType<typeof useMessage>
 type MessageHandle = ReturnType<MessageApi['error']>
 type MessageFn = (content: MessageContent, options?: MessageOptions) => MessageHandle
+
+export interface AppProgressMessage {
+  update: (content: string, type?: MessageType) => void
+  finish: (content: string, type: 'success' | 'error') => void
+  destroy: () => void
+}
 
 const DEFAULTS: MessageOptions = {
   closable: true,
@@ -36,6 +42,10 @@ function renderTextToast(content: string): () => VNodeChild {
       },
       content,
     )
+}
+
+function renderNormalizedTextToast(content: string): () => VNodeChild {
+  return renderTextToast(ellipsis(content, TOAST_MAX_LENGTH))
 }
 
 function forgetMessage(el: MessageHandle): void {
@@ -88,7 +98,6 @@ function dedupShow(fn: MessageFn, content: MessageContent, options?: MessageOpti
   }
 
   const key = content
-  const display = ellipsis(content, TOAST_MAX_LENGTH)
   const existing = activeMessages.get(key)
   const duration = options?.duration ?? DEFAULTS.duration ?? MESSAGE_DURATION
 
@@ -98,14 +107,14 @@ function dedupShow(fn: MessageFn, content: MessageContent, options?: MessageOpti
     clearTimeout(existing.timer)
     activeMessages.delete(key)
     setTimeout(() => {
-      const el = showTrackedMessage(fn, renderTextToast(display), options, () => activeMessages.delete(key))
+      const el = showTrackedMessage(fn, renderNormalizedTextToast(content), options, () => activeMessages.delete(key))
       const timer = setTimeout(() => activeMessages.delete(key), duration)
       activeMessages.set(key, { el, timer })
     }, 80)
     return existing.el
   }
 
-  const el = showTrackedMessage(fn, renderTextToast(display), options, () => activeMessages.delete(key))
+  const el = showTrackedMessage(fn, renderNormalizedTextToast(content), options, () => activeMessages.delete(key))
   const timer = setTimeout(() => activeMessages.delete(key), duration)
   activeMessages.set(key, { el, timer })
   return el
@@ -113,6 +122,43 @@ function dedupShow(fn: MessageFn, content: MessageContent, options?: MessageOpti
 
 export function useAppMessage() {
   const message = useMessage()
+
+  function progress(content: string): AppProgressMessage {
+    let finishTimer: ReturnType<typeof setTimeout> | null = null
+    let destroyed = false
+    const reactive: MessageReactive = showTrackedMessage(
+      message.loading.bind(message),
+      renderNormalizedTextToast(content),
+      { duration: 0, closable: false },
+      () => {
+        destroyed = true
+        if (finishTimer) clearTimeout(finishTimer)
+      },
+    )
+
+    function update(nextContent: string, type: MessageType = 'loading') {
+      if (destroyed) return
+      reactive.content = renderNormalizedTextToast(nextContent)
+      reactive.type = type
+    }
+
+    function destroy() {
+      if (destroyed) return
+      destroyed = true
+      if (finishTimer) clearTimeout(finishTimer)
+      reactive.destroy()
+    }
+
+    function finish(nextContent: string, type: 'success' | 'error') {
+      if (destroyed) return
+      update(nextContent, type)
+      reactive.closable = true
+      finishTimer = setTimeout(destroy, MESSAGE_DURATION)
+    }
+
+    return { update, finish, destroy }
+  }
+
   return {
     success: (content: MessageContent, options?: MessageOptions) =>
       dedupShow(message.success.bind(message), content, options),
@@ -122,5 +168,6 @@ export function useAppMessage() {
       dedupShow(message.warning.bind(message), content, options),
     info: (content: MessageContent, options?: MessageOptions) =>
       dedupShow(message.info.bind(message), content, options),
+    progress,
   }
 }

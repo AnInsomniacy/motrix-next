@@ -11,6 +11,7 @@ import {
 } from '@shared/constants'
 import { CONFIG_VERSION } from '@shared/utils/configMigration'
 import { hydrateAppConfig } from '@shared/utils/configHydration'
+import { NUMERIC_CONFIG_CONSTRAINTS } from '@shared/configConstraints'
 import type { AppConfig } from '@shared/types'
 
 describe('hydrateAppConfig', () => {
@@ -160,6 +161,34 @@ describe('hydrateAppConfig', () => {
     expect(result.repairs).toEqual(expect.arrayContaining(['btExternalIp', 'btExternalPort']))
   })
 
+  it('repairs invalid BitTorrent identity values', () => {
+    const result = hydrateAppConfig({
+      configVersion: CONFIG_VERSION,
+      btUserAgent: 'invalid\nidentity',
+      btPeerIdPrefix: '超过二十字节的节点标识前缀',
+    })
+
+    expect(result.config.btUserAgent).toBe(DEFAULT_APP_CONFIG.btUserAgent)
+    expect(result.config.btPeerIdPrefix).toBe(DEFAULT_APP_CONFIG.btPeerIdPrefix)
+    expect(result.repairs).toEqual(expect.arrayContaining(['btUserAgent', 'btPeerIdPrefix']))
+  })
+
+  it('preserves stream connection values accepted by the engine', () => {
+    const valid = hydrateAppConfig({
+      configVersion: CONFIG_VERSION,
+      streamMaxConnections: 128,
+    })
+    const invalid = hydrateAppConfig({
+      configVersion: CONFIG_VERSION,
+      streamMaxConnections: NUMERIC_CONFIG_CONSTRAINTS.streamMaxConnections.max + 1,
+    })
+
+    expect(valid.config.streamMaxConnections).toBe(128)
+    expect(valid.repairs).not.toContain('streamMaxConnections')
+    expect(invalid.config.streamMaxConnections).toBe(DEFAULT_APP_CONFIG.streamMaxConnections)
+    expect(invalid.repairs).toContain('streamMaxConnections')
+  })
+
   it('repairs invalid nested values and keeps valid nested values', () => {
     const result = hydrateAppConfig({
       configVersion: CONFIG_VERSION,
@@ -184,18 +213,20 @@ describe('hydrateAppConfig', () => {
     const result = hydrateAppConfig({
       configVersion: CONFIG_VERSION,
       taskManualOrder: {
-        active: ['a', '', 'a', 1],
-        stopped: 'bad',
         all: ['z'],
+        progress: ['a', '', 'a', 1],
+        failed: 'bad',
+        completed: [],
       } as never,
     })
 
     expect(result.config.taskManualOrder).toEqual({
-      active: ['a'],
-      stopped: [],
       all: ['z'],
+      progress: ['a'],
+      failed: [],
+      completed: [],
     })
-    expect(result.repairs).toEqual(expect.arrayContaining(['taskManualOrder.active', 'taskManualOrder.stopped']))
+    expect(result.repairs).toEqual(expect.arrayContaining(['taskManualOrder.progress', 'taskManualOrder.failed']))
   })
 
   it('repairs legacy auto proxy mode to disabled direct mode', () => {
@@ -206,6 +237,16 @@ describe('hydrateAppConfig', () => {
 
     expect(result.config.proxy.mode).toBe('direct')
     expect(result.repairs).toContain('proxy.mode')
+  })
+
+  it('rejects removed BitTorrent encryption values', () => {
+    const result = hydrateAppConfig({
+      configVersion: CONFIG_VERSION,
+      btEncryption: 'enabled' as never,
+    })
+
+    expect(result.config.btEncryption).toBe('preferred')
+    expect(result.repairs).toContain('btEncryption')
   })
 
   it('drops removed tracker auto-sync config without migration', () => {
@@ -251,6 +292,19 @@ describe('hydrateAppConfig', () => {
     expect(current.shouldPersist).toBe(false)
   })
 
+  it('discards the retired magnet dialog mode and applies the new default policy', () => {
+    const legacy = {
+      configVersion: 6,
+      btFileSelectionMode: 'manual',
+    } as Partial<AppConfig> & Record<string, unknown>
+
+    const result = hydrateAppConfig(legacy)
+
+    expect(result.config.magnetFileSelectionPolicy).toBe('prompt')
+    expect(result.config).not.toHaveProperty('btFileSelectionMode')
+    expect(result.shouldPersist).toBe(true)
+  })
+
   it('does not downgrade configs from a future schema version', () => {
     const future = CONFIG_VERSION + 10
     const result = hydrateAppConfig({ configVersion: future, theme: 'light' })
@@ -266,8 +320,9 @@ describe('hydrateAppConfig', () => {
     expect(UPDATE_CHANNELS).toContain(DEFAULT_APP_CONFIG.updateChannel)
     expect(APP_LOG_LEVELS).toContain(DEFAULT_APP_CONFIG.logLevel)
     expect(ARIA2_LOG_LEVELS).toContain(DEFAULT_APP_CONFIG.aria2LogLevel)
-    expect(DEFAULT_APP_CONFIG.logLevel).toBe('warn')
-    expect(DEFAULT_APP_CONFIG.aria2LogLevel).toBe('warn')
+    expect(['download-all', 'prompt', 'manual']).toContain(DEFAULT_APP_CONFIG.magnetFileSelectionPolicy)
+    expect(DEFAULT_APP_CONFIG.logLevel).toBe('info')
+    expect(DEFAULT_APP_CONFIG.aria2LogLevel).toBe('info')
     expect(FILE_ALLOCATION_OPTIONS).toContain(DEFAULT_APP_CONFIG.fileAllocation)
     expect(DEFAULT_APP_CONFIG.proxy.scope).toEqual(PROXY_SCOPE_OPTIONS)
   })

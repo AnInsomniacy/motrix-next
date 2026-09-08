@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** @fileoverview ED2K preference tab: search, engine options, and server discovery. */
-import { ref, computed, nextTick, onMounted, h } from 'vue'
+import { ref, computed, onMounted, h } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useI18n } from 'vue-i18n'
 import { useDialog } from 'naive-ui'
@@ -22,8 +22,9 @@ import { DiceOutline, DownloadOutline, RefreshOutline, SearchOutline } from '@vi
 import { usePreferenceStore } from '@/stores/preference'
 import { useTaskStore } from '@/stores/task'
 import { usePreferenceForm } from '@/composables/usePreferenceForm'
-import { useEngineRestart } from '@/composables/useEngineRestart'
+import { usePreferenceNumericValidation } from '@/composables/usePreferenceNumericValidation'
 import { useAppMessage } from '@/composables/useAppMessage'
+import { useEngineRestart } from '@/composables/useEngineRestart'
 import {
   buildEd2kForm,
   buildEd2kSystemConfig,
@@ -32,7 +33,7 @@ import {
   validateEd2kForm,
 } from '@/composables/useEd2kPreference'
 import { useEd2kSearchSession } from '@/composables/useEd2kSearchSession'
-import { BT_LISTEN_PORT, DHT_LISTEN_PORT, ENGINE_RPC_PORT, PROXY_SCOPES } from '@shared/constants'
+import { PROXY_SCOPES } from '@shared/constants'
 import { diffConfig, checkIsNeedRestart } from '@shared/utils/config'
 import { bytesToSize } from '@shared/utils'
 import { resolveAppProxyUrl } from '@shared/utils/proxy'
@@ -47,6 +48,7 @@ const preferenceStore = usePreferenceStore()
 const taskStore = useTaskStore()
 const dialog = useDialog()
 const message = useAppMessage()
+const { constraint, configFieldProps, areConfigFieldsValid } = usePreferenceNumericValidation()
 const { restartEngine } = useEngineRestart()
 
 const needsRestart = ref(false)
@@ -131,15 +133,21 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot } = usePreferenceF
     const changed = diffConfig(preferenceStore.config, transformEd2kForStore(f))
     if (checkIsNeedRestart(changed)) {
       const ok = await new Promise<boolean>((resolve) => {
+        let accepted = false
         dialog.info({
           title: t('preferences.engine-restart-title'),
           content: t('preferences.engine-restart-confirm'),
           positiveText: t('preferences.engine-restart-now'),
           negativeText: t('app.cancel'),
           maskClosable: false,
-          onPositiveClick: () => resolve(true),
+          onPositiveClick: () => {
+            accepted = true
+          },
           onNegativeClick: () => resolve(false),
           onClose: () => resolve(false),
+          onAfterLeave: () => {
+            if (accepted) resolve(true)
+          },
         })
       })
       if (!ok) return false
@@ -150,12 +158,7 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot } = usePreferenceF
   afterSave: async (f, prevConfig) => {
     if (needsRestart.value) {
       needsRestart.value = false
-      const port = (preferenceStore.config.rpcListenPort as number) || ENGINE_RPC_PORT
-      const secret = (preferenceStore.config.rpcSecret as string) || ''
-      message.info(t('preferences.engine-restarting'))
-      await nextTick()
-      await new Promise((r) => requestAnimationFrame(r))
-      await restartEngine({ port, secret })
+      restartEngine('settingsChange')
     }
 
     if (
@@ -166,6 +169,15 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot } = usePreferenceF
     }
   },
 })
+const numericFieldsValid = computed(() =>
+  areConfigFieldsValid({
+    ed2kSearchTimeout: form.value.ed2kSearchTimeout,
+    ed2kListenPort: form.value.ed2kListenPort,
+    ed2kUdpListenPort: form.value.ed2kUdpListenPort,
+    ed2kUploadSlots: form.value.ed2kUploadSlots,
+    ed2kMaxConnections: form.value.ed2kMaxConnections,
+  }),
+)
 
 function onPortDice() {
   form.value.ed2kListenPort = randomEd2kPort()
@@ -178,9 +190,6 @@ function onUdpPortDice() {
 async function syncUpnpState(ed2kPort: number, ed2kUdpPort: number) {
   try {
     await invoke('start_upnp_mapping', {
-      btPort: Number(preferenceStore.config.listenPort) || BT_LISTEN_PORT,
-      btExternalPort: Number(preferenceStore.config.btExternalPort) || 0,
-      dhtPort: Number(preferenceStore.config.dhtListenPort) || DHT_LISTEN_PORT,
       ed2kPort: ed2kPort > 0 ? ed2kPort : null,
       ed2kUdpPort: ed2kUdpPort > 0 ? ed2kUdpPort : null,
     })
@@ -285,26 +294,6 @@ const resultColumns = computed(() => [
   },
 ])
 
-function handleManualRestart() {
-  const port = (preferenceStore.config.rpcListenPort as number) || ENGINE_RPC_PORT
-  const secret = (preferenceStore.config.rpcSecret as string) || ''
-  const d = dialog.info({
-    title: t('preferences.engine-restart-title'),
-    content: t('preferences.engine-restart-manual-confirm'),
-    positiveText: t('preferences.engine-restart-now'),
-    negativeText: t('preferences.engine-restart-later'),
-    maskClosable: false,
-    onPositiveClick: async () => {
-      d.loading = true
-      d.negativeText = ''
-      d.closable = false
-      message.info(t('preferences.engine-restarting'))
-      await new Promise((r) => requestAnimationFrame(r))
-      await restartEngine({ port, secret })
-    },
-  })
-}
-
 onMounted(() => {
   Object.assign(form.value, buildForm())
   resetSnapshot()
@@ -358,8 +347,16 @@ onMounted(() => {
         <NFormItem :label="t('preferences.ed2k-search-min-sources')">
           <NInputNumber v-model:value="searchMinSources" :min="1" :max="9999" class="pref-port" />
         </NFormItem>
-        <NFormItem :label="t('preferences.ed2k-search-timeout')">
-          <NInputNumber v-model:value="form.ed2kSearchTimeout" :min="10" :max="600" class="pref-port" />
+        <NFormItem
+          :label="t('preferences.ed2k-search-timeout')"
+          v-bind="configFieldProps('ed2kSearchTimeout', form.ed2kSearchTimeout)"
+        >
+          <NInputNumber
+            v-model:value="form.ed2kSearchTimeout"
+            :min="constraint('ed2kSearchTimeout').min"
+            :max="constraint('ed2kSearchTimeout').max"
+            class="pref-port"
+          />
           <NText depth="3" class="pref-inline-note">{{ t('preferences.unit-seconds') }}</NText>
         </NFormItem>
         <NFormItem :show-label="false">
@@ -374,9 +371,17 @@ onMounted(() => {
         </NFormItem>
 
         <NDivider title-placement="left">{{ t('preferences.ed2k-settings') }}</NDivider>
-        <NFormItem :label="t('preferences.ed2k-listen-port')">
+        <NFormItem
+          :label="t('preferences.ed2k-listen-port')"
+          v-bind="configFieldProps('ed2kListenPort', form.ed2kListenPort)"
+        >
           <NInputGroup>
-            <NInputNumber v-model:value="form.ed2kListenPort" :min="0" :max="65535" class="pref-port" />
+            <NInputNumber
+              v-model:value="form.ed2kListenPort"
+              :min="constraint('ed2kListenPort').min"
+              :max="constraint('ed2kListenPort').max"
+              class="pref-port"
+            />
             <NButton secondary class="pref-action-button pref-action-button--compact" @click="onPortDice">
               <template #icon>
                 <NIcon><DiceOutline /></NIcon>
@@ -385,9 +390,17 @@ onMounted(() => {
             </NButton>
           </NInputGroup>
         </NFormItem>
-        <NFormItem :label="t('preferences.ed2k-udp-listen-port')">
+        <NFormItem
+          :label="t('preferences.ed2k-udp-listen-port')"
+          v-bind="configFieldProps('ed2kUdpListenPort', form.ed2kUdpListenPort)"
+        >
           <NInputGroup>
-            <NInputNumber v-model:value="form.ed2kUdpListenPort" :min="0" :max="65535" class="pref-port" />
+            <NInputNumber
+              v-model:value="form.ed2kUdpListenPort"
+              :min="constraint('ed2kUdpListenPort').min"
+              :max="constraint('ed2kUdpListenPort').max"
+              class="pref-port"
+            />
             <NButton secondary class="pref-action-button pref-action-button--compact" @click="onUdpPortDice">
               <template #icon>
                 <NIcon><DiceOutline /></NIcon>
@@ -396,8 +409,30 @@ onMounted(() => {
             </NButton>
           </NInputGroup>
         </NFormItem>
-        <NFormItem :label="t('preferences.ed2k-upload-slots')">
-          <NInputNumber v-model:value="form.ed2kUploadSlots" :min="1" :max="100" class="pref-port" />
+        <NFormItem
+          :label="t('preferences.ed2k-upload-slots')"
+          v-bind="configFieldProps('ed2kUploadSlots', form.ed2kUploadSlots)"
+        >
+          <NInputNumber
+            v-model:value="form.ed2kUploadSlots"
+            :min="constraint('ed2kUploadSlots').min"
+            :max="constraint('ed2kUploadSlots').max"
+            class="pref-port"
+          />
+        </NFormItem>
+        <NFormItem
+          :label="t('preferences.ed2k-max-connections')"
+          v-bind="configFieldProps('ed2kMaxConnections', form.ed2kMaxConnections)"
+        >
+          <NInputNumber
+            v-model:value="form.ed2kMaxConnections"
+            :min="constraint('ed2kMaxConnections').min"
+            :max="constraint('ed2kMaxConnections').max"
+            class="pref-port"
+          />
+        </NFormItem>
+        <NFormItem :label="t('preferences.ed2k-preview-priority')">
+          <NSwitch v-model:value="form.ed2kPreviewPriority" />
         </NFormItem>
 
         <NDivider title-placement="left">{{ t('preferences.ed2k-bootstrap') }}</NDivider>
@@ -458,7 +493,7 @@ onMounted(() => {
         </NFormItem>
       </NForm>
     </div>
-    <PreferenceActionBar :is-dirty="isDirty" @save="handleSave" @discard="handleReset" @restart="handleManualRestart" />
+    <PreferenceActionBar :is-dirty="isDirty" :is-valid="numericFieldsValid" @save="handleSave" @discard="handleReset" />
   </div>
 </template>
 

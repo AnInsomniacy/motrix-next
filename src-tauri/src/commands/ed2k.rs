@@ -33,6 +33,17 @@ pub(crate) fn ed2k_bootstrap_paths(app: &AppHandle) -> Result<(PathBuf, PathBuf)
     Ok((dir.join(SERVER_MET_FILE), dir.join(NODES_DAT_FILE)))
 }
 
+pub(crate) fn remove_ed2k_bootstrap_cache(app: &AppHandle) -> Result<(), AppError> {
+    let (server, _) = ed2k_bootstrap_paths(app)?;
+    let Some(directory) = server.parent() else {
+        return Ok(());
+    };
+    if directory.exists() {
+        std::fs::remove_dir_all(directory)?;
+    }
+    Ok(())
+}
+
 fn bundled_bootstrap_paths(app: &AppHandle) -> Result<(PathBuf, PathBuf), AppError> {
     let server = app
         .path()
@@ -258,7 +269,7 @@ mod tests {
     fn validates_only_http_bootstrap_urls() {
         assert!(validate_bootstrap_url("https://upd.emule-security.org/server.met").is_ok());
         assert!(validate_bootstrap_url("http://upd.emule-security.org/nodes.dat").is_ok());
-        assert!(validate_bootstrap_url("ftp://example.test/server.met").is_err());
+        assert!(validate_bootstrap_url("file:///tmp/server.met").is_err());
         assert!(validate_bootstrap_url("not-a-url").is_err());
     }
 

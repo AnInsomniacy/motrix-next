@@ -1,14 +1,13 @@
 /** @fileoverview Config key conversion, diffing, and engine option formatting. */
-import { camelCase, isEmpty, isFunction, kebabCase, omitBy, pick, isArray, isPlainObject } from 'lodash-es'
+import { camelCase, isEmpty, kebabCase, omitBy, pick, isEqual } from 'lodash-es'
 import { engineOptionKeys, nonHotReloadableKeys, needRestartKeys } from '@shared/configKeys'
 import type { Aria2EngineOptions } from '@shared/types'
 
-export const changeKeysCase = (
+const changeKeysCase = (
   obj: Record<string, unknown>,
   caseConverter: (s: string) => string,
 ): Record<string, unknown> => {
   const result: Record<string, unknown> = {}
-  if (isEmpty(obj) || !isFunction(caseConverter)) return result
   for (const [k, value] of Object.entries(obj)) {
     result[caseConverter(k)] = value
   }
@@ -32,17 +31,7 @@ export const diffConfig = (
   next: Record<string, unknown> = {},
 ): Record<string, unknown> => {
   const curr = pick(current, Object.keys(next))
-  return omitBy(next, (val, key) => {
-    if (isArray(val) || isPlainObject(val)) {
-      return JSON.stringify(curr[key]) === JSON.stringify(val)
-    }
-    // Coerce-equal primitives (e.g. string "29120" == number 29120) are NOT
-    // real changes.  This handles legacy config.json entries where port values
-    // were stored as strings but the form produces numbers.
-
-    if (curr[key] != val) return false
-    return true
-  })
+  return omitBy(next, (value, key) => isEqual(curr[key], value))
 }
 
 export const formatOptionsForEngine = (

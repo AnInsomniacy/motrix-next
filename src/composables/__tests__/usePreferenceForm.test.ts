@@ -3,7 +3,7 @@
  *
  * Key behaviors under test:
  * - isDirty tracks shallow and deep changes via isEqual snapshot comparison
- * - handleSave persists to store and invokes save_system_config IPC
+ * - handleSave persists to store and replaces the generated engine snapshot
  * - handleReset restores form to initial state and clears dirty flag
  * - beforeSave returning false aborts the save
  * - afterSave receives previous config snapshot
@@ -192,7 +192,7 @@ describe('usePreferenceForm', () => {
     unmount()
   })
 
-  it('handleSave persists to store and calls save_system_config IPC', async () => {
+  it('handleSave persists to store and replaces the engine snapshot', async () => {
     const store = usePreferenceStore()
     store.updateAndSave = vi.fn().mockResolvedValue(true)
 
@@ -203,7 +203,7 @@ describe('usePreferenceForm', () => {
     await handleSave()
 
     expect(store.updateAndSave).toHaveBeenCalledWith(expect.objectContaining({ maxConcurrentDownloads: 8 }))
-    expect(mockInvoke).toHaveBeenCalledWith('save_system_config', {
+    expect(mockInvoke).toHaveBeenCalledWith('replace_system_config', {
       config: expect.objectContaining({ 'max-concurrent-downloads': '8' }),
     })
     expect(isDirty.value).toBe(false)
@@ -315,7 +315,7 @@ describe('usePreferenceForm', () => {
     await expect(result.handleSave()).rejects.toThrow('mapping failed')
 
     expect(store.updateAndSave).toHaveBeenCalledTimes(2)
-    expect(mockInvoke).toHaveBeenCalledWith('save_system_config', {
+    expect(mockInvoke).toHaveBeenCalledWith('replace_system_config', {
       config: expect.objectContaining({ 'max-concurrent-downloads': '6' }),
     })
     expect(mockChangeGlobalOption).toHaveBeenLastCalledWith({ 'max-concurrent-downloads': '6' })
@@ -425,7 +425,7 @@ describe('usePreferenceForm', () => {
     await expect(result.handleSave()).rejects.toThrow('bind failed')
 
     expect(store.updateAndSave).not.toHaveBeenCalled()
-    expect(mockInvoke).not.toHaveBeenCalledWith('save_system_config', expect.anything())
+    expect(mockInvoke).not.toHaveBeenCalledWith('replace_system_config', expect.anything())
     expect(mockChangeGlobalOption).toHaveBeenLastCalledWith({ 'max-concurrent-downloads': '6' })
     expect(result.form.value.maxConcurrentDownloads).toBe(6)
     expect(result.isDirty.value).toBe(false)

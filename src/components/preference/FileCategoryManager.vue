@@ -6,6 +6,7 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import Sortable from 'sortablejs'
 import { buildDefaultCategories, MAX_FILE_CATEGORIES } from '@shared/constants'
 import { normalizeFileCategory, validateCategoryUrlPatterns } from '@shared/utils/fileCategory'
+import { useReducedMotion } from '@/composables/useReducedMotion'
 import type { FileCategory } from '@shared/types'
 import type { ComponentPublicInstance } from 'vue'
 import type { SortableEvent, SortableOptions } from 'sortablejs'
@@ -36,6 +37,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const reduceMotion = useReducedMotion()
 const draft = ref<FileCategory[]>([])
 const selectedKey = ref('')
 const urlPatternText = ref('')
@@ -282,6 +284,11 @@ function animateDropSettle(event: SortableEvent | undefined): Promise<void> {
   const item = event?.item
   if (!lastFloatingRect || !item?.isConnected) return Promise.resolve()
 
+  if (reduceMotion.value) {
+    lastFloatingRect = null
+    return Promise.resolve()
+  }
+
   const targetRect = item.getBoundingClientRect()
   const deltaX = lastFloatingRect.left - targetRect.left
   const deltaY = lastFloatingRect.top - targetRect.top
@@ -308,7 +315,7 @@ function animateDropSettle(event: SortableEvent | undefined): Promise<void> {
 }
 
 const sortableOptions: SortableOptions = {
-  animation: 240,
+  animation: reduceMotion.value ? 0 : 240,
   handle: '.category-manager-drag-handle',
   draggable: '.category-manager-list-item',
   filter: 'button:not(.category-manager-drag-handle), a, input, textarea, select, [data-no-drag]',
@@ -326,7 +333,7 @@ const sortableOptions: SortableOptions = {
   preventOnFilter: false,
   onStart: () => {
     sorting.value = true
-    startFloatingRectTracking()
+    if (!reduceMotion.value) startFloatingRectTracking()
   },
   onUpdate: (event) => {
     if (event.oldIndex === undefined || event.newIndex === undefined) return
@@ -342,9 +349,23 @@ const sortableOptions: SortableOptions = {
   },
 }
 
+watch(reduceMotion, (enabled) => {
+  const duration = enabled ? 0 : 240
+  sortableOptions.animation = duration
+  sortable?.option('animation', duration)
+})
+
 function destroySortable() {
+  stopFloatingRectTracking()
   sortable?.destroy()
   sortable = null
+  sorting.value = false
+  lastFloatingRect = null
+  removeCategoryDragArtifacts()
+}
+
+function removeCategoryDragArtifacts() {
+  document.querySelectorAll<HTMLElement>('.category-manager-list-item--floating').forEach((element) => element.remove())
 }
 
 function resolveListElement() {
@@ -364,7 +385,11 @@ function mountSortable() {
 watch(
   () => props.show,
   async (show) => {
-    if (!show) return
+    if (!show) {
+      destroySortable()
+      return
+    }
+    removeCategoryDragArtifacts()
     draft.value = cloneCategories(
       props.categories.length > 0 ? props.categories : buildDefaultCategories(props.baseDir),
     )
@@ -378,6 +403,7 @@ watch(
 )
 
 onMounted(() => {
+  removeCategoryDragArtifacts()
   if (props.show) void nextTick(mountSortable)
 })
 
@@ -444,18 +470,11 @@ onUnmounted(() => {
             </div>
           </TransitionGroup>
           <div class="category-manager-list-actions">
-            <NButton
-              size="small"
-              dashed
-              block
-              :disabled="draft.length >= MAX_FILE_CATEGORIES"
-              @click="handleAddCategory"
-            >
+            <NButton size="small" block :disabled="draft.length >= MAX_FILE_CATEGORIES" @click="handleAddCategory">
               {{ t('preferences.file-category-add') }}
             </NButton>
             <NButton
               size="small"
-              quaternary
               block
               :type="resetConfirming ? 'error' : 'default'"
               class="category-manager-reset-button"
@@ -568,7 +587,7 @@ onUnmounted(() => {
                 type="error"
                 @click="handleDeleteCategory"
               >
-                {{ t('edit.delete') }}
+                {{ t('app.delete') }}
               </NButton>
               <NText v-else key="delete-empty" depth="3" />
             </Transition>

@@ -1,0 +1,15 @@
+{
+  "_version": 1,
+  "notification.bt-complete-body": "Megosztás: %{task_name}",
+  "notification.bt-complete-title": "BT letöltés befejezve",
+  "notification.download-batch-start-body": "Letöltés: %{task_name} és %{count} további feladat",
+  "notification.download-complete-body": "Mentve: %{task_name}",
+  "notification.download-complete-title": "Letöltés befejezve",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "Letöltés sikertelen",
+  "notification.download-start-body": "Letöltés: %{task_name}",
+  "notification.download-start-title": "Letöltés elindult",
+  "notification.ed2k-complete-body": "Megosztás: %{task_name}",
+  "notification.ed2k-complete-title": "ED2K letöltés befejezve",
+  "notification.error-unknown": "Unknown error"
+}

@@ -19,7 +19,8 @@ function createMessageHandle(options?: { duration?: number; onAfterLeave?: () =>
     closed = true
     options?.onAfterLeave?.()
   }
-  setTimeout(close, options?.duration ?? 0)
+  const duration = options?.duration ?? 0
+  if (duration > 0) setTimeout(close, duration)
   return {
     destroy: () => {
       destroyFn()
@@ -41,6 +42,12 @@ const mockMessageApi = {
   info: vi.fn((_content: unknown, options?: { duration?: number; onAfterLeave?: () => void }) =>
     createMessageHandle(options),
   ),
+  loading: vi.fn((content: unknown, options?: { duration?: number; onAfterLeave?: () => void }) => ({
+    ...createMessageHandle(options),
+    content,
+    type: 'loading',
+    closable: false,
+  })),
 }
 
 vi.mock('naive-ui', () => ({
@@ -66,20 +73,26 @@ describe('useAppMessage', () => {
     vi.useRealTimers()
   })
 
-  it('delegates success/error/warning/info to the underlying message API', () => {
+  it('updates and completes a tracked progress message in place', () => {
     const msg = useAppMessage()
+    const progress = msg.progress('stopping')
+    const reactive = mockMessageApi.loading.mock.results[0].value as {
+      content: () => { children?: string }
+      type: string
+      closable: boolean
+    }
 
-    msg.success('done')
-    expect(mockMessageApi.success).toHaveBeenCalledOnce()
+    progress.update('restarting')
+    expect(reactive.content().children).toBe('restarting')
+    expect(reactive.type).toBe('loading')
 
-    msg.error('fail')
-    expect(mockMessageApi.error).toHaveBeenCalledOnce()
+    progress.finish('complete', 'success')
+    expect(reactive.content().children).toBe('complete')
+    expect(reactive.type).toBe('success')
+    expect(reactive.closable).toBe(true)
 
-    msg.warning('caution')
-    expect(mockMessageApi.warning).toHaveBeenCalledOnce()
-
-    msg.info('note')
-    expect(mockMessageApi.info).toHaveBeenCalledOnce()
+    vi.advanceTimersByTime(4000)
+    expect(destroyFn).toHaveBeenCalledOnce()
   })
 
   it('truncates long content to TOAST_MAX_LENGTH (128 chars)', () => {
@@ -92,20 +105,6 @@ describe('useAppMessage', () => {
     const displayedContent = vnode.children ?? ''
     expect(displayedContent.length).toBeLessThanOrEqual(131) // 128 chars + "..."
     expect(displayedContent).toContain('...')
-  })
-
-  it('renders plain toast text with shared technical wrapping', () => {
-    const msg = useAppMessage()
-
-    msg.success('Deleted "amd-software-adrenalin-edition-26.5.2-minimalsetup.exe"')
-
-    const vnode = renderMessageCallContent('success')()
-    expect(vnode.children).toContain('amd-software-adrenalin-edition')
-    expect(vnode.props?.class).toBe('technical-text-wrap')
-    expect(vnode.props?.style).toMatchObject({
-      display: 'inline-block',
-      maxWidth: 'min(560px, calc(100vw - 96px))',
-    })
   })
 
   it('destroys and reschedules duplicate messages within the dedup window', () => {
@@ -159,11 +158,5 @@ describe('useAppMessage', () => {
     expect(options.duration).toBe(1000)
     expect(options.closable).toBe(true)
     expect(options.keepAliveOnHover).toBe(true)
-  })
-
-  it('handles empty string content without crashing', () => {
-    const msg = useAppMessage()
-    expect(() => msg.info('')).not.toThrow()
-    expect(mockMessageApi.info).toHaveBeenCalledOnce()
   })
 })

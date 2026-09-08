@@ -18,14 +18,14 @@ pub async fn send_task_start_notification(
         }
     };
 
-    send_task_start_notification_from_names(&app, &task_names, &config)
+    send_task_start_notification_from_names(&app, &task_names, &config).await
 }
 
 #[tauri::command]
-pub fn send_app_system_notification(
+pub async fn send_app_system_notification(
     app: AppHandle,
     title: String,
     body: String,
 ) -> Result<(), AppError> {
-    send_app_notification(&app, &title, &body)
+    send_app_notification(&app, &title, &body).await
 }

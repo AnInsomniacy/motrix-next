@@ -58,7 +58,7 @@
   "motion.tokens.desc": "Всички продължителности и криви са CSS потребителски свойства, осигуряващи единен ритъм в 12+ компонента.",
   "features.title": "Функции",
   "features.protocol.title": "Мулти-протокол",
-  "features.protocol.desc": "HTTP, FTP, ED2K, BitTorrent и Magnet връзки.",
+  "features.protocol.desc": "HTTP, SFTP, ED2K, BitTorrent и Magnet връзки.",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "Селективно изтегляне на файлове, DHT, обмен на пиъри, криптиране.",
   "features.tracker.title": "Управление на тракери",

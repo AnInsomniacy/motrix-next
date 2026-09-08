@@ -12,6 +12,7 @@ import { logger } from '@shared/logger'
 import { type MigrationResult } from '@shared/utils/configMigration'
 import { createDefaultAppConfig, hydrateAppConfig } from '@shared/utils/configHydration'
 import { recordRecentUserAgentProfileId } from '@shared/utils/userAgentPolicy'
+import { validateAppConfigCandidate } from '@shared/configConstraints'
 import type { AppConfig } from '@shared/types'
 
 const STORE_KEY = 'preferences'
@@ -123,6 +124,14 @@ export const usePreferenceStore = defineStore('preference', () => {
 
   async function savePreference(): Promise<boolean> {
     try {
+      const issues = validateAppConfigCandidate(config.value)
+      if (issues.length > 0) {
+        logger.warn(
+          'PreferenceStore.savePreference',
+          `invalid config paths=${issues.map((issue) => issue.path).join(',')}`,
+        )
+        return false
+      }
       const store = await getStore()
       const hydrated = hydrateAppConfig(config.value)
       config.value = hydrated.config
@@ -136,7 +145,16 @@ export const usePreferenceStore = defineStore('preference', () => {
   }
 
   async function updateAndSave(cfg: Partial<AppConfig>): Promise<boolean> {
-    const merged = hydrateAppConfig({ ...config.value, ...cfg }).config
+    const candidate = { ...config.value, ...cfg }
+    const issues = validateAppConfigCandidate(candidate)
+    if (issues.length > 0) {
+      logger.warn(
+        'PreferenceStore.updateAndSave',
+        `invalid config paths=${issues.map((issue) => issue.path).join(',')}`,
+      )
+      return false
+    }
+    const merged = hydrateAppConfig(candidate).config
     try {
       const store = await getStore()
       await persistConfig(store, merged)

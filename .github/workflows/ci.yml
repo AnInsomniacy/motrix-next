@@ -31,7 +31,7 @@ jobs:
       - name: Type check
         run: npx vue-tsc --noEmit
 
-      - name: Repo integrity (locale parity + i18n usage)
+      - name: Repo integrity (locale structure + placeholders)
         run: node scripts/check-repo-integrity.mjs
 
       - name: Run tests
@@ -75,16 +75,19 @@ jobs:
 
       - name: Rust format check
         working-directory: src-tauri
-        run: cargo fmt -- --check
+        run: cargo fmt --all -- --check
+
+      - name: Build native messaging launcher
+        run: pnpm build:native-launcher
 
       - name: Clippy lint
         working-directory: src-tauri
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Cargo check
         working-directory: src-tauri
-        run: cargo check --all-targets
+        run: cargo check --workspace --all-targets
 
       - name: Cargo test
         working-directory: src-tauri
-        run: cargo test --all-targets
+        run: cargo test --workspace --all-targets

@@ -12,7 +12,6 @@ use tauri_plugin_store::StoreExt;
 pub(crate) const DEFAULT_RPC_PORT: u16 = 29100;
 pub(crate) const DEFAULT_EXTENSION_API_PORT: u16 = 29110;
 pub(crate) const DEFAULT_BT_PORT: u16 = 29120;
-pub(crate) const DEFAULT_DHT_PORT: u16 = 29130;
 pub(crate) const DEFAULT_ED2K_PORT: u16 = 29140;
 pub(crate) const DEFAULT_ED2K_UDP_PORT: u16 = 29150;
 const DEFAULT_RECOVERY_RANGE_START: u16 = 29000;
@@ -24,7 +23,6 @@ pub(crate) enum PortKind {
     Rpc,
     ExtensionApi,
     Bt,
-    Dht,
     Ed2k,
     Ed2kUdp,
 }
@@ -39,6 +37,7 @@ struct PortRange {
 enum PortTransport {
     Tcp,
     Udp,
+    TcpUdp,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,15 +56,13 @@ struct PortRecoveryPolicy {
     rpc: bool,
     extension_api: bool,
     bt: bool,
-    dht: bool,
     ed2k: bool,
     ed2k_udp: bool,
 }
 
-const ENGINE_PORT_KINDS: [PortKind; 5] = [
+const ENGINE_PORT_KINDS: [PortKind; 4] = [
     PortKind::Rpc,
     PortKind::Bt,
-    PortKind::Dht,
     PortKind::Ed2k,
     PortKind::Ed2kUdp,
 ];
@@ -113,7 +110,6 @@ fn default_recovery_policy(enabled: bool) -> PortRecoveryPolicy {
         rpc: true,
         extension_api: true,
         bt: true,
-        dht: true,
         ed2k: true,
         ed2k_udp: true,
     }
@@ -139,14 +135,7 @@ fn spec_for(kind: PortKind) -> PortSpec {
             prefs_key: "listenPort",
             system_key: "listen-port",
             fallback: DEFAULT_BT_PORT,
-            transport: PortTransport::Tcp,
-            allows_zero: false,
-        },
-        PortKind::Dht => PortSpec {
-            prefs_key: "dhtListenPort",
-            system_key: "dht-listen-port",
-            fallback: DEFAULT_DHT_PORT,
-            transport: PortTransport::Udp,
+            transport: PortTransport::TcpUdp,
             allows_zero: false,
         },
         PortKind::Ed2k => PortSpec {
@@ -173,12 +162,13 @@ pub(crate) fn aria2_runtime_bind_error_kind(line: &str) -> Option<PortKind> {
     }
     let is_bind_error = lower.contains("failed to bind tcp port")
         || lower.contains("failed to bind udp port")
-        || lower.contains("errors occurred while binding port");
+        || lower.contains("errors occurred while binding port")
+        || (lower.contains("listen") && lower.contains("address already in use"));
     if !is_bind_error {
         return None;
     }
-    if lower.contains("dht") {
-        return Some(PortKind::Dht);
+    if lower.contains("dht") || lower.contains("bittorrent") || lower.contains("btsetup") {
+        return Some(PortKind::Bt);
     }
     if lower.contains("ed2k") {
         return if lower.contains("udp") {
@@ -187,7 +177,7 @@ pub(crate) fn aria2_runtime_bind_error_kind(line: &str) -> Option<PortKind> {
             Some(PortKind::Ed2k)
         };
     }
-    if lower.contains("bittorrent") || lower.contains("btsetup") {
+    if lower.contains("listen") {
         return Some(PortKind::Bt);
     }
     None
@@ -236,7 +226,6 @@ fn recovery_policy_from_preferences(prefs: &serde_json::Value) -> PortRecoveryPo
         rpc: read_bool("rpc", defaults.rpc),
         extension_api: read_bool("extensionApi", defaults.extension_api),
         bt: read_bool("bt", defaults.bt),
-        dht: read_bool("dht", defaults.dht),
         ed2k: read_bool("ed2k", defaults.ed2k),
         ed2k_udp: read_bool("ed2kUdp", defaults.ed2k_udp),
     }
@@ -248,7 +237,6 @@ fn recovery_enabled_for(policy: PortRecoveryPolicy, kind: PortKind) -> bool {
             PortKind::Rpc => policy.rpc,
             PortKind::ExtensionApi => policy.extension_api,
             PortKind::Bt => policy.bt,
-            PortKind::Dht => policy.dht,
             PortKind::Ed2k => policy.ed2k,
             PortKind::Ed2kUdp => policy.ed2k_udp,
         }
@@ -295,7 +283,10 @@ pub(crate) fn resolve_bt_listen_port(
     let policy = recovery_policy_from_preferences(&prefs);
     let mut reserved = current.all_ports();
     reserved.remove(&current.bt);
-    if !reserved.contains(&requested_port) && tcp_available(requested_port) {
+    if !reserved.contains(&requested_port)
+        && tcp_available(requested_port)
+        && udp_available(requested_port)
+    {
         return Ok(requested_port);
     }
 
@@ -555,7 +546,6 @@ struct PortSnapshot {
     rpc: u16,
     extension_api: u16,
     bt: u16,
-    dht: u16,
     ed2k: u16,
     ed2k_udp: u16,
 }
@@ -578,11 +568,6 @@ impl PortSnapshot {
                 spec_for(PortKind::Bt).prefs_key,
                 spec_for(PortKind::Bt).fallback,
             ),
-            dht: read_u16(
-                prefs,
-                spec_for(PortKind::Dht).prefs_key,
-                spec_for(PortKind::Dht).fallback,
-            ),
             ed2k: read_u16(
                 prefs,
                 spec_for(PortKind::Ed2k).prefs_key,
@@ -601,7 +586,6 @@ impl PortSnapshot {
             self.rpc,
             self.extension_api,
             self.bt,
-            self.dht,
             self.ed2k,
             self.ed2k_udp,
         ]
@@ -615,7 +599,6 @@ impl PortSnapshot {
             PortKind::Rpc => self.rpc,
             PortKind::ExtensionApi => self.extension_api,
             PortKind::Bt => self.bt,
-            PortKind::Dht => self.dht,
             PortKind::Ed2k => self.ed2k,
             PortKind::Ed2kUdp => self.ed2k_udp,
         }
@@ -626,7 +609,6 @@ impl PortSnapshot {
             PortKind::Rpc => self.rpc = port,
             PortKind::ExtensionApi => self.extension_api = port,
             PortKind::Bt => self.bt = port,
-            PortKind::Dht => self.dht = port,
             PortKind::Ed2k => self.ed2k = port,
             PortKind::Ed2kUdp => self.ed2k_udp = port,
         }
@@ -657,7 +639,6 @@ fn persist_snapshot<R: tauri::Runtime>(
     obj.insert("rpcListenPort".into(), json!(snapshot.rpc));
     obj.insert("extensionApiPort".into(), json!(snapshot.extension_api));
     obj.insert("listenPort".into(), json!(snapshot.bt));
-    obj.insert("dhtListenPort".into(), json!(snapshot.dht));
     obj.insert("ed2kListenPort".into(), json!(snapshot.ed2k));
     obj.insert("ed2kUdpListenPort".into(), json!(snapshot.ed2k_udp));
     obj.insert("autoChangeConflictingPorts".into(), json!(true));
@@ -669,7 +650,6 @@ fn persist_snapshot<R: tauri::Runtime>(
 
     system_store.set("rpc-listen-port", json!(snapshot.rpc.to_string()));
     system_store.set("listen-port", json!(snapshot.bt.to_string()));
-    system_store.set("dht-listen-port", json!(snapshot.dht.to_string()));
     system_store.set("ed2k-listen-port", json!(snapshot.ed2k.to_string()));
     system_store.set("ed2k-udp-listen-port", json!(snapshot.ed2k_udp.to_string()));
     system_store
@@ -696,6 +676,7 @@ fn port_available(port: u16, transport: PortTransport) -> bool {
     match transport {
         PortTransport::Tcp => tcp_available(port),
         PortTransport::Udp => udp_available(port),
+        PortTransport::TcpUdp => tcp_available(port) && udp_available(port),
     }
 }
 
@@ -727,7 +708,6 @@ mod tests {
             [
                 PortKind::Rpc,
                 PortKind::Bt,
-                PortKind::Dht,
                 PortKind::Ed2k,
                 PortKind::Ed2kUdp,
             ]
@@ -775,7 +755,6 @@ mod tests {
                 "rpc": false,
                 "extensionApi": true,
                 "bt": true,
-                "dht": false,
                 "ed2k": true,
                 "ed2kUdp": false
             }
@@ -792,7 +771,6 @@ mod tests {
         );
         assert!(!recovery_enabled_for(policy, PortKind::Rpc));
         assert!(recovery_enabled_for(policy, PortKind::ExtensionApi));
-        assert!(!recovery_enabled_for(policy, PortKind::Dht));
         assert!(!recovery_enabled_for(policy, PortKind::Ed2kUdp));
     }
 
@@ -808,12 +786,16 @@ mod tests {
             aria2_runtime_bind_error_kind(
                 "2026-05-29 10:24:11.000 [error] [DHTSetup.cc:42] IPv4 DHT: failed to bind UDP port 29130"
             ),
-            Some(PortKind::Dht)
+            Some(PortKind::Bt)
         );
         assert_eq!(
             aria2_runtime_bind_error_kind(
                 "Exception: [BtSetup.cc:212] errorCode=1 Errors occurred while binding port."
             ),
+            Some(PortKind::Bt)
+        );
+        assert_eq!(
+            aria2_runtime_bind_error_kind("listen failed on 0.0.0.0:29120: Address already in use"),
             Some(PortKind::Bt)
         );
         assert_eq!(

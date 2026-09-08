@@ -1,0 +1,15 @@
+{
+  "_version": 1,
+  "notification.bt-complete-body": "做種中：%{task_name}",
+  "notification.bt-complete-title": "BT 下載完成",
+  "notification.download-batch-start-body": "下載中：%{task_name} 等 %{count} 個任務",
+  "notification.download-complete-body": "已儲存：%{task_name}",
+  "notification.download-complete-title": "下載完成",
+  "notification.download-failed-body": "%{task_name}：%{reason}",
+  "notification.download-failed-title": "下載失敗",
+  "notification.download-start-body": "下載中：%{task_name}",
+  "notification.download-start-title": "下載已開始",
+  "notification.ed2k-complete-body": "共享中：%{task_name}",
+  "notification.ed2k-complete-title": "ED2K 下載完成",
+  "notification.error-unknown": "未知錯誤"
+}

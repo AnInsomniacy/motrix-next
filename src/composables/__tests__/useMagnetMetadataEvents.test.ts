@@ -34,23 +34,38 @@ function makeTask(gid: string, extra: Partial<Aria2Task> = {}): Aria2Task {
   }
 }
 
+function makeSelectionTask(gid: string, name = 'Ubuntu ISO'): Aria2Task {
+  return makeTask(gid, {
+    status: 'paused',
+    bittorrent: { info: { name }, state: 'paused', fileSelectionState: 'awaiting' },
+    files: [
+      {
+        index: '1',
+        path: `/downloads/${name}/file.bin`,
+        length: '1024',
+        completedLength: '0',
+        selected: 'true',
+        uris: [],
+      },
+    ],
+  })
+}
+
 describe('useMagnetMetadataEvents', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('opens file selection immediately when a pending metadata gid completes', async () => {
+  it('opens file selection when the pending GID pauses for selection', async () => {
     const state: MagnetMetadataState = {
+      deferredGids: [],
       pendingGids: ['metadata-gid'],
       visible: false,
       files: [],
       session: null,
       name: '',
     }
-    const fetchTaskStatus = vi.fn(async (gid: string) => {
-      if (gid === 'metadata-gid') return makeTask(gid, { followedBy: ['download-gid'] })
-      return makeTask(gid, { bittorrent: { info: { name: 'Ubuntu ISO' } } })
-    })
+    const fetchTaskStatus = vi.fn(async (gid: string) => makeSelectionTask(gid))
     const getFiles = vi.fn().mockResolvedValue([
       {
         index: '1',
@@ -76,7 +91,7 @@ describe('useMagnetMetadataEvents', () => {
     expect(resolved).toBe(true)
     expect(state.pendingGids).toEqual(['metadata-gid'])
     expect(state.visible).toBe(true)
-    expect(state.session).toEqual({ metadataGid: 'metadata-gid', downloadGid: 'download-gid' })
+    expect(state.session).toEqual({ gid: 'metadata-gid' })
     expect(state.name).toBe('Ubuntu ISO')
     expect(state.files).toEqual([
       {
@@ -87,12 +102,55 @@ describe('useMagnetMetadataEvents', () => {
       },
     ])
     expect(fetchTaskStatus).toHaveBeenCalledWith('metadata-gid')
-    expect(fetchTaskStatus).toHaveBeenCalledWith('download-gid')
-    expect(getFiles).toHaveBeenCalledWith('download-gid')
+    expect(getFiles).toHaveBeenCalledWith('metadata-gid')
+  })
+
+  it('opens selection when task-list metadata is sparse but getFiles is ready', async () => {
+    const state: MagnetMetadataState = {
+      deferredGids: [],
+      pendingGids: ['metadata-gid'],
+      visible: false,
+      files: [],
+      session: null,
+      name: '',
+    }
+    const sparseTask = makeTask('metadata-gid', {
+      status: 'paused',
+      bittorrent: {
+        state: 'paused',
+        fileSelectionState: 'awaiting',
+        magnetLink: 'magnet:?xt=urn:btih:abc&dn=Recovered%20Torrent',
+      },
+      files: [],
+    })
+
+    const resolved = await resolvePendingMagnetMetadata(
+      {
+        state,
+        fetchTaskStatus: vi.fn().mockResolvedValue(sparseTask),
+        fetchPendingTasks: vi.fn().mockResolvedValue([]),
+        getFiles: vi.fn().mockResolvedValue([
+          {
+            index: '1',
+            path: '/downloads/recovered.iso',
+            length: '1024',
+            completedLength: '0',
+            selected: 'true',
+            uris: [],
+          },
+        ]),
+        fallbackName: () => 'Magnet task',
+      },
+      'metadata-gid',
+    )
+
+    expect(resolved).toBe(true)
+    expect(state.name).toBe('Recovered Torrent')
   })
 
   it('ignores completion events for non-pending gids', async () => {
     const state: MagnetMetadataState = {
+      deferredGids: [],
       pendingGids: ['metadata-gid'],
       visible: false,
       files: [],
@@ -117,18 +175,68 @@ describe('useMagnetMetadataEvents', () => {
     expect(state.pendingGids).toEqual(['metadata-gid'])
   })
 
-  it('serializes simultaneous metadata completions without replacing the open selection', async () => {
+  it('keeps a registered task while magnet metadata is still loading', async () => {
     const state: MagnetMetadataState = {
+      deferredGids: [],
+      pendingGids: ['metadata-gid'],
+      visible: false,
+      files: [],
+      session: null,
+      name: '',
+    }
+
+    const resolved = await resolvePendingMagnetMetadata(
+      {
+        state,
+        fetchTaskStatus: vi.fn().mockResolvedValue(makeTask('metadata-gid', { status: 'active' })),
+        fetchPendingTasks: vi.fn().mockResolvedValue([]),
+        getFiles: vi.fn(),
+        fallbackName: () => 'Magnet task',
+      },
+      'metadata-gid',
+    )
+
+    expect(resolved).toBe(false)
+    expect(state.pendingGids).toEqual(['metadata-gid'])
+  })
+
+  it('keeps a dismissed selection pending without reopening it automatically', async () => {
+    const state: MagnetMetadataState = {
+      deferredGids: ['metadata-gid'],
+      pendingGids: ['metadata-gid'],
+      visible: false,
+      files: [],
+      session: null,
+      name: '',
+    }
+    const fetchTaskStatus = vi.fn()
+
+    const resolved = await resolvePendingMagnetMetadata(
+      {
+        state,
+        fetchTaskStatus,
+        fetchPendingTasks: vi.fn().mockResolvedValue([]),
+        getFiles: vi.fn(),
+        fallbackName: () => 'Magnet task',
+      },
+      'metadata-gid',
+    )
+
+    expect(resolved).toBe(false)
+    expect(state.pendingGids).toEqual(['metadata-gid'])
+    expect(fetchTaskStatus).not.toHaveBeenCalled()
+  })
+
+  it('serializes simultaneous metadata pauses without replacing the open selection', async () => {
+    const state: MagnetMetadataState = {
+      deferredGids: [],
       pendingGids: ['metadata-a', 'metadata-b'],
       visible: false,
       files: [],
       session: null,
       name: '',
     }
-    const fetchTaskStatus = vi.fn(async (gid: string) => {
-      if (gid.startsWith('metadata-')) return makeTask(gid, { followedBy: [`download-${gid.slice(-1)}`] })
-      return makeTask(gid, { bittorrent: { info: { name: gid } } })
-    })
+    const fetchTaskStatus = vi.fn(async (gid: string) => makeSelectionTask(gid, gid))
     const resolver = createMagnetMetadataResolver(() => ({
       state,
       fetchTaskStatus,
@@ -144,33 +252,46 @@ describe('useMagnetMetadataEvents', () => {
     await Promise.all([resolver.request('metadata-a'), resolver.request('metadata-b')])
 
     expect(state.visible).toBe(true)
-    expect(state.session).toEqual({ metadataGid: 'metadata-a', downloadGid: 'download-a' })
+    expect(state.session).toEqual({ gid: 'metadata-a' })
     expect(state.pendingGids).toEqual(['metadata-a', 'metadata-b'])
   })
 
-  it('recovers the follow-up task when aria2 has already removed the metadata parent', async () => {
+  it('opens the explicitly requested task instead of an older pending task', async () => {
     const state: MagnetMetadataState = {
+      deferredGids: [],
+      pendingGids: ['metadata-a', 'metadata-b'],
+      visible: false,
+      files: [],
+      session: null,
+      name: '',
+    }
+    const resolver = createMagnetMetadataResolver(() => ({
+      state,
+      fetchTaskStatus: vi.fn(async (gid: string) => makeSelectionTask(gid, gid)),
+      fetchPendingTasks: vi.fn().mockResolvedValue([]),
+      getFiles: vi
+        .fn()
+        .mockResolvedValue([
+          { index: '1', path: '/downloads/file.bin', length: '1024', completedLength: '0', selected: 'true', uris: [] },
+        ]),
+      fallbackName: () => 'Magnet task',
+    }))
+
+    await resolver.request('metadata-b')
+
+    expect(state.session).toEqual({ gid: 'metadata-b' })
+  })
+
+  it('recovers the same GID from the one-shot pending task scan', async () => {
+    const state: MagnetMetadataState = {
+      deferredGids: [],
       pendingGids: ['metadata-gid'],
       visible: false,
       files: [],
       session: null,
       name: '',
     }
-    const followupTask = makeTask('download-gid', {
-      status: 'paused',
-      following: 'metadata-gid',
-      bittorrent: { info: { name: 'Recovered ISO' } },
-      files: [
-        {
-          index: '1',
-          path: '/downloads/recovered.iso',
-          length: '2048',
-          completedLength: '0',
-          selected: 'true',
-          uris: [],
-        },
-      ],
-    })
+    const followupTask = makeSelectionTask('metadata-gid', 'Recovered ISO')
     const fetchTaskStatus = vi.fn().mockRejectedValue({ Aria2: 'aria2 RPC error [1]: GID not found' })
     const getFiles = vi.fn().mockResolvedValue(followupTask.files)
 
@@ -187,14 +308,15 @@ describe('useMagnetMetadataEvents', () => {
 
     expect(resolved).toBe(true)
     expect(state.visible).toBe(true)
-    expect(state.session).toEqual({ metadataGid: 'metadata-gid', downloadGid: 'download-gid' })
+    expect(state.session).toEqual({ gid: 'metadata-gid' })
     expect(state.name).toBe('Recovered ISO')
-    expect(getFiles).toHaveBeenCalledWith('download-gid')
+    expect(getFiles).toHaveBeenCalledWith('metadata-gid')
     expect(logger.debug).not.toHaveBeenCalled()
   })
 
   it('serializes Tauri errors when neither metadata nor a follow-up task exists', async () => {
     const state: MagnetMetadataState = {
+      deferredGids: [],
       pendingGids: ['metadata-gid'],
       visible: false,
       files: [],
@@ -214,9 +336,11 @@ describe('useMagnetMetadataEvents', () => {
     )
 
     expect(resolved).toBe(false)
-    expect(logger.debug).toHaveBeenCalledWith(
-      'MagnetMetadata.resolve',
-      'gid=metadata-gid outcome=skipped reason="Aria2 Next error [1]: GID not found"',
-    )
+    expect(state.pendingGids).toEqual([])
+    expect(logger.debug).toHaveBeenCalledWith('MagnetMetadata.resolve', 'metadata_resolution_skipped', {
+      gid: 'metadata-gid',
+      outcome: 'skipped',
+      reason: 'Aria2 Next error [1]: GID not found',
+    })
   })
 })

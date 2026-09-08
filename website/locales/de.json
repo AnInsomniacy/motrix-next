@@ -58,7 +58,7 @@
   "motion.tokens.desc": "Alle Dauern und Kurven sind CSS Custom Properties für einen einheitlichen Rhythmus über 12+ Komponenten.",
   "features.title": "Funktionen",
   "features.protocol.title": "Multi-Protokoll",
-  "features.protocol.desc": "HTTP, FTP, ED2K, BitTorrent und Magnet-Links.",
+  "features.protocol.desc": "HTTP, SFTP, ED2K, BitTorrent und Magnet-Links.",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "Selektiver Dateidownload, DHT, Peer-Exchange, Verschlüsselung.",
   "features.tracker.title": "Tracker-Verwaltung",

@@ -58,7 +58,7 @@
   "motion.tokens.desc": "Alle varigheter og kurver er CSS egendefinerte egenskaper, som sikrer en enhetlig rytme over 12+ komponenter.",
   "features.title": "Funksjoner",
   "features.protocol.title": "Multi-protokoll",
-  "features.protocol.desc": "HTTP, FTP, ED2K, BitTorrent og Magnet-lenker.",
+  "features.protocol.desc": "HTTP, SFTP, ED2K, BitTorrent og Magnet-lenker.",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "Selektiv filnedlasting, DHT, peer-utveksling, kryptering.",
   "features.tracker.title": "Trackerhåndtering",

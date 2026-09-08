@@ -58,7 +58,7 @@
   "motion.tokens.desc": "所有持續時間和曲線均為 CSS 自定義屬性，確保 12+ 個元件的統一節奏。",
   "features.title": "功能特性",
   "features.protocol.title": "多協議",
-  "features.protocol.desc": "HTTP、FTP、ED2K、BitTorrent、磁力連結。",
+  "features.protocol.desc": "HTTP、SFTP、ED2K、BitTorrent、磁力連結。",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "選擇性檔案下載、DHT、對等交換、加密。",
   "features.tracker.title": "Tracker 管理",

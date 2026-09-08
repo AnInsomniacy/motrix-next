@@ -1,8 +1,8 @@
 /** @fileoverview Application-wide constants: themes, intervals, suffixes, limits. */
 import { DEFAULT_TASK_MANUAL_ORDER, DEFAULT_TASK_SORT } from '@/composables/useTaskSort'
 import type { AppLogLevel, Aria2LogLevel } from '@shared/types'
+import type { I18nKey } from '@shared/i18nTypes'
 export const EMPTY_STRING = ''
-export const IS_PORTABLE = false
 
 export const APP_THEME = {
   AUTO: 'auto',
@@ -15,7 +15,7 @@ export interface ColorSchemeDefinition {
   /** Unique identifier stored in config (kebab-case). */
   id: string
   /** i18n key suffix: `preferences.color-scheme-{id}` */
-  labelKey: string
+  labelKey: I18nKey
   /** Seed hex fed to MCU `themeFromSourceColor` to generate the full M3 tonal palette. */
   seed: string
   /** Palette generation mode. Content keeps low-chroma colors visually neutral. */
@@ -49,16 +49,10 @@ export const COLOR_SCHEMES: ColorSchemeDefinition[] = [
 export const CUSTOM_COLOR_SCHEME_ID = 'custom'
 export const DEFAULT_CUSTOM_COLOR_SCHEME = '#737373'
 
-export const APP_RUN_MODE = {
-  STANDARD: 1,
-  TRAY: 2,
-  HIDE_TRAY: 3,
-}
-
 export const ADD_TASK_TYPE = {
   URI: 'uri',
   TORRENT: 'torrent',
-}
+} as const
 
 export const TASK_STATUS = {
   ACTIVE: 'active',
@@ -74,12 +68,9 @@ export const APP_LOG_LEVELS = ['error', 'warn', 'info', 'debug'] as const satisf
 export const ARIA2_LOG_LEVELS = ['error', 'warn', 'info', 'debug', 'trace'] as const satisfies readonly Aria2LogLevel[]
 
 export const MAX_NUM_OF_DIRECTORIES = 5
-
-export const ENGINE_RPC_HOST = '127.0.0.1'
 export const ENGINE_RPC_PORT = 29100
 export const EXTENSION_API_PORT = 29110
 export const BT_LISTEN_PORT = 29120
-export const DHT_LISTEN_PORT = 29130
 export const ED2K_LISTEN_PORT = 29140
 export const ED2K_UDP_LISTEN_PORT = 29150
 export const ED2K_SERVER_MET_URL = 'https://upd.emule-security.org/server.met'
@@ -87,23 +78,18 @@ export const ED2K_NODES_DAT_URL = 'https://upd.emule-security.org/nodes.dat'
 export const BT_PEER_BLOCKLIST_URL = 'https://bcr.pbh-btn.com/combine/all.txt'
 export const PORT_RECOVERY_RANGE_START = 29000
 export const PORT_RECOVERY_RANGE_END = 29999
-export const ENGINE_MAX_CONCURRENT_DOWNLOADS = 100
-export const ENGINE_MAX_CONNECTION_PER_SERVER = 256
-export const ENGINE_DEFAULT_CONNECTION_PER_SERVER = 64
-export const ENGINE_DEFAULT_SPLIT = 64
+export const ENGINE_DEFAULT_STREAM_CONNECTIONS = 64
 export const ENGINE_DEFAULT_BT_MAX_PEERS = 128
-export const ENGINE_MAX_BT_MAX_PEERS = 500
+export const ENGINE_DEFAULT_BT_USER_AGENT = 'qBittorrent/5.2.3'
+export const ENGINE_DEFAULT_BT_PEER_ID_PREFIX = '-qB5230-'
 
 // Safe thresholds — values above these trigger a user confirmation warning.
 // These are "recommended" values displayed in UI labels; exceeding them is allowed
 // but requires explicit opt-in via a warning dialog.
-export const SAFE_LIMIT_SPLIT = 64
-export const SAFE_LIMIT_CONNECTION_PER_SERVER = 64
 export const SAFE_LIMIT_BT_MAX_PEERS = 128
 
 export const UNKNOWN_PEERID = '%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00%00'
 export const UNKNOWN_PEERID_NAME = 'unknown'
-export const GRAPHIC = '░▒▓█'
 
 export const ONE_SECOND = 1000
 export const ONE_MINUTE = ONE_SECOND * 60
@@ -111,9 +97,6 @@ export const ONE_HOUR = ONE_MINUTE * 60
 export const ONE_DAY = ONE_HOUR * 24
 export const COMPLETED_RECORD_RETENTION_FOREVER = 0
 export const COMPLETED_RECORD_RETENTION_OPTIONS = [0, 1, 7, 180, 365] as const
-
-// One Week
-export const AUTO_CHECK_UPDATE_INTERVAL = ONE_DAY * 7
 
 export const UPDATE_CHANNELS = ['stable', 'beta', 'latest'] as const
 
@@ -125,7 +108,7 @@ export const UPDATE_CHANNELS = ['stable', 'beta', 'latest'] as const
  * buildAdvancedForm() must reference these values via `?? D.field`.
  *
  * Each value is justified by industry research:
- * - aria2 official defaults (concurrent=5, split=5, conn/server=1)
+ * - Aria2 Next native defaults and accepted ranges
  * - BT client conventions (qBittorrent, Transmission, Deluge)
  * - Download manager standards (IDM, FDM, Motrix)
  * - Security best practices (UPnP off, rpcSecret generated at runtime)
@@ -210,8 +193,7 @@ export const MAX_FILE_CATEGORIES = 20
 export const BUILTIN_CATEGORY_LABELS: ReadonlySet<string> = new Set(BUILTIN_CATEGORY_TEMPLATES.map((t) => t.label))
 
 /** Latest registered SQLite migration version for history.db.
- *  Keep this in sync with tauri_plugin_sql migrations in src-tauri/src/lib.rs
- *  and REGISTERED_VERSIONS in src-tauri/src/db_guard.rs. */
+ *  Keep this in sync with tauri_plugin_sql migrations in src-tauri/src/lib.rs. */
 export const CURRENT_DB_SCHEMA_VERSION = 3
 
 /** Official, independently hosted tracker-list sources. */
@@ -231,13 +213,14 @@ export const TRACKER_SOURCE_OPTIONS = [
 export const DEFAULT_TRACKER_SOURCE = TRACKER_SOURCE_OPTIONS.map((source) => source.value)
 
 export const DEFAULT_APP_CONFIG = {
-  configVersion: 5,
+  configVersion: 7,
   dbSchemaVersion: CURRENT_DB_SCHEMA_VERSION,
   // ── Appearance ──────────────────────────────────────────────────
   theme: 'auto' as const,
   colorScheme: 'amber',
   customColorScheme: DEFAULT_CUSTOM_COLOR_SCHEME,
   taskCardMode: 'full' as const,
+  reduceMotion: false,
   taskListWatermark: true,
   sidebarTaskCounts: true,
   taskPageSize: 20,
@@ -245,9 +228,8 @@ export const DEFAULT_APP_CONFIG = {
 
   // ── Download Core ─────────────────────────────────────────────────
   dir: '',
-  split: ENGINE_DEFAULT_SPLIT, // parallel segments per file; independent of maxConnectionPerServer since v2
+  streamMaxConnections: ENGINE_DEFAULT_STREAM_CONNECTIONS,
   maxConcurrentDownloads: 6,
-  maxConnectionPerServer: ENGINE_DEFAULT_CONNECTION_PER_SERVER, // per-server connection cap; independent of split since v2
   maxOverallDownloadLimit: '0',
   maxOverallUploadLimit: '0',
   speedLimitEnabled: false,
@@ -268,13 +250,22 @@ export const DEFAULT_APP_CONFIG = {
   keepSharing: false, // stop by condition by default
 
   // ── BitTorrent (qBT/Transmission/Deluge conventions) ──────────
-  btMaxPeers: ENGINE_DEFAULT_BT_MAX_PEERS, // aria2 default=55; qBT=100, Transmission=60, Deluge=200
-  btDhtIpv4Enabled: true, // improves peer discovery; also enables UDP tracker support
-  btDhtIpv6Enabled: true, // restores IPv6 DHT peer discovery
+  btMaxPeers: ENGINE_DEFAULT_BT_MAX_PEERS,
+  btMaxConnections: 500,
+  btMaxUploads: 20,
+  btMaxUploadsPerTorrent: 4,
+  btTransport: 'both' as const,
+  btFirstLastPieceFirst: false,
+  btRateLimitOverhead: false,
+  btAnonymousMode: false,
+  btUserAgent: ENGINE_DEFAULT_BT_USER_AGENT,
+  btPeerIdPrefix: ENGINE_DEFAULT_BT_PEER_ID_PREFIX,
+  btBlocklistScope: 'peers' as const,
+  btDhtEnabled: true,
   btPeerExchangeEnabled: true, // improves peer discovery inside active swarms
-  btLocalPeerDiscoveryEnabled: true, // aria2.conf legacy default; helps LAN peers
-  btForceEncryption: false, // qBT default "Allow", not "Force"; forcing reduces peers
-  pauseMetadata: true, // pause follow-up download after metadata — let user select files first
+  btLocalPeerDiscoveryEnabled: true,
+  btEncryption: 'preferred' as const,
+  magnetFileSelectionPolicy: 'prompt' as const,
   continue: true, // aria2 default=true; resume incomplete downloads
   remoteTime: false, // aria2 default=false; file timestamp = download completion time
 
@@ -319,7 +310,6 @@ export const DEFAULT_APP_CONFIG = {
     rpc: true,
     extensionApi: true,
     bt: true,
-    dht: true,
     ed2k: true,
     ed2kUdp: true,
   },
@@ -332,13 +322,14 @@ export const DEFAULT_APP_CONFIG = {
   listenPort: BT_LISTEN_PORT,
   btExternalIp: '',
   btExternalPort: 0,
-  dhtListenPort: DHT_LISTEN_PORT,
   ed2kListenPort: ED2K_LISTEN_PORT,
   ed2kUdpListenPort: ED2K_UDP_LISTEN_PORT,
   ed2kServer: '',
   ed2kServerMetUrl: ED2K_SERVER_MET_URL,
   ed2kNodesDatUrl: ED2K_NODES_DAT_URL,
   ed2kUploadSlots: 3,
+  ed2kMaxConnections: 20,
+  ed2kPreviewPriority: false,
   ed2kSearchTimeout: 20,
   proxy: {
     mode: 'direct' as const,
@@ -346,23 +337,21 @@ export const DEFAULT_APP_CONFIG = {
     username: '',
     password: '',
     bypass: '',
-    scope: ['download', 'update-app', 'update-trackers'],
+    scope: ['download', 'bittorrent', 'update-app', 'update-trackers'],
   },
-  clipboard: { enable: true, http: true, ftp: true, magnet: true, ed2k: true, thunder: true, btHash: true },
+  clipboard: { enable: true, http: true, sftp: true, magnet: true, ed2k: true, thunder: true, btHash: true },
   useIndependentDownloadWindow: true,
   autoSubmitFromExtension: true,
-  autoSelectAllBtFilesFromExtension: false,
   silentAutoSubmitFromExtension: true,
   userAgent:
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
   userAgentProfiles: [],
   userAgentRules: [],
   recentUserAgentProfileIds: [],
-  logLevel: 'warn' as const,
-  aria2LogLevel: 'warn' as const,
+  logLevel: 'info' as const,
+  aria2LogLevel: 'info' as const,
   cookie: '',
   runMode: '',
-  engineBinPath: '',
   tempFilesDir: '',
 
   // ── Tracker ───────────────────────────────────────────────────
@@ -399,8 +388,6 @@ export const DEFAULT_APP_CONFIG = {
   connectTimeout: 10, // seconds to establish connection
   timeout: 10, // seconds for data transfer after connection
   fileAllocation: 'trunc' as const, // 'none' | 'trunc' | 'prealloc' | 'falloc'
-  asyncDns: false, // aria2-next default=true; keep Motrix default conservative
-
   // ── Task Sorting ─────────────────────────────────────────────
   taskSort: DEFAULT_TASK_SORT,
   taskManualOrder: DEFAULT_TASK_MANUAL_ORDER,
@@ -408,39 +395,24 @@ export const DEFAULT_APP_CONFIG = {
 
 export const FILE_ALLOCATION_OPTIONS = ['none', 'trunc', 'prealloc', 'falloc'] as const
 
-export const MAX_BT_TRACKER_LENGTH = 6144
-
 export const PROXY_SCOPES = {
   DOWNLOAD: 'download',
+  BITTORRENT: 'bittorrent',
   UPDATE_APP: 'update-app',
   UPDATE_TRACKERS: 'update-trackers',
 }
 
-export const PROXY_SCOPE_OPTIONS = [PROXY_SCOPES.DOWNLOAD, PROXY_SCOPES.UPDATE_APP, PROXY_SCOPES.UPDATE_TRACKERS]
+export const PROXY_SCOPE_OPTIONS = [
+  PROXY_SCOPES.DOWNLOAD,
+  PROXY_SCOPES.BITTORRENT,
+  PROXY_SCOPES.UPDATE_APP,
+  PROXY_SCOPES.UPDATE_TRACKERS,
+]
 
 export const NONE_SELECTED_FILES = 'none'
 export const SELECTED_ALL_FILES = 'all'
 
-export const IP_VERSION = {
-  V4: 4,
-  V6: 6,
-}
-
-export const LOGIN_SETTING_OPTIONS = {
-  // For Windows
-  args: ['--opened-at-login=1'],
-}
-
-export const TRAY_CANVAS_CONFIG = {
-  WIDTH: 66,
-  HEIGHT: 16,
-  ICON_WIDTH: 16,
-  ICON_HEIGHT: 16,
-  TEXT_WIDTH: 46,
-  TEXT_FONT_SIZE: 8,
-}
-
-export const COMMON_RESOURCE_TAGS = ['http://', 'https://', 'ftp://', 'magnet:', 'ed2k://']
+export const COMMON_RESOURCE_TAGS = ['http://', 'https://', 'sftp://', 'magnet:', 'ed2k://']
 export const THUNDER_RESOURCE_TAGS = ['thunder://']
 
 export const RESOURCE_TAGS = [...COMMON_RESOURCE_TAGS, ...THUNDER_RESOURCE_TAGS]
@@ -456,35 +428,13 @@ export const DETECT_RESOURCE_MAX_CHARS = 100_000
 export const DETECT_RESOURCE_MAX_LINES = 200
 
 /**
- * Matches bare BitTorrent v1 info hashes:
+ * Matches bare BitTorrent info hashes:
  * - SHA-1 hex: exactly 40 hex characters (most common format)
  * - Base32:    exactly 32 uppercase A-Z / 2-7 characters
  *
- * SHA-256 (64 hex, BitTorrent v2 / btmh) is intentionally excluded
- * because aria2 does not support the v2 protocol.
+ * - SHA-256 hex: exactly 64 hexadecimal characters (BitTorrent v2)
  */
-export const BARE_INFO_HASH_RE = /^[0-9a-fA-F]{40}$|^[A-Z2-7]{32}$/
-
-export const SUPPORT_RTL_LOCALES = [
-  /* 'العربية', Arabic */
-  'ar',
-  /* 'فارسی', Persian */
-  'fa',
-  /* 'עברית', Hebrew */
-  'he',
-  /* 'Kurdî / كوردی', Kurdish */
-  'ku',
-  /* 'پنجابی', Western Punjabi */
-  'pa',
-  /* 'پښتو', Pashto, */
-  'ps',
-  /* 'سنڌي', Sindhi */
-  'sd',
-  /* 'اردو', Urdu */
-  'ur',
-  /* 'ייִדיש', Yiddish */
-  'yi',
-]
+export const BARE_INFO_HASH_RE = /^(?:[0-9a-fA-F]{40}|[A-Z2-7]{32}|[0-9a-fA-F]{64})$/
 
 export const IMAGE_SUFFIXES = [
   '.ai',

@@ -13,7 +13,7 @@ const router = createRouter({
           redirect: '/task/all',
         },
         {
-          path: '/task/:status?',
+          path: '/task/:status(all|progress|failed|completed)?',
           name: 'task',
           component: () => import('@/views/TaskView.vue'),
           props: true,

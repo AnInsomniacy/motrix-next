@@ -24,9 +24,10 @@ pnpm tauri dev    # Start dev server (Tauri + Vite)
 Rust backend (standalone):
 
 ```bash
+pnpm build:native-launcher
 cd src-tauri
-cargo check --all-targets
-cargo test --all-targets
+cargo check --workspace --all-targets
+cargo test --workspace --all-targets
 ```
 
 ## ✅ Code Quality
@@ -39,10 +40,10 @@ pnpm format:check                              # Prettier formatting
 npx vue-tsc --noEmit                           # TypeScript strict mode
 pnpm test                                      # Vitest
 npx vite build                                 # Frontend production build
-cd src-tauri && cargo fmt -- --check           # Rust formatting
-cd src-tauri && cargo clippy --all-targets -- -D warnings
-cd src-tauri && cargo check --all-targets
-cd src-tauri && cargo test --all-targets
+cd src-tauri && cargo fmt --all -- --check     # Rust formatting
+cd src-tauri && cargo clippy --workspace --all-targets -- -D warnings
+cd src-tauri && cargo check --workspace --all-targets
+cd src-tauri && cargo test --workspace --all-targets
 ```
 
 Pre-commit hooks (husky + lint-staged) auto-run `eslint --fix` and `prettier --write` on staged files.
@@ -71,28 +72,15 @@ First you need to determine the English abbreviation of a language as **locale**
 
 The internationalization of Motrix Next uses [vue-i18n](https://vue-i18n.intlify.dev/).
 
-The configuration files are divided by **locale** under `src/shared/locales/`, such as `src/shared/locales/en-US` and `src/shared/locales/zh-CN`.
-
-There are language files in each directory organized by business module:
-
-- `about.js`
-- `app.js`
-- `edit.js`
-- `help.js`
-- `index.js`
-- `menu.js`
-- `preferences.js`
-- `subnav.js`
-- `task.js`
-- `window.js`
+Desktop translations live in `src/shared/locales/<locale>/messages.json`. Each file contains the same nested namespaces, with `en-US` as the canonical schema and fallback. Locale metadata is registered once in `src/shared/locales/catalog.json`.
 
 ### Adding a New Language
 
-1. Create a new directory under `src/shared/locales/` with the locale code (e.g. `src/shared/locales/de/`)
-2. Copy the files from `src/shared/locales/en-US/` as a template
-3. Translate each file
-4. Register the locale in `src/shared/locales/index.js`
-5. Submit a Pull Request
+1. Create `src/shared/locales/<locale>/messages.json` from the en-US resource
+2. Translate every value without changing keys or placeholders
+3. Register the locale in `src/shared/locales/catalog.json`
+4. Add the native Rust resource at `src-tauri/locales/<locale>.json`
+5. Run `pnpm lint`, `pnpm check:repo`, and `npx vue-tsc --noEmit`
 
 ## 💬 Commit Messages
 
@@ -151,10 +139,10 @@ pnpm format:check
 npx vue-tsc --noEmit
 pnpm test
 npx vite build
-cd src-tauri && cargo fmt -- --check
-cd src-tauri && cargo clippy --all-targets -- -D warnings
-cd src-tauri && cargo check --all-targets
-cd src-tauri && cargo test --all-targets
+cd src-tauri && cargo fmt --all -- --check
+cd src-tauri && cargo clippy --workspace --all-targets -- -D warnings
+cd src-tauri && cargo check --workspace --all-targets
+cd src-tauri && cargo test --workspace --all-targets
 ```
 
 ### i18n changes

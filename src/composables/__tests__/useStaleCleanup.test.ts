@@ -1,7 +1,6 @@
 /** @fileoverview TDD tests for runStaleRecordCleanup — the orchestration function
  * that connects the history store to file existence checks.
  *
- * Tests written BEFORE implementation per TDD Iron Law.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 

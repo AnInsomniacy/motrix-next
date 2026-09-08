@@ -1,27 +1,3 @@
-/* ── Naive UI Transition Overrides ─────────────────────────────────── */
-.n-tabs-pane-wrapper {
-  transition:
-    opacity 0.18s cubic-bezier(0.2, 0, 0, 1),
-    height 0.3s cubic-bezier(0.2, 0, 0, 1) !important;
-  overflow: hidden;
-}
-
-.n-tab-pane-enter-active {
-  transition: opacity 0.18s cubic-bezier(0.2, 0, 0, 1) !important;
-  transform: none !important;
-}
-
-.n-tab-pane-leave-active {
-  transition: opacity 0.12s cubic-bezier(0.3, 0, 0.8, 0.15) !important;
-  transform: none !important;
-}
-
-.n-tab-pane-enter-from,
-.n-tab-pane-leave-to {
-  opacity: 0 !important;
-  transform: none !important;
-}
-
 .n-modal-mask-enter-active {
   transition: opacity 0.25s cubic-bezier(0.2, 0, 0, 1) !important;
 }

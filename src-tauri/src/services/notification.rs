@@ -2,10 +2,11 @@
 
 use super::config::RuntimeConfig;
 use super::monitor::{events, TaskEvent};
-use super::notification_i18n::{
-    format_batch_task_message, format_error_message, format_task_message, texts_for_locale,
-};
 use crate::error::AppError;
+use crate::i18n::{
+    bt_complete, download_complete, download_failed, download_start, ed2k_complete,
+    resolve_preferred_locale,
+};
 use tauri::Manager;
 
 #[cfg(target_os = "linux")]
@@ -127,7 +128,7 @@ fn trim_linux_notifications_to_limit(
 pub enum TaskNotificationKind {
     Start,
     Complete,
-    SharingComplete,
+    P2pDownloadComplete,
     Error,
 }
 
@@ -136,7 +137,7 @@ pub struct TaskNotificationContent {
     pub kind: TaskNotificationKind,
     pub title: String,
     pub body: String,
-    pub locale: &'static str,
+    pub locale: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -164,7 +165,7 @@ pub fn linux_notification_identity() -> LinuxNotificationIdentity {
 fn kind_for_event(event_name: &str) -> Option<TaskNotificationKind> {
     match event_name {
         events::TASK_COMPLETE => Some(TaskNotificationKind::Complete),
-        events::SHARING_COMPLETE => Some(TaskNotificationKind::SharingComplete),
+        events::P2P_DOWNLOAD_COMPLETE => Some(TaskNotificationKind::P2pDownloadComplete),
         events::TASK_ERROR => Some(TaskNotificationKind::Error),
         _ => None,
     }
@@ -177,7 +178,7 @@ fn notification_enabled(kind: TaskNotificationKind, config: &RuntimeConfig) -> b
 
     match kind {
         TaskNotificationKind::Start => config.notify_on_start,
-        TaskNotificationKind::Complete | TaskNotificationKind::SharingComplete => {
+        TaskNotificationKind::Complete | TaskNotificationKind::P2pDownloadComplete => {
             config.notify_on_complete
         }
         TaskNotificationKind::Error => true,
@@ -194,51 +195,28 @@ pub fn build_task_notification(
         return None;
     }
 
-    let requested_locale = if config.locale == "auto" {
-        sys_locale::get_locale().unwrap_or_else(|| "en-US".to_string())
-    } else {
-        config.locale.clone()
-    };
-    let locale = super::notification_i18n::resolve_supported_locale(&requested_locale);
-    let texts = texts_for_locale(locale);
+    let locale = resolve_preferred_locale(&config.locale);
     let task_name = event.name.as_str();
 
-    let (title, body) = match kind {
+    let message = match kind {
         TaskNotificationKind::Start => return None,
-        TaskNotificationKind::Complete => (
-            texts.download_complete_title.to_string(),
-            format_task_message(texts.download_complete_body, task_name),
-        ),
-        TaskNotificationKind::SharingComplete => {
+        TaskNotificationKind::Complete => download_complete(&locale, task_name),
+        TaskNotificationKind::P2pDownloadComplete => {
             if event.sharing_kind == Some("ed2k") {
-                (
-                    texts.ed2k_complete_title.to_string(),
-                    format_task_message(texts.ed2k_complete_body, task_name),
-                )
+                ed2k_complete(&locale, task_name)
             } else {
-                (
-                    texts.bt_complete_title.to_string(),
-                    format_task_message(texts.bt_complete_body, task_name),
-                )
+                bt_complete(&locale, task_name)
             }
         }
         TaskNotificationKind::Error => {
-            let reason = event
-                .error_message
-                .as_deref()
-                .filter(|message| !message.trim().is_empty())
-                .unwrap_or(texts.error_unknown);
-            (
-                texts.download_failed_title.to_string(),
-                format_error_message(texts.download_failed_body, task_name, reason),
-            )
+            download_failed(&locale, task_name, event.error_message.as_deref())
         }
     };
 
     Some(TaskNotificationContent {
         kind,
-        title,
-        body,
+        title: message.title,
+        body: message.body,
         locale,
     })
 }
@@ -255,32 +233,18 @@ pub fn build_task_start_notification(
         .iter()
         .map(|name| name.trim())
         .find(|name| !name.is_empty())?;
-    let requested_locale = if config.locale == "auto" {
-        sys_locale::get_locale().unwrap_or_else(|| "en-US".to_string())
-    } else {
-        config.locale.clone()
-    };
-    let locale = super::notification_i18n::resolve_supported_locale(&requested_locale);
-    let texts = texts_for_locale(locale);
-    let body = if task_names.len() == 1 {
-        format_task_message(texts.download_start_body, first_name)
-    } else {
-        format_batch_task_message(
-            texts.download_batch_start_body,
-            first_name,
-            task_names.len().saturating_sub(1),
-        )
-    };
+    let locale = resolve_preferred_locale(&config.locale);
+    let message = download_start(&locale, first_name, task_names.len().saturating_sub(1));
 
     Some(TaskNotificationContent {
         kind: TaskNotificationKind::Start,
-        title: texts.download_start_title.to_string(),
-        body,
+        title: message.title,
+        body: message.body,
         locale,
     })
 }
 
-pub fn send_task_start_notification_from_names(
+pub async fn send_task_start_notification_from_names(
     app: &tauri::AppHandle,
     task_names: &[String],
     config: &RuntimeConfig,
@@ -290,8 +254,8 @@ pub fn send_task_start_notification_from_names(
         return Ok(false);
     };
 
-    send_native_notification(app, &content)?;
-    log::info!(
+    send_native_notification(app, &content).await?;
+    log::debug!(
         "notification:submitted type={:?} locale={} webview_alive={}",
         content.kind,
         content.locale,
@@ -300,7 +264,7 @@ pub fn send_task_start_notification_from_names(
     Ok(true)
 }
 
-pub fn send_app_notification(
+pub async fn send_app_notification(
     app: &tauri::AppHandle,
     title: &str,
     body: &str,
@@ -315,12 +279,12 @@ pub fn send_app_notification(
         kind: TaskNotificationKind::Start,
         title: title.to_string(),
         body: body.to_string(),
-        locale: "frontend",
+        locale: "frontend".to_string(),
     };
-    send_native_notification(app, &content)
+    send_native_notification(app, &content).await
 }
 
-pub fn send_task_notification(
+pub async fn send_task_notification(
     app: &tauri::AppHandle,
     event_name: &str,
     event: &TaskEvent,
@@ -346,7 +310,7 @@ pub fn send_task_notification(
         content.title
     );
 
-    match send_platform_notification(app, &content) {
+    match send_platform_notification(app, &content).await {
         Ok(dispatch) => {
             let webview_alive = app.get_webview_window("main").is_some();
             log_notification_success(&content, event, dispatch, webview_alive);
@@ -362,11 +326,12 @@ pub fn send_task_notification(
     }
 }
 
-pub fn send_native_notification(
+pub async fn send_native_notification(
     app: &tauri::AppHandle,
     content: &TaskNotificationContent,
 ) -> Result<(), AppError> {
     send_platform_notification(app, content)
+        .await
         .map(|_| ())
         .map_err(AppError::Io)
 }
@@ -413,7 +378,7 @@ fn log_notification_success(
 ) {
     match dispatch {
         NotificationDispatchResult::Submitted => {
-            log::info!(
+            log::debug!(
                 "notification:submitted type={:?} gid={} locale={} webview_alive={}",
                 content.kind,
                 event.gid,
@@ -425,7 +390,7 @@ fn log_notification_success(
 }
 
 #[cfg(target_os = "linux")]
-fn send_platform_notification(
+async fn send_platform_notification(
     app: &tauri::AppHandle,
     content: &TaskNotificationContent,
 ) -> Result<NotificationDispatchResult, String> {
@@ -439,7 +404,8 @@ fn send_platform_notification(
         .urgency(identity.urgency)
         .summary(&content.title)
         .body(&content.body)
-        .show()
+        .show_async()
+        .await
         .map_err(|error| error.to_string())?;
     let registry = app.state::<LinuxNotificationRegistry>();
     let retention = registry.retain(handle);
@@ -452,7 +418,7 @@ fn send_platform_notification(
 }
 
 #[cfg(not(target_os = "linux"))]
-fn send_platform_notification(
+async fn send_platform_notification(
     app: &tauri::AppHandle,
     content: &TaskNotificationContent,
 ) -> Result<NotificationDispatchResult, String> {
@@ -492,7 +458,9 @@ mod tests {
             completed_length: "1".to_string(),
             info_hash: None,
             magnet_link: None,
+            sharing_time: None,
             ed2k_link: None,
+            ed2k_hash: None,
             is_bt: false,
             is_ed2k: false,
             sharing_kind: None,
@@ -515,8 +483,8 @@ mod tests {
         let mut ev = event();
         ev.is_bt = true;
         ev.sharing_kind = Some("bt");
-        let content = build_task_notification(events::SHARING_COMPLETE, &ev, &cfg()).unwrap();
-        assert_eq!(content.kind, TaskNotificationKind::SharingComplete);
+        let content = build_task_notification(events::P2P_DOWNLOAD_COMPLETE, &ev, &cfg()).unwrap();
+        assert_eq!(content.kind, TaskNotificationKind::P2pDownloadComplete);
         assert_eq!(content.title, "BT Download Complete");
         assert_eq!(content.body, "Seeding: file.zip");
     }
@@ -526,8 +494,8 @@ mod tests {
         let mut ev = event();
         ev.is_ed2k = true;
         ev.sharing_kind = Some("ed2k");
-        let content = build_task_notification(events::SHARING_COMPLETE, &ev, &cfg()).unwrap();
-        assert_eq!(content.kind, TaskNotificationKind::SharingComplete);
+        let content = build_task_notification(events::P2P_DOWNLOAD_COMPLETE, &ev, &cfg()).unwrap();
+        assert_eq!(content.kind, TaskNotificationKind::P2pDownloadComplete);
         assert_eq!(content.title, "ED2K Download Complete");
         assert_eq!(content.body, "Sharing: file.zip");
     }
@@ -540,9 +508,9 @@ mod tests {
         let mut config = cfg();
         config.locale = "zh-CN".to_string();
 
-        let content = build_task_notification(events::SHARING_COMPLETE, &ev, &config).unwrap();
+        let content = build_task_notification(events::P2P_DOWNLOAD_COMPLETE, &ev, &config).unwrap();
 
-        assert_eq!(content.kind, TaskNotificationKind::SharingComplete);
+        assert_eq!(content.kind, TaskNotificationKind::P2pDownloadComplete);
         assert_eq!(content.title, "ED2K 下载完成");
         assert_eq!(content.body, "共享中：file.zip");
         assert_eq!(content.locale, "zh-CN");

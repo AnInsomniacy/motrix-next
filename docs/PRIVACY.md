@@ -17,11 +17,12 @@ Application data is stored locally on your device and is not synced by Motrix Ne
 | Preferences       | `config.json` (app data directory)      | User settings                      |
 | Engine options    | `system.json` (app data directory)      | Aria2 Next runtime configuration   |
 | Download history  | `history.db` (local SQLite database)    | Task records                       |
-| Task resume cache | `download.session` (app data directory) | Resume active and paused downloads |
+| Engine task manifest | `download.session` (app data directory) | Restore the task list |
+| Engine transfer state | `engine/state` (app data directory) | Restore protocol progress and sharing state |
 | Application logs  | app log directory                       | Diagnostics and troubleshooting    |
 | Download files    | User-specified directory                | Downloaded content                 |
 
-Diagnostic log exports are created only when the user chooses **Advanced Settings → Export Diagnostic Logs**. The exported ZIP may include log files, system/runtime metadata, and a sanitized `config.json` snapshot. RPC secrets, Extension API secrets, cookies, and proxy credentials are redacted before export.
+Diagnostic log exports are created only when the user chooses **Advanced Settings → Export Diagnostic Logs**. The exported ZIP contains the Motrix Next and Aria2 Next logs plus `diagnostics.json`, which combines system/runtime metadata with sanitized configuration. RPC secrets, Extension API secrets, cookies, and proxy credentials are redacted before export.
 
 ## Automatic Network Connections
 
@@ -53,7 +54,7 @@ The update channel can be Stable, Beta, or Latest Across Channels. If a proxy is
 
 ## User-Initiated Network Connections
 
-When you add a download task, Motrix Next and its Aria2 Next sidecar connect to the servers or peers needed for that task. This can include HTTP/FTP servers, BitTorrent trackers, DHT nodes, peers, and metadata endpoints.
+When you add a download task, Motrix Next and its Aria2 Next sidecar connect to the servers or peers needed for that task. This can include HTTP, HTTPS, or SFTP servers, BitTorrent trackers, DHT nodes, peers, and metadata endpoints.
 
 Some task creation flows resolve filenames before download. This may issue HTTP requests to the URL you submit so the app can inspect response headers such as `Content-Disposition`.
 

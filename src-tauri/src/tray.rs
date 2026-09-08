@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder,
+    AppHandle, Emitter, Manager, WebviewWindowBuilder,
 };
 
 /// Embedded tray icon bytes.
@@ -58,44 +58,37 @@ pub struct TrayMenuState {
 /// the window without emitting `CloseRequested`.  When the user later
 /// clicks the tray icon or triggers macOS Reopen, the original window
 /// handle is gone.  This function detects that and rebuilds the window
-/// using the same config as `tauri.conf.json`.
-///
-/// The newly created window is visible by default — the caller can
-/// `.show()` + `.set_focus()` as usual.
+/// from the active platform configuration.
 pub fn get_or_create_main_window(app: &AppHandle) -> Option<tauri::WebviewWindow> {
     if let Some(window) = app.get_webview_window("main") {
         return Some(window);
     }
 
-    // Window was destroyed — recreate from config.
+    // Window was destroyed — recreate from the same merged platform config
+    // that Tauri used for the initial window.
     log::warn!("tray:window-not-found label=main — recreating after compositor force-close");
     crate::services::deep_link::mark_frontend_unready(app);
     crate::services::external_input::mark_frontend_unready(app);
     crate::services::frontend_action::mark_frontend_actions_unready(app);
 
-    let mut builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-        .title("Motrix Next")
-        .inner_size(1068.0, 680.0)
-        .min_inner_size(560.0, 360.0)
-        .visible(false);
+    let Some(config) = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|config| config.label == "main")
+    else {
+        log::error!("tray:window-recreate-failed error=main-window-config-not-found");
+        return None;
+    };
 
-    // macOS: native traffic lights via overlay title bar (matches tauri.macos.conf.json).
-    #[cfg(target_os = "macos")]
-    {
-        use tauri::TitleBarStyle;
-        builder = builder
-            .transparent(true)
-            .decorations(true)
-            .hidden_title(true)
-            .title_bar_style(TitleBarStyle::Overlay)
-            .shadow(true);
-    }
-    // Windows/Linux: transparent frameless window with custom controls.
-    // No CSS border-radius — DWM provides native corner rounding on Win11.
-    #[cfg(not(target_os = "macos"))]
-    {
-        builder = builder.transparent(true).decorations(false);
-    }
+    let builder = match WebviewWindowBuilder::from_config(app, config) {
+        Ok(builder) => builder,
+        Err(error) => {
+            log::error!("tray:window-recreate-failed error={error}");
+            return None;
+        }
+    };
 
     match builder.build() {
         Ok(w) => {
@@ -117,9 +110,9 @@ pub enum WindowActivationOutcome {
 }
 
 pub fn ensure_main_window(app: &AppHandle, source: &'static str) -> WindowActivationOutcome {
-    log::info!("window:ensure-start source={source}");
+    log::debug!("window:ensure-start source={source}");
     if get_or_create_main_window(app).is_some() {
-        log::info!("window:ensure-done source={source}");
+        log::debug!("window:ensure-done source={source}");
         WindowActivationOutcome::Activated
     } else {
         log::error!("window:ensure-failed source={source} reason=window-unavailable");

@@ -5,13 +5,13 @@ import { invoke } from '@tauri-apps/api/core'
 import { useI18n } from 'vue-i18n'
 import { usePreferenceStore } from '@/stores/preference'
 import { usePreferenceForm } from '@/composables/usePreferenceForm'
-import { useEngineRestart } from '@/composables/useEngineRestart'
+import { usePreferenceNumericValidation } from '@/composables/usePreferenceNumericValidation'
 import { usePlatform } from '@/composables/usePlatform'
 import { useSystemProxyDetect } from '@/composables/useSystemProxyDetect'
 import { logger } from '@shared/logger'
 import { getErrorMessage } from '@shared/utils/errorMessage'
 import { useAppMessage } from '@/composables/useAppMessage'
-import { PROXY_SCOPE_OPTIONS, FILE_ALLOCATION_OPTIONS, ENGINE_RPC_PORT } from '@shared/constants'
+import { PROXY_SCOPE_OPTIONS, FILE_ALLOCATION_OPTIONS } from '@shared/constants'
 import {
   buildNetworkForm,
   buildNetworkSystemConfig,
@@ -35,7 +35,6 @@ import {
   NDivider,
   NIcon,
   NText,
-  useDialog,
 } from 'naive-ui'
 const showUserAgentManager = ref(false)
 import PreferenceActionBar from './PreferenceActionBar.vue'
@@ -46,8 +45,9 @@ import { SearchOutline } from '@vicons/ionicons5'
 
 const { t } = useI18n()
 const preferenceStore = usePreferenceStore()
-const dialog = useDialog()
 const message = useAppMessage()
+const { constraint, configFieldProps, fieldProps, areConfigFieldsValid, portRecoveryConstraint } =
+  usePreferenceNumericValidation()
 const { isWindows } = usePlatform()
 
 const proxyScopeOptions = PROXY_SCOPE_OPTIONS.map((s: string) => ({
@@ -61,13 +61,12 @@ const fileAllocationOptions = computed(() =>
   })),
 )
 
-type PortRecoveryTarget = 'rpc' | 'extensionApi' | 'bt' | 'dht' | 'ed2k' | 'ed2kUdp'
-const portRecoveryTargets: PortRecoveryTarget[] = ['rpc', 'extensionApi', 'bt', 'dht', 'ed2k', 'ed2kUdp']
+type PortRecoveryTarget = 'rpc' | 'extensionApi' | 'bt' | 'ed2k' | 'ed2kUdp'
+const portRecoveryTargets: PortRecoveryTarget[] = ['rpc', 'extensionApi', 'bt', 'ed2k', 'ed2kUdp']
 const portRecoveryTargetOptions = computed(() => [
   { label: t('preferences.rpc-listen-port'), value: 'rpc' },
   { label: t('preferences.extension-api-port'), value: 'extensionApi' },
   { label: t('preferences.port-conflict-recovery-bt'), value: 'bt' },
-  { label: t('preferences.port-conflict-recovery-dht'), value: 'dht' },
   { label: t('preferences.port-conflict-recovery-ed2k'), value: 'ed2k' },
   { label: t('preferences.port-conflict-recovery-ed2k-udp'), value: 'ed2kUdp' },
 ])
@@ -104,8 +103,6 @@ function buildForm() {
   return buildNetworkForm(preferenceStore.config)
 }
 
-const { restartEngine } = useEngineRestart()
-
 const { form, isDirty, handleSave, handleReset, resetSnapshot, patchSnapshot } = usePreferenceForm({
   buildForm,
   buildSystemConfig: buildNetworkSystemConfig,
@@ -122,6 +119,27 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot, patchSnapshot } =
     if (f.enableUpnp !== prevConfig.enableUpnp) await syncUpnpState(!!f.enableUpnp)
   },
 })
+const numericFieldsValid = computed(
+  () =>
+    areConfigFieldsValid({
+      connectTimeout: form.value.connectTimeout,
+      timeout: form.value.timeout,
+    }) &&
+    !fieldProps(form.value.portConflictRecovery.rangeStart, portRecoveryConstraint).validationStatus &&
+    !fieldProps(form.value.portConflictRecovery.rangeEnd, portRecoveryConstraint).validationStatus &&
+    form.value.portConflictRecovery.rangeStart <= form.value.portConflictRecovery.rangeEnd,
+)
+const portRecoveryFieldProps = computed(() => {
+  const recovery = form.value.portConflictRecovery
+  if (recovery.rangeStart > recovery.rangeEnd) {
+    return {
+      validationStatus: 'error' as const,
+      feedback: t('preferences.port-conflict-recovery-invalid-range'),
+    }
+  }
+  const start = fieldProps(recovery.rangeStart, portRecoveryConstraint)
+  return start.validationStatus ? start : fieldProps(recovery.rangeEnd, portRecoveryConstraint)
+})
 
 // ── UPnP save-time sync ─────────────────────────────────────────────
 async function syncUpnpState(enabled: boolean) {
@@ -129,9 +147,6 @@ async function syncUpnpState(enabled: boolean) {
   try {
     if (enabled) {
       await invoke('start_upnp_mapping', {
-        btPort: Number(config.listenPort),
-        btExternalPort: Number(config.btExternalPort) || 0,
-        dhtPort: Number(config.dhtListenPort),
         ed2kPort: Number(config.ed2kListenPort) > 0 ? Number(config.ed2kListenPort) : null,
         ed2kUdpPort: Number(config.ed2kUdpListenPort) > 0 ? Number(config.ed2kUdpListenPort) : null,
       })
@@ -182,26 +197,6 @@ async function handleUserAgentManagerSave(payload: {
 
 function handleProxySwitch(value: boolean) {
   form.value.proxy.mode = proxySwitchValueToMode(value)
-}
-
-function handleManualRestart() {
-  const port = (preferenceStore.config.rpcListenPort as number) || ENGINE_RPC_PORT
-  const secret = (preferenceStore.config.rpcSecret as string) || ''
-  const d = dialog.info({
-    title: t('preferences.engine-restart-title'),
-    content: t('preferences.engine-restart-manual-confirm'),
-    positiveText: t('preferences.engine-restart-now'),
-    negativeText: t('preferences.engine-restart-later'),
-    maskClosable: false,
-    onPositiveClick: async () => {
-      d.loading = true
-      d.negativeText = ''
-      d.closable = false
-      message.info(t('preferences.engine-restarting'))
-      await new Promise((r) => requestAnimationFrame(r))
-      await restartEngine({ port, secret })
-    },
-  })
 }
 
 onMounted(() => {
@@ -278,11 +273,20 @@ onMounted(() => {
         </NFormItem>
         <div class="proxy-collapse" :class="{ 'proxy-collapse--open': form.proxy.mode === 'manual' }">
           <div class="proxy-collapse__inner collapse-indent">
-            <NFormItem>
+            <NFormItem
+              v-bind="
+                form.portConflictRecovery.rangeStart > form.portConflictRecovery.rangeEnd
+                  ? {
+                      validationStatus: 'error',
+                      feedback: t('preferences.port-conflict-recovery-invalid-range'),
+                    }
+                  : fieldProps(form.portConflictRecovery.rangeStart, portRecoveryConstraint)
+              "
+            >
               <template #label>
                 <PreferenceHintLabel
                   :label="t('preferences.proxy-server')"
-                  :hint="t('preferences.proxy-http-only-hint')"
+                  :hint="t('preferences.proxy-protocol-hint')"
                 />
               </template>
               <NInputGroup>
@@ -334,7 +338,7 @@ onMounted(() => {
           :class="{ 'port-recovery-collapse--open': form.portConflictRecovery.enabled }"
         >
           <div class="port-recovery-collapse__inner collapse-indent">
-            <NFormItem>
+            <NFormItem v-bind="portRecoveryFieldProps">
               <template #label>
                 <PreferenceHintLabel
                   :label="t('preferences.port-conflict-recovery-range')"
@@ -344,15 +348,15 @@ onMounted(() => {
               <NInputGroup>
                 <NInputNumber
                   v-model:value="form.portConflictRecovery.rangeStart"
-                  :min="1024"
-                  :max="65535"
+                  :min="portRecoveryConstraint.min"
+                  :max="portRecoveryConstraint.max"
                   class="pref-port"
                 />
                 <span class="port-range-separator">to</span>
                 <NInputNumber
                   v-model:value="form.portConflictRecovery.rangeEnd"
-                  :min="1024"
-                  :max="65535"
+                  :min="portRecoveryConstraint.min"
+                  :max="portRecoveryConstraint.max"
                   class="pref-port"
                 />
               </NInputGroup>
@@ -374,22 +378,29 @@ onMounted(() => {
 
         <!-- Timeout & Disk -->
         <NDivider title-placement="left">{{ t('preferences.transfer-params') }}</NDivider>
-        <NFormItem :label="t('preferences.connect-timeout')">
-          <NInputNumber v-model:value="form.connectTimeout" :min="1" :max="600" class="pref-number" />
+        <NFormItem
+          :label="t('preferences.connect-timeout')"
+          v-bind="configFieldProps('connectTimeout', form.connectTimeout)"
+        >
+          <NInputNumber
+            v-model:value="form.connectTimeout"
+            :min="constraint('connectTimeout').min"
+            :max="constraint('connectTimeout').max"
+            class="pref-number"
+          />
           <NText depth="3" class="pref-inline-note">{{ t('preferences.unit-seconds') }}</NText>
         </NFormItem>
-        <NFormItem :label="t('preferences.timeout')">
-          <NInputNumber v-model:value="form.timeout" :min="1" :max="600" class="pref-number" />
+        <NFormItem :label="t('preferences.timeout')" v-bind="configFieldProps('timeout', form.timeout)">
+          <NInputNumber
+            v-model:value="form.timeout"
+            :min="constraint('timeout').min"
+            :max="constraint('timeout').max"
+            class="pref-number"
+          />
           <NText depth="3" class="pref-inline-note">{{ t('preferences.unit-seconds') }}</NText>
         </NFormItem>
         <NFormItem :label="t('preferences.file-allocation')">
           <NSelect v-model:value="form.fileAllocation" :options="fileAllocationOptions" class="pref-control-auto" />
-        </NFormItem>
-        <NFormItem>
-          <template #label>
-            <PreferenceHintLabel :label="t('preferences.async-dns')" :hint="t('preferences.async-dns-hint')" />
-          </template>
-          <NSwitch v-model:value="form.asyncDns" />
         </NFormItem>
       </NForm>
     </div>
@@ -400,7 +411,7 @@ onMounted(() => {
       :recent-profile-ids="form.recentUserAgentProfileIds"
       @save="handleUserAgentManagerSave"
     />
-    <PreferenceActionBar :is-dirty="isDirty" @save="handleSave" @discard="handleReset" @restart="handleManualRestart" />
+    <PreferenceActionBar :is-dirty="isDirty" :is-valid="numericFieldsValid" @save="handleSave" @discard="handleReset" />
   </div>
 </template>
 

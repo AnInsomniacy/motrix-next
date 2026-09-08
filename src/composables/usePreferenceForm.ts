@@ -15,16 +15,18 @@ import { filterHotReloadableKeys } from '@shared/utils/config'
 import { changeGlobalOption, isEngineReady } from '@/api/aria2'
 import { logger } from '@shared/logger'
 import type { AppConfig } from '@shared/types'
+import { validateAppConfigCandidate } from '@shared/configConstraints'
+import { buildSystemConfigFromAppConfig } from '@shared/utils/systemConfig'
 
 export interface UsePreferenceFormOptions<T extends Record<string, unknown>> {
   /** Build the initial form state from the current preference config. */
   buildForm: () => T
 
   /**
-   * Map form values to the key-value pairs sent to `save_system_config`.
+   * Map form values to the engine option snapshot.
    * Only system-level aria2 config keys belong here.
    */
-  buildSystemConfig: (form: T) => Record<string, string>
+  buildSystemConfig?: (form: T) => Record<string, string>
 
   /**
    * Optional pre-save hook. Return `false` to abort the save (e.g. validation failure).
@@ -90,17 +92,35 @@ export function usePreferenceForm<T extends Record<string, unknown>>(options: Us
   // ── Save & Reset ────────────────────────────────────────────────────
 
   async function handleSave(): Promise<void> {
+    const initialStoreData: Partial<AppConfig> = options.transformForStore
+      ? options.transformForStore(form.value as T)
+      : { ...(form.value as T) }
+    const initialIssues = validateAppConfigCandidate({ ...preferenceStore.config, ...initialStoreData })
+    if (initialIssues.length > 0) {
+      const { constraint } = initialIssues[0]
+      message.error(t('preferences.value-range-error', { min: constraint.min, max: constraint.max }))
+      return
+    }
+
     if (options.beforeSave && !(await options.beforeSave(form.value as T))) {
       return
     }
 
     const prevConfig = { ...preferenceStore.config }
-    const previousSystemConfig = options.buildSystemConfig(options.buildForm())
+    const previousSystemConfig = options.buildSystemConfig?.(options.buildForm()) ?? {}
 
     const storeData: Partial<AppConfig> = options.transformForStore
       ? options.transformForStore(form.value as T)
       : { ...(form.value as T) }
-    const systemConfig = options.buildSystemConfig(form.value as T)
+    const candidate = { ...preferenceStore.config, ...storeData }
+    const validationIssues = validateAppConfigCandidate(candidate)
+    if (validationIssues.length > 0) {
+      const { constraint } = validationIssues[0]
+      message.error(t('preferences.value-range-error', { min: constraint.min, max: constraint.max }))
+      return
+    }
+    const systemConfig = options.buildSystemConfig?.(form.value as T) ?? {}
+    const savedForm = JSON.parse(JSON.stringify(form.value)) as T
     const hotConfig = filterHotReloadableKeys(systemConfig)
     const previousHotConfig = filterHotReloadableKeys(previousSystemConfig)
     const changedHotConfig = Object.fromEntries(
@@ -133,10 +153,12 @@ export function usePreferenceForm<T extends Record<string, unknown>>(options: Us
 
       if (Object.keys(systemConfig).length > 0) {
         systemConfigWriteAttempted = true
-        await invoke('save_system_config', { config: systemConfig })
+        await invoke('replace_system_config', {
+          config: buildSystemConfigFromAppConfig(candidate as AppConfig, String(candidate.dir ?? '')),
+        })
       }
 
-      await options.afterSave?.(form.value as T, prevConfig)
+      await options.afterSave?.(savedForm, prevConfig)
     } catch (error) {
       let rollbackFailed = false
       logger.error('PreferenceForm.save', error)
@@ -150,7 +172,9 @@ export function usePreferenceForm<T extends Record<string, unknown>>(options: Us
       }
       if (systemConfigWriteAttempted && Object.keys(previousSystemConfig).length > 0) {
         try {
-          await invoke('save_system_config', { config: previousSystemConfig })
+          await invoke('replace_system_config', {
+            config: buildSystemConfigFromAppConfig(prevConfig as AppConfig, String(prevConfig.dir ?? '')),
+          })
         } catch (rollbackError) {
           rollbackFailed = true
           logger.error('PreferenceForm.rollbackSystemConfig', rollbackError)
@@ -181,6 +205,7 @@ export function usePreferenceForm<T extends Record<string, unknown>>(options: Us
     // Only mark as saved AFTER both stores persist successfully.
     // Moving this earlier would clear the dirty flag prematurely,
     // causing route-leave guards to skip if an async save fails.
+    Object.assign(form.value, options.buildForm())
     savedSnapshot.value = JSON.parse(JSON.stringify(form.value)) as T
 
     if (saveFeedback) message.success(saveFeedback.success)

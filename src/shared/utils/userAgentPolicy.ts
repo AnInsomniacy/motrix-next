@@ -2,8 +2,8 @@ import picomatch from 'picomatch'
 import type { ExternalDownloadContext, UserAgentProfile, UserAgentRule } from '@shared/types'
 import { sanitizeSingleHeaderValue } from './headerSanitize'
 
-const MAX_USER_AGENT_PROFILES = 64
-const MAX_USER_AGENT_RULES = 128
+export const MAX_USER_AGENT_PROFILES = 64
+export const MAX_USER_AGENT_RULES = 128
 const MAX_RECENT_USER_AGENT_PROFILES = 5
 const HOST_PATTERN_RE = /^(?:\*\.)?[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]$/
 

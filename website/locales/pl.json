@@ -58,7 +58,7 @@
   "motion.tokens.desc": "Wszystkie czasy i krzywe to właściwości CSS, zapewniające jednolity rytm dla 12+ komponentów.",
   "features.title": "Funkcje",
   "features.protocol.title": "Multi-protokół",
-  "features.protocol.desc": "HTTP, FTP, ED2K, BitTorrent i linki Magnet.",
+  "features.protocol.desc": "HTTP, SFTP, ED2K, BitTorrent i linki Magnet.",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "Selektywne pobieranie plików, DHT, wymiana peerów, szyfrowanie.",
   "features.tracker.title": "Zarządzanie trackerami",

@@ -1,13 +1,13 @@
 /** @fileoverview Pinia store for download task management: list, add, pause, resume, remove. */
 import { defineStore } from 'pinia'
 import { reactive, ref, watch } from 'vue'
-import { EMPTY_STRING, TASK_STATUS } from '@shared/constants'
-import { checkTaskIsEd2kSearch, intersection } from '@shared/utils'
+import { EMPTY_STRING } from '@shared/constants'
+import { checkTaskIsEd2kSearch } from '@shared/utils'
 import { logger } from '@shared/logger'
 import type { Aria2Task, Aria2File, Aria2Peer, Aria2EngineOptions, TaskApi } from '@shared/types'
 
-import { historyRecordToTask, mergeHistoryIntoTasks, isMetadataTask } from '@/composables/useTaskLifecycle'
-import { buildMetadataOnlyOptions, shouldShowFileSelection } from '@/composables/useMagnetFlow'
+import { mergeHistoryIntoTasks, isMetadataTask } from '@/composables/useTaskLifecycle'
+import { buildMagnetOptions } from '@/composables/useMagnetFlow'
 import {
   registerAddedAt,
   getAddedAt,
@@ -19,64 +19,86 @@ import {
   applyManualOrder,
   createManualOrderSnapshot,
   sortTasks,
-  sortRecords,
-  type ActiveSortField,
+  type ProgressSortField,
   type AllSortField,
   type SortDirection,
-  type StoppedSortField,
+  type TaskScope,
+  type TerminalSortField,
 } from '@/composables/useTaskSort'
 import { DEFAULT_TASK_SORT } from '@/composables/useTaskSort'
 import { useHistoryStore } from '@/stores/history'
+import { useDatabaseStore } from '@/stores/database'
 import { useHttpAuthStore } from '@/stores/httpAuth'
 import { usePreferenceStore } from '@/stores/preference'
 
-import { restartTask as restartTaskImpl } from './restart'
+import { resubmitTask, type TaskResubmissionMode } from './resubmit'
 import { createTaskOperations } from './operations'
 
 export type { Aria2Task, Aria2File, Aria2Peer }
 
-type TaskTabKey = 'active' | 'stopped' | 'all'
-
 const DEFAULT_TASK_PAGE_SIZE = 20
+const TASK_SCOPES: readonly TaskScope[] = ['all', 'progress', 'failed', 'completed']
 
-function normalizeTaskTab(list: string): TaskTabKey {
-  return list === 'stopped' ? 'stopped' : list === 'all' ? 'all' : 'active'
+function isLiveTask(task: Aria2Task): boolean {
+  return task.status === 'active' || task.status === 'waiting' || task.status === 'paused'
+}
+
+function normalizeTaskScope(list: string): TaskScope {
+  return TASK_SCOPES.includes(list as TaskScope) ? (list as TaskScope) : 'all'
+}
+
+export interface TaskCounts {
+  all: number
+  progress: number
+  failed: number
+  completed: number
 }
 
 export const useTaskStore = defineStore('task', () => {
   const preferenceStore = usePreferenceStore()
-  const currentList = ref('active')
+  const currentList = ref<TaskScope>('all')
   const taskDetailVisible = ref(false)
   const currentTaskGid = ref(EMPTY_STRING)
   const enabledFetchPeers = ref(false)
   const currentTaskItem = ref<Aria2Task | null>(null)
   const currentTaskFiles = ref<Aria2File[]>([])
   const currentTaskPeers = ref<Aria2Peer[]>([])
-  const sharingList = ref<string[]>([])
   const taskList = ref<Aria2Task[]>([])
-  const selectedGidList = ref<string[]>([])
-  const taskListTransitionRevision = ref(0)
+  const removingGids = ref<string[]>([])
+  const resubmittingGids = ref<string[]>([])
+  const taskCounts = reactive<TaskCounts>({ all: 0, progress: 0, failed: 0, completed: 0 })
   const taskPagination = reactive({
-    active: { page: 1, total: 0, loaded: false },
-    stopped: { page: 1, total: 0, loaded: false },
     all: { page: 1, total: 0, loaded: false },
+    progress: { page: 1, total: 0, loaded: false },
+    failed: { page: 1, total: 0, loaded: false },
+    completed: { page: 1, total: 0, loaded: false },
     pageSize: clampPageSize(preferenceStore.config.taskPageSize),
   })
   const visibleTaskPageCount = ref(1)
 
   let api: TaskApi
+  let apiReady = false
+  let listRequestId = 0
+  const resubmissionPromises = new Map<string, Promise<void>>()
+  const cardKeys = reactive(new Map<string, string>())
+  function taskCardKey(gid: string): string {
+    const key = cardKeys.get(gid)
+    // A failed old-record cleanup must never create duplicate Vue keys.
+    return key && !taskList.value.some((task) => task.gid === key) ? key : gid
+  }
 
-  /** In-memory map: infoHash → original .torrent file path for post-download cleanup. */
+  /** In-memory map: GID → original .torrent file path for post-download cleanup. */
   const torrentSourcePaths = new Map<string, string>()
-  const registerTorrentSource = (hash: string, p: string) => torrentSourcePaths.set(hash, p)
-  function consumeTorrentSource(hash: string): string | undefined {
-    const p = torrentSourcePaths.get(hash)
-    if (p) torrentSourcePaths.delete(hash)
+  const registerTorrentSource = (gid: string, path: string) => torrentSourcePaths.set(gid, path)
+  function consumeTorrentSource(gid: string): string | undefined {
+    const p = torrentSourcePaths.get(gid)
+    if (p) torrentSourcePaths.delete(gid)
     return p
   }
 
   function setApi(a: TaskApi) {
     api = a
+    apiReady = true
     // Wire up task operations once API is available
     const ops = createTaskOperations({
       api,
@@ -84,23 +106,30 @@ export const useTaskStore = defineStore('task', () => {
       currentTaskGid,
       hideTaskDetail,
       fetchList,
+      setTaskRemoving,
+      requestMagnetSelection: (gid) => {
+        void import('@/stores/app').then(({ useAppStore }) => useAppStore().requestMagnetSelection(gid))
+      },
+      clearMagnetSelections: (gids) => {
+        return import('@/stores/app').then(({ useAppStore }) => useAppStore().clearMagnetSelections(gids))
+      },
     })
     Object.assign(taskOps, ops)
   }
 
   async function changeCurrentList(list: string) {
-    const sameList = currentList.value === list
-    currentList.value = list
+    const scope = normalizeTaskScope(list)
+    const sameList = currentList.value === scope
+    currentList.value = scope
     if (!sameList) {
-      selectedGidList.value = []
       const tab = currentTaskTab()
       if (taskPagination[tab].loaded) refreshCurrentTaskPageCount()
     }
     await fetchList()
   }
 
-  function currentTaskTab(): TaskTabKey {
-    return normalizeTaskTab(currentList.value)
+  function currentTaskTab(): TaskScope {
+    return currentList.value
   }
 
   function clampPage(page: number): number {
@@ -134,7 +163,7 @@ export const useTaskStore = defineStore('task', () => {
     taskPagination[tab].loaded = true
   }
 
-  function setTaskPage(tab: TaskTabKey, page: number) {
+  function setTaskPage(tab: TaskScope, page: number) {
     taskPagination[tab].page = clampPage(page)
   }
 
@@ -166,88 +195,56 @@ export const useTaskStore = defineStore('task', () => {
   )
 
   async function fetchList() {
+    // A resubmission is one replacement, not separate add/remove UI updates.
+    if (!apiReady || resubmittingGids.value.length > 0) return
+    const requestId = ++listRequestId
     try {
-      const tabAtFetchStart = currentTaskTab()
-      // Stopped tab is DB-primary: history.db is the single source of truth.
-      // Active tab reads from aria2 (tellActive + tellWaiting).
-      // All tab merges: aria2 active + aria2 stopped (bridge) + history DB.
-      const sortConfig = usePreferenceStore().config?.taskSort ?? DEFAULT_TASK_SORT
-      let data: Aria2Task[]
-      if (currentList.value === 'stopped') {
-        const historyStore = useHistoryStore()
-        const records = await historyStore.getRecords()
-        const { field, direction } = sortConfig.stopped
-        if (field === 'manual') {
-          applyManualOrder(records, usePreferenceStore().config.taskManualOrder.stopped, (fresh) => {
-            sortRecords(fresh, 'added-at', 'desc')
-          })
-        } else {
-          sortRecords(records, field, direction)
-        }
-        data = records.map(historyRecordToTask)
-      } else if (currentList.value === 'all') {
-        const ALL_STOPPED_LIMIT = 128
-        const ALL_HISTORY_LIMIT = 256
-        const [activeTasks, stoppedTasks, historyRecords] = await Promise.all([
-          api.fetchTaskList({ type: 'active' }),
-          api.fetchTaskList({ type: 'stopped', limit: ALL_STOPPED_LIMIT }),
-          useHistoryStore().getRecords(undefined, ALL_HISTORY_LIMIT),
-        ])
-        data = mergeHistoryIntoTasks([...activeTasks, ...stoppedTasks], historyRecords)
-        data = data.filter((t) => !checkTaskIsEd2kSearch(t))
-        // Filter stale metadata tasks (completed magnet resolution) but keep
-        // actively-downloading metadata visible so users see the progress.
-        const LIVE_TASK_STATUSES = new Set(['active', 'waiting', 'paused'])
-        data = data.filter((t) => LIVE_TASK_STATUSES.has(t.status) || !isMetadataTask(t))
+      const scope = currentTaskTab()
+      const engineTasks = await api.fetchTaskList({ type: 'all' })
+      // Read history after the engine snapshot: stopping sharing writes history
+      // before removing its engine task.
+      const historyRecords = useDatabaseStore().isReady ? await useHistoryStore().getRecords() : []
+      if (requestId !== listRequestId || currentTaskTab() !== scope) return
+      const removing = new Set(removingGids.value)
+      const tasks = mergeHistoryIntoTasks(
+        engineTasks.filter((task) => task.status !== 'removed'),
+        historyRecords,
+      ).filter(
+        (task) =>
+          !removing.has(task.gid) && !checkTaskIsEd2kSearch(task) && (isLiveTask(task) || !isMetadataTask(task)),
+      )
 
-        // Load DB-persisted added_at FIRST so that trackFirstSeen does not
-        // overwrite completed tasks' timestamps with Date.now().
-        loadAddedAtFromRecords(historyRecords)
-
-        // Inherit added_at from parent task for aria2 "followedBy" GIDs.
-        // When a magnet resolves, aria2 auto-creates a new GID for the real
-        // download. This GID never goes through addUri/addTorrent, so it has
-        // no birth timestamp. Without inheritance it gets Date.now() from
-        // trackFirstSeen and jumps to the top of the list.
-        for (const t of data) {
-          if (t.following && !getAddedAt(t.gid)) {
-            const parentAt = getAddedAt(t.following)
-            if (parentAt) registerAddedAt(t.gid, parentAt)
-          }
-        }
-        trackFirstSeen(data)
-
-        const addedAtIndex = buildSortableAddedAtMap(data, historyRecords)
-        const { field, direction } = sortConfig.all
-        if (field === 'manual') {
-          applyManualOrder(data, usePreferenceStore().config.taskManualOrder.all, (fresh) => {
-            sortTasks(fresh, 'added-at', 'desc', addedAtIndex)
-          })
-        } else {
-          sortTasks(data, field, direction, addedAtIndex)
-        }
+      Object.assign(taskCounts, {
+        all: tasks.length,
+        progress: tasks.filter(isLiveTask).length,
+        completed: tasks.filter((task) => task.status === 'complete').length,
+        failed: tasks.filter((task) => task.status === 'error').length,
+      })
+      const data = tasks.filter(
+        (task) =>
+          scope === 'all' ||
+          (scope === 'progress' ? isLiveTask(task) : task.status === (scope === 'failed' ? 'error' : 'complete')),
+      )
+      loadAddedAtFromRecords(historyRecords)
+      trackFirstSeen(data)
+      const addedAtIndex = buildSortableAddedAtMap(data, historyRecords)
+      const completedAtIndex = new Map(historyRecords.map((record) => [record.gid, record.completed_at ?? '']))
+      const { field, direction } = preferenceStore.config.taskSort?.[scope] ?? DEFAULT_TASK_SORT[scope]
+      if (field === 'manual') {
+        applyManualOrder(data, preferenceStore.config.taskManualOrder[scope], (fresh) => {
+          sortTasks(fresh, 'added-at', 'desc', addedAtIndex)
+        })
       } else {
-        // Active tab: aria2 returns insertion-order; apply user sort.
-        data = await api.fetchTaskList({ type: currentList.value })
-        data = data.filter((t) => !checkTaskIsEd2kSearch(t))
-        trackFirstSeen(data)
-        const addedAtIndex = buildSortableAddedAtMap(data, [])
-        const { field, direction } = sortConfig.active
-        if (field === 'manual') {
-          applyManualOrder(data, usePreferenceStore().config.taskManualOrder.active, (fresh) => {
-            sortTasks(fresh, 'added-at', 'desc', addedAtIndex)
-          })
-        } else {
-          sortTasks(data, field, direction, addedAtIndex)
-        }
+        sortTasks(data, field, direction, addedAtIndex, completedAtIndex)
       }
-
       taskList.value = data
       updateCurrentTaskTotal(data.length)
       clampCurrentTaskPage()
-      if (currentTaskTab() === tabAtFetchStart) refreshCurrentTaskPageCount()
-      const gids = data.map((task: Aria2Task) => task.gid)
-      selectedGidList.value = intersection(selectedGidList.value, gids)
+      refreshCurrentTaskPageCount()
+      const visibleGids = new Set(tasks.map((task) => task.gid))
+      for (const gid of cardKeys.keys()) {
+        if (!visibleGids.has(gid)) cardKeys.delete(gid)
+      }
       if (taskDetailVisible.value && currentTaskGid.value) {
         try {
           const fresh = await api.fetchTaskItemWithPeers({ gid: currentTaskGid.value })
@@ -263,8 +260,16 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
-  function selectTasks(list: string[]) {
-    selectedGidList.value = list
+  function setTaskRemoving(gid: string, removing: boolean) {
+    if (removing) {
+      if (!removingGids.value.includes(gid)) removingGids.value = [...removingGids.value, gid]
+      taskList.value = taskList.value.filter((task) => task.gid !== gid)
+      updateCurrentTaskTotal(taskList.value.length)
+      clampCurrentTaskPage()
+      refreshCurrentTaskPageCount()
+      return
+    }
+    removingGids.value = removingGids.value.filter((candidate) => candidate !== gid)
   }
 
   async function saveManualOrder(gids: string[]) {
@@ -297,7 +302,7 @@ export const useTaskStore = defineStore('task', () => {
     await saveManualOrder(createManualOrderSnapshot(nextList))
   }
 
-  async function changeCurrentSort(field: ActiveSortField | StoppedSortField | AllSortField) {
+  async function changeCurrentSort(field: ProgressSortField | TerminalSortField | AllSortField) {
     const preferenceStore = usePreferenceStore()
     const tab = currentTaskTab()
     const taskSort = preferenceStore.config?.taskSort ?? DEFAULT_TASK_SORT
@@ -317,13 +322,8 @@ export const useTaskStore = defineStore('task', () => {
         : { taskSort: nextTaskSort }
 
     preferenceStore.updatePreference(nextConfig)
-    taskListTransitionRevision.value += 1
     await fetchList()
     preferenceStore.updateAndSave(nextConfig).catch((e: unknown) => logger.error('TaskStore.changeCurrentSort', e))
-  }
-
-  function selectAllTask() {
-    selectedGidList.value = taskList.value.map((task) => task.gid)
   }
 
   async function fetchItem(gid: string) {
@@ -424,25 +424,24 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   /**
-   * Adds a magnet URI as a normal download. Returns the metadata GID.
+   * Adds a magnet URI as a normal download. The returned GID owns the complete
+   * metadata, file-selection, download, and seeding lifecycle.
    *
-   * The global `pause-metadata` setting (controlled by btAutoDownloadContent)
-   * determines what happens after metadata resolves:
-   * - pause-metadata=true  → followedBy content task stays paused until selection
-   * - pause-metadata=false → follow-up download starts immediately (no selection)
-   *
-   * Directly registers the GID for monitoring to avoid caller-chain breaks.
+   * aria2 either continues with every file or pauses for selection according
+   * to the application-owned magnet selection policy.
    */
-  async function addMagnetUri(data: { uri: string; options: Aria2EngineOptions }): Promise<string> {
-    const { usePreferenceStore } = await import('@/stores/preference')
-    const preferenceStore = usePreferenceStore()
-    const pauseMetadataOption = data.options['pause-metadata']
-    const pauseMetadata =
-      typeof pauseMetadataOption === 'string' ? pauseMetadataOption : preferenceStore.config.pauseMetadata
-    const showFileSelection = shouldShowFileSelection({ pauseMetadata })
-    const options = showFileSelection
-      ? { ...buildMetadataOnlyOptions(data.options), 'check-integrity': 'true', 'force-save': 'true' }
-      : { ...data.options, 'pause-metadata': 'false', 'check-integrity': 'true', 'force-save': 'true' }
+  async function addMagnetUri(data: {
+    uri: string
+    options: Aria2EngineOptions
+    fileCategory?: { enabled: boolean; categories: import('@shared/types').FileCategory[] }
+  }): Promise<string> {
+    const policy = preferenceStore.config.magnetFileSelectionPolicy
+    const classifyFiles = Boolean(data.fileCategory?.enabled && data.fileCategory.categories.length > 0)
+    const options = {
+      ...buildMagnetOptions(data.options, policy, classifyFiles),
+      'check-integrity': 'true',
+      'force-save': 'true',
+    }
 
     const gids = await api.addUri({
       uris: [data.uri],
@@ -457,20 +456,16 @@ export const useTaskStore = defineStore('task', () => {
     const historyStore = useHistoryStore()
     historyStore.recordTaskBirth(gid, now).catch((e) => logger.debug('taskBirth.write', e))
 
-    // Only register for file selection polling when pause-metadata is enabled.
-    // When btAutoDownloadContent=true (pauseMetadata=false), aria2 starts the
-    // follow-up download immediately — file selection is not needed.
-    if (showFileSelection) {
+    if (policy !== 'download-all' || classifyFiles) {
       const { useAppStore } = await import('@/stores/app')
-      const appStore = useAppStore()
-      appStore.pendingMagnetGids = [...appStore.pendingMagnetGids, gid]
+      useAppStore().queueMagnetSelection(gid, policy === 'prompt')
     }
 
     await fetchList()
     return gid
   }
 
-  /** Fetch a single task's full status (used for polling followedBy on magnet tasks). */
+  /** Fetch a single task's full status. */
   async function fetchTaskStatus(gid: string): Promise<Aria2Task> {
     return api.fetchTaskItem({ gid })
   }
@@ -502,59 +497,68 @@ export const useTaskStore = defineStore('task', () => {
   // The ops object is populated when setApi() is called.
   const taskOps = {} as ReturnType<typeof createTaskOperations>
 
-  async function batchResumeSelectedTasks() {
-    const selected = new Set(selectedGidList.value)
-    const tasks = taskList.value.filter((task) => selected.has(task.gid) && task.status === TASK_STATUS.PAUSED)
-    if (tasks.length === 0) return { resumed: 0, blocked: 0 }
-    return taskOps.resumeTasks(tasks)
-  }
+  function resubmitTerminalTask(task: Aria2Task, mode: TaskResubmissionMode): Promise<void> {
+    const existing = resubmissionPromises.get(task.gid)
+    if (existing) return existing
 
-  async function batchPauseSelectedTasks() {
-    const selected = new Set(selectedGidList.value)
-    const gids = taskList.value
-      .filter((task) => {
-        if (!selected.has(task.gid)) return false
-        return task.status === TASK_STATUS.ACTIVE || task.status === TASK_STATUS.WAITING
-      })
-      .map((task) => task.gid)
-    if (gids.length === 0) return
-    return api.batchPauseTask({ gids })
-  }
-
-  function addToSharingList(gid: string) {
-    if (sharingList.value.includes(gid)) return
-    sharingList.value = [...sharingList.value, gid]
-  }
-
-  function removeFromSharingList(gid: string) {
-    const idx = sharingList.value.indexOf(gid)
-    if (idx === -1) return
-    sharingList.value = [...sharingList.value.slice(0, idx), ...sharingList.value.slice(idx + 1)]
-  }
-
-  async function restartTask(task: Aria2Task) {
     const historyStore = useHistoryStore()
-    await restartTaskImpl(task, { ...api, fetchList, saveSession: () => api.saveSession() }, historyStore)
+    const policy = preferenceStore.config.magnetFileSelectionPolicy
+    resubmittingGids.value = [...resubmittingGids.value, task.gid]
+    listRequestId += 1
+    const operation = resubmitTask(task, mode, api, historyStore, policy, async (gid) => {
+      const { useAppStore } = await import('@/stores/app')
+      useAppStore().queueMagnetSelection(gid, policy === 'prompt')
+    })
+      .then(async (gids) => {
+        const replacement = gids[0]
+        if (!replacement) return
+        cardKeys.set(replacement, taskCardKey(task.gid))
+        const addedAt = getAddedAt(task.gid) ?? new Date().toISOString()
+        registerAddedAt(replacement, addedAt)
+        historyStore.recordTaskBirth(replacement, addedAt).catch((error) => logger.warn('taskBirth.replace', error))
+        const order = preferenceStore.config.taskManualOrder
+        if (!TASK_SCOPES.some((scope) => order[scope].includes(task.gid))) return
+        await preferenceStore
+          .updateAndSave({
+            taskManualOrder: {
+              all: order.all.map((gid) => (gid === task.gid ? replacement : gid)),
+              progress: order.progress.map((gid) => (gid === task.gid ? replacement : gid)),
+              failed: order.failed.map((gid) => (gid === task.gid ? replacement : gid)),
+              completed: order.completed.map((gid) => (gid === task.gid ? replacement : gid)),
+            },
+          })
+          .catch((error) => logger.warn('TaskStore.replaceManualOrder', error))
+      })
+      .then(async () => {
+        await api.saveSession()
+      })
+      .finally(async () => {
+        resubmissionPromises.delete(task.gid)
+        resubmittingGids.value = resubmittingGids.value.filter((gid) => gid !== task.gid)
+        await fetchList()
+      })
+    resubmissionPromises.set(task.gid, operation)
+    return operation
   }
 
   return {
+    taskCardKey,
     currentList,
+    taskCounts,
     taskDetailVisible,
     currentTaskGid,
     enabledFetchPeers,
     currentTaskItem,
     currentTaskFiles,
     currentTaskPeers,
-    sharingList,
     taskList,
-    selectedGidList,
-    taskListTransitionRevision,
+    removingGids,
+    resubmittingGids,
     taskPagination,
     currentTaskPageCount,
     setApi,
     changeCurrentList,
     fetchList,
-    selectTasks,
     saveManualOrder,
     saveCurrentManualOrder,
     saveVisiblePageManualOrder,
@@ -563,7 +567,6 @@ export const useTaskStore = defineStore('task', () => {
     setTaskPageSize,
     clampCurrentTaskPage,
     changeCurrentSort,
-    selectAllTask,
     fetchItem,
     showTaskDetail,
     showTaskDetailByGid,
@@ -578,26 +581,21 @@ export const useTaskStore = defineStore('task', () => {
     getTaskOption,
     changeTaskOption,
     removeTask: (task: Aria2Task) => taskOps.removeTask(task),
-    cancelMagnetSelectionDownload: (target: { metadataGid: string; downloadGid: string }) =>
-      taskOps.cancelMagnetSelectionDownload(target),
     pauseTask: (task: Aria2Task) => taskOps.pauseTask(task),
+    finishSharing: (task: Aria2Task) => taskOps.finishSharing(task),
+    finishSharingTasks: (gids: string[]) => taskOps.finishSharingTasks(gids),
     resumeTask: (task: Aria2Task) => taskOps.resumeTask(task),
-    applyMagnetFileSelection: (task: Aria2Task, selectFile: string) =>
-      taskOps.applyMagnetFileSelection(task, selectFile),
+    applyMagnetFileSelection: (task: Aria2Task, selectFile: string, targetDir?: string) =>
+      taskOps.applyMagnetFileSelection(task, selectFile, targetDir),
     pauseAllTask: () => taskOps.pauseAllTask(),
     resumeAllTask: () => taskOps.resumeAllTask(),
     toggleTask: (task: Aria2Task) => taskOps.toggleTask(task),
-    addToSharingList,
-    removeFromSharingList,
-    stopSharing: (task: Aria2Task) => taskOps.stopSharing(task),
-    stopAllSharing: () => taskOps.stopAllSharing(),
     removeTaskRecord: (task: Aria2Task) => taskOps.removeTaskRecord(task),
     purgeTaskRecord: () => taskOps.purgeTaskRecord(),
     saveSession: () => taskOps.saveSession(),
-    batchResumeSelectedTasks,
-    batchPauseSelectedTasks,
     batchRemoveTask: (gids: string[]) => taskOps.batchRemoveTask(gids),
-    restartTask,
+    retryTask: (task: Aria2Task) => resubmitTerminalTask(task, 'retry'),
+    redownloadTask: (task: Aria2Task) => resubmitTerminalTask(task, 'redownload'),
 
     registerTorrentSource,
     consumeTorrentSource,

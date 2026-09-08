@@ -1,77 +1,25 @@
-/** @fileoverview Tests for locale utilities. */
-import { describe, it, expect } from 'vitest'
-import { isRTL, getLangDirection, calcFormLabelWidth, resolveSystemLocale } from '../locale'
+import { describe, expect, it } from 'vitest'
+import { getLangDirection, resolveSystemLocale } from '../locale'
 
-const AVAILABLE = ['en-US', 'zh-CN', 'zh-TW', 'ja', 'ko', 'fr', 'de', 'pt-BR', 'ar', 'fa', 'hi']
+describe('locale utilities', () => {
+  it.each([
+    ['zh-Hans-CN', 'zh-CN'],
+    ['zh-Hant-HK', 'zh-TW'],
+    ['zh-HK', 'zh-TW'],
+    ['en-AU', 'en-US'],
+    ['pt-PT', 'pt-BR'],
+    ['xx-YY', 'en-US'],
+  ])('matches %s to %s', (requested, expected) => {
+    expect(resolveSystemLocale(requested)).toBe(expected)
+  })
 
-describe('resolveSystemLocale', () => {
-  it('returns exact match when available', () => {
-    expect(resolveSystemLocale('zh-CN', AVAILABLE)).toBe('zh-CN')
+  it('falls back safely for malformed locale tags', () => {
+    expect(resolveSystemLocale('not a locale')).toBe('en-US')
   })
-  it('normalizes Apple -Hans subtag', () => {
-    expect(resolveSystemLocale('zh-Hans-CN', AVAILABLE)).toBe('zh-CN')
-  })
-  it('normalizes Apple -Hant subtag', () => {
-    expect(resolveSystemLocale('zh-Hant-TW', AVAILABLE)).toBe('zh-TW')
-  })
-  it('falls back to prefix match', () => {
-    expect(resolveSystemLocale('pt', AVAILABLE)).toBe('pt-BR')
-  })
-  it('matches single-segment locale directly', () => {
-    expect(resolveSystemLocale('ja', AVAILABLE)).toBe('ja')
-  })
-  it('matches Hindi region locales to Hindi', () => {
-    expect(resolveSystemLocale('hi-IN', AVAILABLE)).toBe('hi')
-  })
-  it('falls back to en-US for unknown locale', () => {
-    expect(resolveSystemLocale('xx-YY', AVAILABLE)).toBe('en-US')
-  })
-  it('falls back to en-US for empty available list', () => {
-    expect(resolveSystemLocale('zh-CN', [])).toBe('en-US')
-  })
-})
 
-describe('isRTL', () => {
-  it('returns true for Arabic', () => {
-    expect(isRTL('ar')).toBe(true)
-  })
-  it('returns true for Persian', () => {
-    expect(isRTL('fa')).toBe(true)
-  })
-  it('returns true for Hebrew', () => {
-    expect(isRTL('he')).toBe(true)
-  })
-  it('returns false for English', () => {
-    expect(isRTL('en-US')).toBe(false)
-  })
-  it('returns false for default', () => {
-    expect(isRTL()).toBe(false)
-  })
-})
-
-describe('getLangDirection', () => {
-  it('returns rtl for Arabic', () => {
+  it('derives text direction from the locale catalog', () => {
     expect(getLangDirection('ar')).toBe('rtl')
-  })
-  it('returns ltr for English', () => {
+    expect(getLangDirection('fa')).toBe('rtl')
     expect(getLangDirection('en-US')).toBe('ltr')
-  })
-})
-
-describe('calcFormLabelWidth', () => {
-  it('returns 28% for German', () => {
-    expect(calcFormLabelWidth('de-DE')).toBe('28%')
-  })
-  it('returns 28% for German (short)', () => {
-    expect(calcFormLabelWidth('de')).toBe('28%')
-  })
-  it('returns 25% for English', () => {
-    expect(calcFormLabelWidth('en-US')).toBe('25%')
-  })
-  it('returns 25% for French (non-de locales)', () => {
-    expect(calcFormLabelWidth('fr-FR')).toBe('25%')
-  })
-  it('returns 25% for Chinese', () => {
-    expect(calcFormLabelWidth('zh-CN')).toBe('25%')
   })
 })

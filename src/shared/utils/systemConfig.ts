@@ -10,8 +10,7 @@ export function buildSystemConfigFromAppConfig(config: AppConfig, defaultDir = '
   const btSystem = buildBtSystemConfig(buildBtForm(config))
   const networkSystem = buildNetworkSystemConfig(buildNetworkForm(config))
   const ed2kSystem = buildEd2kSystemConfig(buildEd2kForm(config))
-  const { form: advancedForm } = buildAdvancedForm(config)
-  const advancedSystem = buildAdvancedSystemConfig(advancedForm)
+  const advancedSystem = buildAdvancedSystemConfig(buildAdvancedForm(config))
 
   return {
     ...downloadsSystem,
@@ -19,7 +18,5 @@ export function buildSystemConfigFromAppConfig(config: AppConfig, defaultDir = '
     ...networkSystem,
     ...ed2kSystem,
     ...advancedSystem,
-    'rpc-secret': config.rpcSecret,
-    'rpc-listen-port': String(config.rpcListenPort),
   }
 }

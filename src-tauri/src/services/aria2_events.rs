@@ -1,13 +1,12 @@
-//! Aria2 WebSocket event bridge.
-//!
-//! HTTP JSON-RPC is request/response only.  The WebSocket endpoint emits
-//! download notifications immediately, so the frontend can react without a
-//! fixed polling delay.
+//! Native Aria2 Next WebSocket lifecycle integration.
 
+use super::monitor::{self, events};
 use crate::aria2::client::Aria2Client;
+use crate::error::AppError;
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
 use std::sync::Arc;
+use std::time::Duration;
 use tauri::Emitter;
 use tokio::sync::watch;
 use tokio_tungstenite::connect_async;
@@ -15,12 +14,49 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::MaybeTlsStream;
 use tokio_tungstenite::WebSocketStream;
 
-pub const DOWNLOAD_COMPLETE: &str = "aria2-event:download-complete";
+pub const DOWNLOAD_PAUSE: &str = "aria2-event:download-pause";
+const RECONNECT_DELAY: Duration = Duration::from_secs(1);
+const AUTHORIZATION_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DownloadCompleteEvent {
+pub struct DownloadPauseEvent {
     pub gid: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NativeEventKind {
+    DownloadPause,
+    DownloadComplete,
+    DownloadError,
+    BtDownloadComplete,
+}
+
+impl NativeEventKind {
+    fn from_method(method: &str) -> Option<Self> {
+        match method {
+            "aria2.onDownloadPause" => Some(Self::DownloadPause),
+            "aria2.onDownloadComplete" => Some(Self::DownloadComplete),
+            "aria2.onDownloadError" => Some(Self::DownloadError),
+            "aria2.onBtDownloadComplete" => Some(Self::BtDownloadComplete),
+            _ => None,
+        }
+    }
+
+    fn lifecycle_event(self) -> Option<&'static str> {
+        match self {
+            Self::DownloadPause => None,
+            Self::DownloadComplete => Some(events::TASK_COMPLETE),
+            Self::DownloadError => Some(events::TASK_ERROR),
+            Self::BtDownloadComplete => Some(events::P2P_DOWNLOAD_COMPLETE),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NativeEvent {
+    kind: NativeEventKind,
+    gid: String,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
@@ -70,49 +106,110 @@ async fn event_loop(
     aria2: Arc<Aria2Client>,
     mut stop_rx: watch::Receiver<bool>,
 ) {
-    let (port, secret) = aria2.credentials().await;
-    let url = format!("ws://127.0.0.1:{port}/jsonrpc");
-    let Ok((mut socket, _)) = connect_async(&url).await else {
-        log::warn!("aria2_events: failed to connect websocket");
-        return;
-    };
+    loop {
+        if *stop_rx.borrow() {
+            return;
+        }
 
-    if let Err(e) = authorize_socket(&mut socket, &secret).await {
-        log::warn!("aria2_events: websocket authorization failed: {e}");
-        return;
+        let (port, secret) = aria2.credentials().await;
+        let url = format!("ws://127.0.0.1:{port}/jsonrpc");
+        let connection = connect_async(&url).await;
+        let Ok((mut socket, _)) = connection else {
+            log::warn!("aria2_events: failed to connect websocket");
+            if wait_for_retry(&mut stop_rx).await {
+                return;
+            }
+            continue;
+        };
+
+        let authorization = tokio::time::timeout(
+            AUTHORIZATION_TIMEOUT,
+            authorize_socket(&mut socket, &secret),
+        )
+        .await;
+        if let Err(error) = authorization.unwrap_or_else(|_| {
+            Err(AppError::Aria2(
+                "Aria2 Next WebSocket authorization timed out".into(),
+            ))
+        }) {
+            log::warn!("aria2_events: websocket authorization failed: {error}");
+            if wait_for_retry(&mut stop_rx).await {
+                return;
+            }
+            continue;
+        }
+
+        match monitor::reconcile_stopped_tasks(&app, &aria2).await {
+            Ok(0) => {}
+            Ok(count) => log::info!("aria2_events: reconciled {count} lifecycle records"),
+            Err(error) => log::warn!("aria2_events: lifecycle reconciliation failed: {error}"),
+        }
+        log::info!("aria2_events: websocket listening");
+
+        let disconnected = receive_events(&app, &aria2, &mut socket, &mut stop_rx).await;
+        if !disconnected {
+            return;
+        }
+        log::warn!("aria2_events: websocket disconnected, reconnecting");
+        if wait_for_retry(&mut stop_rx).await {
+            return;
+        }
     }
+}
 
-    log::info!("aria2_events: websocket listening");
-
+async fn receive_events(
+    app: &tauri::AppHandle,
+    aria2: &Aria2Client,
+    socket: &mut WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>,
+    stop_rx: &mut watch::Receiver<bool>,
+) -> bool {
     loop {
         tokio::select! {
             _ = stop_rx.changed() => {
                 if *stop_rx.borrow() {
                     log::info!("aria2_events: stopped");
                     let _ = socket.close(None).await;
-                    return;
+                    return false;
                 }
             }
-            msg = socket.next() => {
-                let Some(Ok(message)) = msg else {
-                    log::debug!("aria2_events: websocket closed");
-                    return;
+            message = socket.next() => {
+                let Some(Ok(message)) = message else {
+                    return true;
                 };
-                if let Some(gid) = completed_gid_from_message(&message) {
-                    let payload = DownloadCompleteEvent { gid };
-                    if let Err(e) = app.emit(DOWNLOAD_COMPLETE, payload) {
-                        log::warn!("aria2_events: failed to emit download completion: {e}");
-                    }
+                let Some(event) = native_event_from_message(&message) else {
+                    continue;
+                };
+                if let Err(error) = handle_native_event(app, aria2, event).await {
+                    log::warn!("aria2_events: lifecycle event failed: {error}");
                 }
             }
         }
     }
 }
 
+async fn handle_native_event(
+    app: &tauri::AppHandle,
+    aria2: &Aria2Client,
+    event: NativeEvent,
+) -> Result<(), AppError> {
+    if event.kind == NativeEventKind::DownloadPause {
+        if let Err(error) = app.emit(DOWNLOAD_PAUSE, DownloadPauseEvent { gid: event.gid }) {
+            log::warn!("aria2_events: failed to emit download pause: {error}");
+        }
+        return Ok(());
+    }
+
+    let task = aria2.tell_status(&event.gid).await?;
+    let Some(event_name) = event.kind.lifecycle_event() else {
+        return Ok(());
+    };
+    monitor::process_lifecycle_task(app, event_name, &task, true).await
+}
+
 async fn authorize_socket(
     socket: &mut WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>,
     secret: &str,
-) -> Result<(), tokio_tungstenite::tungstenite::Error> {
+) -> Result<(), AppError> {
     let params = if secret.is_empty() {
         Vec::new()
     } else {
@@ -124,25 +221,58 @@ async fn authorize_socket(
         "method": "aria2.getVersion",
         "params": params,
     });
-    socket.send(Message::Text(request.to_string().into())).await
+    socket
+        .send(Message::Text(request.to_string().into()))
+        .await
+        .map_err(|error| AppError::Aria2(format!("Failed to authorize WebSocket: {error}")))?;
+
+    let response = socket
+        .next()
+        .await
+        .ok_or_else(|| {
+            AppError::Aria2("Aria2 Next closed the WebSocket during authorization".into())
+        })?
+        .map_err(|error| AppError::Aria2(format!("WebSocket authorization failed: {error}")))?;
+    let Message::Text(text) = response else {
+        return Err(AppError::Aria2(
+            "Aria2 Next returned an invalid WebSocket authorization response".into(),
+        ));
+    };
+    let response: serde_json::Value = serde_json::from_str(&text).map_err(|error| {
+        AppError::Aria2(format!("Invalid WebSocket authorization response: {error}"))
+    })?;
+    if let Some(error) = response.get("error") {
+        return Err(AppError::Aria2(format!(
+            "Aria2 Next rejected WebSocket authorization: {error}"
+        )));
+    }
+    if response.get("result").is_none() {
+        return Err(AppError::Aria2(
+            "Aria2 Next omitted the WebSocket authorization result".into(),
+        ));
+    }
+    Ok(())
 }
 
-fn completed_gid_from_message(message: &Message) -> Option<String> {
+async fn wait_for_retry(stop_rx: &mut watch::Receiver<bool>) -> bool {
+    tokio::select! {
+        _ = tokio::time::sleep(RECONNECT_DELAY) => false,
+        _ = stop_rx.changed() => *stop_rx.borrow(),
+    }
+}
+
+fn native_event_from_message(message: &Message) -> Option<NativeEvent> {
     let Message::Text(text) = message else {
         return None;
     };
-    completed_gid_from_text(text)
+    native_event_from_text(text)
 }
 
-fn completed_gid_from_text(text: &str) -> Option<String> {
+fn native_event_from_text(text: &str) -> Option<NativeEvent> {
     let notification: Aria2Notification = serde_json::from_str(text).ok()?;
-    if notification.method != "aria2.onDownloadComplete" {
-        return None;
-    }
-    notification
-        .params
-        .first()
-        .map(|payload| payload.gid.clone())
+    let kind = NativeEventKind::from_method(&notification.method)?;
+    let gid = notification.params.first()?.gid.clone();
+    Some(NativeEvent { kind, gid })
 }
 
 #[cfg(test)]
@@ -150,38 +280,46 @@ mod tests {
     use super::*;
 
     #[test]
-    fn completed_gid_from_text_extracts_on_download_complete_gid() {
-        let gid = completed_gid_from_text(
-            r#"{"jsonrpc":"2.0","method":"aria2.onDownloadComplete","params":[{"gid":"abc123"}]}"#,
-        );
+    fn parses_native_lifecycle_events() {
+        let cases = [
+            ("aria2.onDownloadPause", NativeEventKind::DownloadPause),
+            (
+                "aria2.onDownloadComplete",
+                NativeEventKind::DownloadComplete,
+            ),
+            ("aria2.onDownloadError", NativeEventKind::DownloadError),
+            (
+                "aria2.onBtDownloadComplete",
+                NativeEventKind::BtDownloadComplete,
+            ),
+        ];
 
-        assert_eq!(gid.as_deref(), Some("abc123"));
+        for (method, kind) in cases {
+            let text =
+                format!(r#"{{"jsonrpc":"2.0","method":"{method}","params":[{{"gid":"abc123"}}]}}"#);
+            assert_eq!(
+                native_event_from_text(&text),
+                Some(NativeEvent {
+                    kind,
+                    gid: "abc123".into(),
+                })
+            );
+        }
     }
 
     #[test]
-    fn completed_gid_from_text_ignores_non_completion_events() {
-        let gid = completed_gid_from_text(
-            r#"{"jsonrpc":"2.0","method":"aria2.onDownloadStart","params":[{"gid":"abc123"}]}"#,
+    fn ignores_non_lifecycle_messages() {
+        assert_eq!(
+            native_event_from_text(
+                r#"{"jsonrpc":"2.0","method":"aria2.onDownloadStart","params":[{"gid":"abc123"}]}"#
+            ),
+            None
         );
-
-        assert_eq!(gid, None);
-    }
-
-    #[test]
-    fn completed_gid_from_text_ignores_rpc_responses() {
-        let gid = completed_gid_from_text(
-            r#"{"jsonrpc":"2.0","id":"motrix-next-events-auth","result":{"version":"1.37.0"}}"#,
+        assert_eq!(
+            native_event_from_text(
+                r#"{"jsonrpc":"2.0","id":"motrix-next-events-auth","result":{"version":"2.6.1"}}"#
+            ),
+            None
         );
-
-        assert_eq!(gid, None);
-    }
-
-    #[test]
-    fn completed_gid_from_text_handles_empty_params() {
-        let gid = completed_gid_from_text(
-            r#"{"jsonrpc":"2.0","method":"aria2.onDownloadComplete","params":[]}"#,
-        );
-
-        assert_eq!(gid, None);
     }
 }

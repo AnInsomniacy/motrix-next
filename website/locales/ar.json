@@ -58,7 +58,7 @@
   "motion.tokens.desc": "جميع المدد والمنحنيات هي خصائص CSS مخصصة لضمان إيقاع موحد عبر 12+ مكوناً.",
   "features.title": "الميزات",
   "features.protocol.title": "متعدد البروتوكولات",
-  "features.protocol.desc": "HTTP وFTP وED2K وBitTorrent وروابط Magnet.",
+  "features.protocol.desc": "HTTP وSFTP وED2K وBitTorrent وروابط Magnet.",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "تنزيل انتقائي للملفات، DHT، تبادل الأقران، التشفير.",
   "features.tracker.title": "إدارة المتتبعات",

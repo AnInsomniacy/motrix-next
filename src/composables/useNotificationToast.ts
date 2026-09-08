@@ -5,9 +5,6 @@
  * buttons that let the user open the downloaded file or reveal it in the
  * system file manager — directly from the toast notification.
  *
- * Extracted as a pure function so that `useTaskNotifyHandlers.ts` stays
- * independently testable (no VNode imports required in tests).
- *
  * Visual layout:
  *   [✓ body text                      Open File · Show in Folder]
  */
@@ -21,25 +18,18 @@ export interface CompletionToastOptions {
   /** i18n translation function. */
   t: (key: string) => string
   /** Callback fired when the user clicks "Open File". */
-  onOpenFile?: () => void
+  onOpenFile: () => void
   /** Callback fired when the user clicks "Show in Folder". */
-  onShowInFolder?: () => void
+  onShowInFolder: () => void
 }
 
 /**
  * Build a VNode render function for a download-complete toast.
  *
  * Returns a `() => VNodeChild` suitable for `message.success(renderFn)`.
- * If no action callbacks are provided, returns the plain body string
- * instead — callers can pass the result directly to `messageSuccess`.
  */
-export function renderCompletionToast(options: CompletionToastOptions): string | (() => VNodeChild) {
+export function renderCompletionToast(options: CompletionToastOptions): () => VNodeChild {
   const { body, t, onOpenFile, onShowInFolder } = options
-
-  // Degrade gracefully when no action callbacks are provided.
-  // This keeps backward-compatibility with unit tests and callers that
-  // do not need actionable toasts.
-  if (!onOpenFile && !onShowInFolder) return body
 
   return () =>
     h(
@@ -81,34 +71,32 @@ export function renderCompletionToast(options: CompletionToastOptions): string |
             },
           },
           [
-            onOpenFile &&
-              h(
-                NButton,
-                {
-                  tertiary: true,
-                  type: 'primary',
-                  size: 'small',
-                  onClick: (e: MouseEvent) => {
-                    e.stopPropagation()
-                    onOpenFile()
-                  },
+            h(
+              NButton,
+              {
+                tertiary: true,
+                type: 'primary',
+                size: 'small',
+                onClick: (e: MouseEvent) => {
+                  e.stopPropagation()
+                  onOpenFile()
                 },
-                { default: () => t('task.open-file') },
-              ),
-            onShowInFolder &&
-              h(
-                NButton,
-                {
-                  tertiary: true,
-                  type: 'primary',
-                  size: 'small',
-                  onClick: (e: MouseEvent) => {
-                    e.stopPropagation()
-                    onShowInFolder()
-                  },
+              },
+              { default: () => t('task.open-file') },
+            ),
+            h(
+              NButton,
+              {
+                tertiary: true,
+                type: 'primary',
+                size: 'small',
+                onClick: (e: MouseEvent) => {
+                  e.stopPropagation()
+                  onShowInFolder()
                 },
-                { default: () => t('task.show-in-folder') },
-              ),
+              },
+              { default: () => t('task.show-in-folder') },
+            ),
           ],
         ),
       ],

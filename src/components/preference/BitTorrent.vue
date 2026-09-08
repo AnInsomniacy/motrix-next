@@ -1,26 +1,21 @@
 <script setup lang="ts">
 /** @fileoverview BitTorrent preference tab: BT settings + tracker management. */
-import { ref, computed, onMounted, h, nextTick } from 'vue'
+import { ref, computed, onMounted, h } from 'vue'
 import type { VNodeChild } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useI18n } from 'vue-i18n'
 import { usePreferenceStore } from '@/stores/preference'
 import { usePreferenceForm } from '@/composables/usePreferenceForm'
-import { useEngineRestart } from '@/composables/useEngineRestart'
+import { usePreferenceNumericValidation } from '@/composables/usePreferenceNumericValidation'
 import { changeGlobalOption, isEngineReady } from '@/api/aria2'
-import { convertTrackerDataToComma, convertTrackerDataToLine, reduceTrackerString } from '@shared/utils/tracker'
-import { diffConfig, checkIsNeedRestart } from '@shared/utils/config'
+import { convertTrackerDataToComma, convertTrackerDataToLine } from '@shared/utils/tracker'
 import { SYNC_MIN_DURATION } from '@shared/timing'
-import {
-  DEFAULT_TRACKER_SOURCE,
-  ENGINE_MAX_BT_MAX_PEERS,
-  ENGINE_RPC_PORT,
-  SAFE_LIMIT_BT_MAX_PEERS,
-  TRACKER_SOURCE_OPTIONS,
-} from '@shared/constants'
+import { DEFAULT_TRACKER_SOURCE, SAFE_LIMIT_BT_MAX_PEERS, TRACKER_SOURCE_OPTIONS } from '@shared/constants'
 import { logger } from '@shared/logger'
 import { getErrorMessage } from '@shared/utils/errorMessage'
+import { buildSystemConfigFromAppConfig } from '@shared/utils/systemConfig'
+import { BT_PEER_ID_PREFIX_MAX_BYTES, isValidBtPeerIdPrefix, isValidBtUserAgent } from '@shared/utils/btIdentity'
 import { useAppMessage } from '@/composables/useAppMessage'
 import {
   buildBtForm,
@@ -29,7 +24,6 @@ import {
   isValidTrackerSourceUrl,
   validateBtEndpoint,
   randomBtPort,
-  randomDhtPort,
 } from '@/composables/useBtPreference'
 import {
   NForm,
@@ -45,13 +39,9 @@ import {
   NCheckbox,
   NCheckboxGroup,
   NText,
-  NRadioButton,
-  NRadioGroup,
-  NCollapseTransition,
   useDialog,
 } from 'naive-ui'
 import PreferenceActionBar from './PreferenceActionBar.vue'
-import PreferenceCheckboxGrid from './PreferenceCheckboxGrid.vue'
 import PreferenceHintLabel from './PreferenceHintLabel.vue'
 import { SyncOutline, AddCircleOutline, CloseCircleOutline, DiceOutline } from '@vicons/ionicons5'
 
@@ -59,13 +49,10 @@ const { t, locale } = useI18n()
 const preferenceStore = usePreferenceStore()
 const dialog = useDialog()
 const message = useAppMessage()
-const DHT_NETWORK_IPV4 = 'ipv4'
-const DHT_NETWORK_IPV6 = 'ipv6'
-
+const { constraint, configFieldProps, areConfigFieldsValid } = usePreferenceNumericValidation()
 const syncingTracker = ref(false)
 const syncingBlocklist = ref(false)
 const customTrackerInput = ref('')
-const needsRestart = ref(false)
 const pendingPortSwitch = ref<{ from: number; to: number } | null>(null)
 interface BtPeerBlocklistStatus {
   ruleCount: number
@@ -82,9 +69,25 @@ const syncIntervalOptions = computed(() => [
   { label: t('preferences.interval-daily'), value: 24 },
   { label: t('preferences.interval-weekly'), value: 168 },
 ])
-const dhtNetworkOptions = computed(() => [
-  { label: t('preferences.bt-dht-ipv4'), value: DHT_NETWORK_IPV4 },
-  { label: t('preferences.bt-dht-ipv6'), value: DHT_NETWORK_IPV6 },
+const encryptionOptions = computed(() => [
+  { label: t('preferences.bt-encryption-preferred'), value: 'preferred' },
+  { label: t('preferences.bt-encryption-required'), value: 'required' },
+  { label: t('preferences.bt-encryption-disabled'), value: 'disabled' },
+])
+const transportOptions = computed(() => [
+  { label: t('preferences.bt-transport-both'), value: 'both' },
+  { label: 'TCP', value: 'tcp' },
+  { label: 'uTP', value: 'utp' },
+])
+const magnetFileSelectionOptions = computed(() => [
+  { label: t('preferences.magnet-file-selection-download-all'), value: 'download-all' },
+  { label: t('preferences.magnet-file-selection-prompt'), value: 'prompt' },
+  { label: t('preferences.magnet-file-selection-manual'), value: 'manual' },
+])
+const blocklistScopeOptions = computed(() => [
+  { label: t('preferences.bt-blocklist-scope-peers'), value: 'peers' },
+  { label: t('preferences.bt-blocklist-scope-trackers'), value: 'peers-and-trackers' },
+  { label: t('preferences.bt-blocklist-scope-all'), value: 'all' },
 ])
 const blocklistStatusText = computed(() => {
   const status = blocklistStatus.value
@@ -101,19 +104,6 @@ const blocklistStatusText = computed(() => {
     : ''
   return updated ? `${rules} · ${t('preferences.last-sync-time')} ${updated}` : rules
 })
-const selectedDhtNetworks = computed({
-  get: () => {
-    const values: string[] = []
-    if (form.value.btDhtIpv4Enabled) values.push(DHT_NETWORK_IPV4)
-    if (form.value.btDhtIpv6Enabled) values.push(DHT_NETWORK_IPV6)
-    return values
-  },
-  set: (values: string[]) => {
-    form.value.btDhtIpv4Enabled = values.includes(DHT_NETWORK_IPV4)
-    form.value.btDhtIpv6Enabled = values.includes(DHT_NETWORK_IPV6)
-  },
-})
-
 // ── Tracker source management ───────────────────────────────────────
 const presetTrackerValues = new Set<string>(TRACKER_SOURCE_OPTIONS.map((source) => source.value))
 
@@ -219,8 +209,7 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot, patchSnapshot } =
   saveFeedback: (f, prevConfig) =>
     f.listenPort !== prevConfig.listenPort ||
     f.btExternalIp.trim() !== String(prevConfig.btExternalIp ?? '').trim() ||
-    f.btExternalPort !== prevConfig.btExternalPort ||
-    f.dhtListenPort !== prevConfig.dhtListenPort
+    f.btExternalPort !== prevConfig.btExternalPort
       ? {
           success: t('preferences.bt-connection-apply-succeeded'),
           restored: t('preferences.bt-connection-restore-succeeded'),
@@ -229,6 +218,18 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot, patchSnapshot } =
       : null,
   beforeSave: async (f) => {
     pendingPortSwitch.value = null
+    if (!isValidBtUserAgent(f.btUserAgent)) {
+      message.error(t('preferences.bt-user-agent-invalid'))
+      return false
+    }
+    if (!isValidBtPeerIdPrefix(f.btPeerIdPrefix)) {
+      message.error(
+        t('preferences.bt-peer-id-prefix-invalid', {
+          max: BT_PEER_ID_PREFIX_MAX_BYTES,
+        }),
+      )
+      return false
+    }
     const endpointValidationKey = validateBtEndpoint(f)
     if (endpointValidationKey) {
       message.error(t(endpointValidationKey))
@@ -260,43 +261,9 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot, patchSnapshot } =
       if (!ok) return false
     }
 
-    const changed = diffConfig(preferenceStore.config, transformBtForStore(f))
-    if (checkIsNeedRestart(changed)) {
-      const ok = await new Promise<boolean>((resolve) => {
-        dialog.info({
-          title: t('preferences.engine-restart-title'),
-          content: t('preferences.engine-restart-confirm'),
-          positiveText: t('preferences.engine-restart-now'),
-          negativeText: t('app.cancel'),
-          maskClosable: false,
-          onPositiveClick: () => resolve(true),
-          onNegativeClick: () => resolve(false),
-          onClose: () => resolve(false),
-        })
-      })
-      if (!ok) return false
-      needsRestart.value = true
-    }
     return true
   },
-  afterSave: async (f, prevConfig) => {
-    if (needsRestart.value) {
-      needsRestart.value = false
-      const port = (preferenceStore.config.rpcListenPort as number) || ENGINE_RPC_PORT
-      const secret = (preferenceStore.config.rpcSecret as string) || ''
-      message.info(t('preferences.engine-restarting'))
-      await nextTick()
-      await new Promise((r) => requestAnimationFrame(r))
-      await restartEngine({ port, secret })
-    }
-    if (
-      preferenceStore.config.enableUpnp &&
-      (f.listenPort !== prevConfig.listenPort ||
-        f.btExternalPort !== prevConfig.btExternalPort ||
-        f.dhtListenPort !== prevConfig.dhtListenPort)
-    ) {
-      syncUpnpInBackground(f)
-    }
+  afterSave: async () => {
     if (pendingPortSwitch.value) {
       const { from, to } = pendingPortSwitch.value
       pendingPortSwitch.value = null
@@ -306,27 +273,24 @@ const { form, isDirty, handleSave, handleReset, resetSnapshot, patchSnapshot } =
     reconcileBlocklistInBackground()
   },
 })
+const btUserAgentValid = computed(() => isValidBtUserAgent(form.value.btUserAgent))
+const btPeerIdPrefixValid = computed(() => isValidBtPeerIdPrefix(form.value.btPeerIdPrefix))
+const formFieldsValid = computed(
+  () =>
+    btUserAgentValid.value &&
+    btPeerIdPrefixValid.value &&
+    areConfigFieldsValid({
+      btMaxPeers: form.value.btMaxPeers,
+      btMaxConnections: form.value.btMaxConnections,
+      btMaxUploads: form.value.btMaxUploads,
+      btMaxUploadsPerTorrent: form.value.btMaxUploadsPerTorrent,
+      listenPort: form.value.listenPort,
+      btExternalPort: form.value.btExternalPort,
+    }),
+)
 
 function onBtPortDice() {
   form.value.listenPort = randomBtPort()
-}
-
-function onDhtPortDice() {
-  form.value.dhtListenPort = randomDhtPort()
-}
-
-function syncUpnpInBackground(f: typeof form.value) {
-  const config = preferenceStore.config
-  void invoke('start_upnp_mapping', {
-    btPort: Number(f.listenPort),
-    btExternalPort: Number(f.btExternalPort) || 0,
-    dhtPort: Number(f.dhtListenPort),
-    ed2kPort: Number(config.ed2kListenPort) > 0 ? Number(config.ed2kListenPort) : null,
-    ed2kUdpPort: Number(config.ed2kUdpListenPort) > 0 ? Number(config.ed2kUdpListenPort) : null,
-  }).catch((error) => {
-    logger.warn('BT.upnp', getErrorMessage(error))
-    message.warning(t('preferences.upnp-mapping-failed'))
-  })
 }
 
 function reconcileBlocklistInBackground() {
@@ -402,14 +366,15 @@ async function handleSyncTracker() {
 async function applySyncedTrackers(text: string, data: string[]) {
   const now = Date.now()
   const comma = convertTrackerDataToComma(data)
-  const reduced = reduceTrackerString(comma)
   form.value.btTracker = text
   form.value.lastSyncTrackerTime = now
   await preferenceStore.updateAndSave({ btTracker: comma, lastSyncTrackerTime: now })
   patchSnapshot({ btTracker: text, lastSyncTrackerTime: now } as Partial<typeof form.value>)
-  await invoke('save_system_config', { config: { 'bt-tracker': reduced } })
+  await invoke('replace_system_config', {
+    config: buildSystemConfigFromAppConfig(preferenceStore.config, preferenceStore.config.dir),
+  })
   if (isEngineReady()) {
-    await changeGlobalOption({ 'bt-tracker': reduced } as Partial<typeof preferenceStore.config>)
+    await changeGlobalOption({ 'bt-tracker': comma } as Partial<typeof preferenceStore.config>)
   }
 }
 
@@ -460,27 +425,6 @@ function onAddCustomTracker() {
   customTrackerInput.value = ''
 }
 
-const { restartEngine } = useEngineRestart()
-function handleManualRestart() {
-  const port = (preferenceStore.config.rpcListenPort as number) || ENGINE_RPC_PORT
-  const secret = (preferenceStore.config.rpcSecret as string) || ''
-  const d = dialog.info({
-    title: t('preferences.engine-restart-title'),
-    content: t('preferences.engine-restart-manual-confirm'),
-    positiveText: t('preferences.engine-restart-now'),
-    negativeText: t('preferences.engine-restart-later'),
-    maskClosable: false,
-    onPositiveClick: async () => {
-      d.loading = true
-      d.negativeText = ''
-      d.closable = false
-      message.info(t('preferences.engine-restarting'))
-      await new Promise((r) => requestAnimationFrame(r))
-      await restartEngine({ port, secret })
-    },
-  })
-}
-
 onMounted(() => {
   Object.assign(form.value, buildForm())
   resetSnapshot()
@@ -495,20 +439,78 @@ onMounted(() => {
         <!-- BT Settings -->
         <NDivider title-placement="left">{{ t('preferences.bt-settings') }}</NDivider>
 
-        <NFormItem :label="t('preferences.bt-auto-download-content')">
-          <NSwitch v-model:value="form.btAutoDownloadContent" />
+        <NFormItem :label="t('preferences.magnet-file-selection')">
+          <NSelect
+            v-model:value="form.magnetFileSelectionPolicy"
+            :options="magnetFileSelectionOptions"
+            class="pref-control-auto"
+          />
         </NFormItem>
-        <NFormItem :label="t('preferences.bt-force-encryption')">
-          <NSwitch v-model:value="form.btForceEncryption" />
+        <NFormItem :label="t('preferences.bt-encryption')">
+          <NSelect v-model:value="form.btEncryption" :options="encryptionOptions" class="pref-control-auto" />
         </NFormItem>
-        <NFormItem :label="t('preferences.bt-max-peers')">
-          <NInputNumber v-model:value="form.btMaxPeers" :min="0" :max="ENGINE_MAX_BT_MAX_PEERS" class="pref-number" />
+        <NFormItem :label="t('preferences.bt-transport')">
+          <NSelect v-model:value="form.btTransport" :options="transportOptions" class="pref-control-auto" />
+        </NFormItem>
+        <NFormItem :label="t('preferences.bt-first-last-piece-first')">
+          <NSwitch v-model:value="form.btFirstLastPieceFirst" />
         </NFormItem>
 
         <NDivider title-placement="left">{{ t('preferences.bt-connection-section') }}</NDivider>
-        <NFormItem :label="t('preferences.bt-port')">
+        <NFormItem :label="t('preferences.bt-max-peers')" v-bind="configFieldProps('btMaxPeers', form.btMaxPeers)">
+          <NInputNumber
+            v-model:value="form.btMaxPeers"
+            :min="constraint('btMaxPeers').min"
+            :max="constraint('btMaxPeers').max"
+            class="pref-number"
+          />
+        </NFormItem>
+        <NFormItem
+          :label="t('preferences.bt-max-connections')"
+          v-bind="configFieldProps('btMaxConnections', form.btMaxConnections)"
+        >
+          <NInputNumber
+            v-model:value="form.btMaxConnections"
+            :min="constraint('btMaxConnections').min"
+            :max="constraint('btMaxConnections').max"
+            class="pref-number"
+          />
+        </NFormItem>
+        <NFormItem
+          :label="t('preferences.bt-max-uploads')"
+          v-bind="configFieldProps('btMaxUploads', form.btMaxUploads)"
+        >
+          <NInputNumber
+            v-model:value="form.btMaxUploads"
+            :min="constraint('btMaxUploads').min"
+            :max="constraint('btMaxUploads').max"
+            class="pref-number"
+          />
+        </NFormItem>
+        <NFormItem
+          :label="t('preferences.bt-max-uploads-per-torrent')"
+          v-bind="configFieldProps('btMaxUploadsPerTorrent', form.btMaxUploadsPerTorrent)"
+        >
+          <NInputNumber
+            v-model:value="form.btMaxUploadsPerTorrent"
+            :min="constraint('btMaxUploadsPerTorrent').min"
+            :max="constraint('btMaxUploadsPerTorrent').max"
+            class="pref-number"
+          />
+        </NFormItem>
+        <NFormItem :label="t('preferences.bt-rate-limit-overhead')">
+          <NSwitch v-model:value="form.btRateLimitOverhead" />
+        </NFormItem>
+
+        <NDivider title-placement="left">{{ t('preferences.bt-endpoint-section') }}</NDivider>
+        <NFormItem :label="t('preferences.bt-port')" v-bind="configFieldProps('listenPort', form.listenPort)">
           <NInputGroup>
-            <NInputNumber v-model:value="form.listenPort" :min="1024" :max="65535" class="pref-port" />
+            <NInputNumber
+              v-model:value="form.listenPort"
+              :min="constraint('listenPort').min"
+              :max="constraint('listenPort').max"
+              class="pref-port"
+            />
             <NButton secondary class="pref-action-button pref-action-button--compact" @click="onBtPortDice">
               <template #icon>
                 <NIcon><DiceOutline /></NIcon>
@@ -517,7 +519,7 @@ onMounted(() => {
             </NButton>
           </NInputGroup>
         </NFormItem>
-        <NFormItem>
+        <NFormItem v-bind="configFieldProps('btExternalPort', form.btExternalPort)">
           <template #label>
             <PreferenceHintLabel
               :label="t('preferences.bt-external-ip')"
@@ -538,7 +540,12 @@ onMounted(() => {
               :hint="t('preferences.bt-external-port-hint')"
             />
           </template>
-          <NInputNumber v-model:value="form.btExternalPort" :min="0" :max="65535" class="pref-port" />
+          <NInputNumber
+            v-model:value="form.btExternalPort"
+            :min="constraint('btExternalPort').min"
+            :max="constraint('btExternalPort').max"
+            class="pref-port"
+          />
         </NFormItem>
 
         <NDivider title-placement="left">{{ t('preferences.bt-discovery-section') }}</NDivider>
@@ -548,54 +555,45 @@ onMounted(() => {
         <NFormItem :label="t('preferences.bt-local-peer-discovery')">
           <NSwitch v-model:value="form.btLocalPeerDiscoveryEnabled" />
         </NFormItem>
-        <NFormItem :label="t('preferences.bt-dht-network')">
-          <PreferenceCheckboxGrid v-model:value="selectedDhtNetworks" :options="dhtNetworkOptions" />
-        </NFormItem>
-        <NFormItem :label="t('preferences.dht-port')">
-          <NInputGroup>
-            <NInputNumber v-model:value="form.dhtListenPort" :min="1024" :max="65535" class="pref-port" />
-            <NButton secondary class="pref-action-button pref-action-button--compact" @click="onDhtPortDice">
-              <template #icon>
-                <NIcon><DiceOutline /></NIcon>
-              </template>
-              {{ t('preferences.random-port') }}
-            </NButton>
-          </NInputGroup>
+        <NFormItem :label="t('preferences.bt-dht')">
+          <NSwitch v-model:value="form.btDhtEnabled" />
         </NFormItem>
 
-        <NDivider title-placement="left">{{ t('preferences.p2p-sharing-section') }}</NDivider>
+        <NDivider title-placement="left">{{ t('preferences.bt-identity-privacy-section') }}</NDivider>
         <NFormItem>
           <template #label>
             <PreferenceHintLabel
-              :label="t('preferences.sharing-mode')"
-              :hint="t('preferences.sharing-mode-scope-hint')"
+              :label="t('preferences.bt-anonymous-mode')"
+              :hint="t('preferences.bt-anonymous-mode-hint')"
             />
           </template>
-          <NRadioGroup v-model:value="form.sharingMode" size="small">
-            <NRadioButton value="stop-by-condition">
-              {{ t('preferences.sharing-mode-stop-by-condition') }}
-            </NRadioButton>
-            <NRadioButton value="manual-stop">{{ t('preferences.sharing-mode-manual-stop') }}</NRadioButton>
-          </NRadioGroup>
+          <NSwitch v-model:value="form.btAnonymousMode" />
         </NFormItem>
-        <NCollapseTransition :show="form.sharingMode === 'stop-by-condition'" class="collapse-indent">
-          <NFormItem :label="t('preferences.share-ratio')">
-            <NInputNumber v-model:value="form.shareRatio" :min="1" :max="100" :step="0.1" class="pref-number" />
-          </NFormItem>
-          <NFormItem :label="t('preferences.share-time') + ' (' + t('preferences.share-time-unit') + ')'">
-            <NInputNumber v-model:value="form.shareTime" :min="60" :max="525600" class="pref-number" />
-          </NFormItem>
-        </NCollapseTransition>
-        <NCollapseTransition :show="form.sharingMode === 'manual-stop'" class="collapse-indent">
-          <NFormItem>
-            <template #label>
-              <PreferenceHintLabel
-                :label="t('preferences.sharing-mode-manual-stop')"
-                :hint="t('preferences.sharing-mode-manual-stop-tips')"
-              />
-            </template>
-          </NFormItem>
-        </NCollapseTransition>
+        <NFormItem
+          :validation-status="btUserAgentValid ? undefined : 'error'"
+          :feedback="btUserAgentValid ? undefined : t('preferences.bt-user-agent-invalid')"
+        >
+          <template #label>
+            <PreferenceHintLabel :label="t('preferences.bt-user-agent')" :hint="t('preferences.bt-user-agent-hint')" />
+          </template>
+          <NInput v-model:value="form.btUserAgent" class="pref-control-auto" />
+        </NFormItem>
+        <NFormItem
+          :validation-status="btPeerIdPrefixValid ? undefined : 'error'"
+          :feedback="
+            btPeerIdPrefixValid
+              ? undefined
+              : t('preferences.bt-peer-id-prefix-invalid', { max: BT_PEER_ID_PREFIX_MAX_BYTES })
+          "
+        >
+          <template #label>
+            <PreferenceHintLabel
+              :label="t('preferences.bt-peer-id-prefix')"
+              :hint="t('preferences.bt-peer-id-prefix-hint', { max: BT_PEER_ID_PREFIX_MAX_BYTES })"
+            />
+          </template>
+          <NInput v-model:value="form.btPeerIdPrefix" class="pref-control-auto" />
+        </NFormItem>
 
         <NDivider title-placement="left">{{ t('preferences.bt-peer-blocklist') }}</NDivider>
         <NFormItem :label="t('preferences.bt-peer-blocklist-enable')">
@@ -608,6 +606,13 @@ onMounted(() => {
                 v-model:value="form.btPeerBlocklistUrl"
                 :placeholder="t('preferences.bt-peer-blocklist-url-placeholder')"
                 clearable
+              />
+            </NFormItem>
+            <NFormItem :label="t('preferences.bt-blocklist-scope')">
+              <NSelect
+                v-model:value="form.btBlocklistScope"
+                :options="blocklistScopeOptions"
+                class="pref-control-auto bt-blocklist-scope-select"
               />
             </NFormItem>
             <NFormItem label=" ">
@@ -744,7 +749,7 @@ onMounted(() => {
         </NFormItem>
       </NForm>
     </div>
-    <PreferenceActionBar :is-dirty="isDirty" @save="handleSave" @discard="handleReset" @restart="handleManualRestart" />
+    <PreferenceActionBar :is-dirty="isDirty" :is-valid="formFieldsValid" @save="handleSave" @discard="handleReset" />
   </div>
 </template>
 
@@ -857,6 +862,9 @@ onMounted(() => {
 }
 .bt-blocklist-update-button {
   min-width: 100px;
+}
+.bt-blocklist-scope-select {
+  width: 200px;
 }
 .blocklist-collapse,
 .blocklist-frequency-collapse {

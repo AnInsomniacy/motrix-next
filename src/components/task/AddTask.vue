@@ -6,12 +6,12 @@ import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useTaskStore } from '@/stores/task'
 import { usePreferenceStore } from '@/stores/preference'
+import { usePreferenceNumericValidation } from '@/composables/usePreferenceNumericValidation'
 import { useHttpAuthStore } from '@/stores/httpAuth'
-import { ADD_TASK_TYPE, ENGINE_MAX_CONNECTION_PER_SERVER } from '@shared/constants'
-import { detectResource, bytesToSize } from '@shared/utils'
-import { calcColumnWidth } from '@shared/utils/calcColumnWidth'
+import { ADD_TASK_TYPE } from '@shared/constants'
+import { detectResource } from '@shared/utils'
 import { mergeRawUriLines, normalizeUriLines, extractMagnetDisplayName } from '@shared/utils/batchHelpers'
-import { resolveDownloadCategory } from '@shared/utils/fileCategory'
+import { resolveDownloadCategory, resolveFileSetCategory } from '@shared/utils/fileCategory'
 import { buildOuts } from '@shared/utils/rename'
 import {
   buildEngineOptions,
@@ -36,7 +36,11 @@ import {
 import { resolveUserVisibleDownloadDir } from '@shared/utils/userVisibleDirectory'
 import { findMatchingUserAgentRule, resolveUserAgent } from '@shared/utils/userAgentPolicy'
 
-import { resolveUnresolvedItems, chooseTorrentFile as chooseTorrentFileImpl } from '@/composables/useAddTaskFileOps'
+import {
+  resolveUnresolvedItems,
+  retryTorrentInspection,
+  chooseTorrentFile as chooseTorrentFileImpl,
+} from '@/composables/useAddTaskFileOps'
 import {
   NModal,
   NCard,
@@ -50,17 +54,16 @@ import {
   NSpace,
   NIcon,
   NInputGroup,
-  NDataTable,
   NTag,
   NEllipsis,
 } from 'naive-ui'
 import { useAppMessage } from '@/composables/useAppMessage'
-import type { DataTableColumns } from 'naive-ui'
-import type { BatchItem, UserAgentProfile } from '@shared/types'
+import type { BatchItem, BatchItemKind, BtFileSelectionItem, UserAgentProfile } from '@shared/types'
 import { FolderOpenOutline, CloudUploadOutline } from '@vicons/ionicons5'
-import { vAutoAnimate } from '@formkit/auto-animate'
+import { vMotionAutoAnimate } from '@/directives/motionAutoAnimate'
 import AdvancedOptions from './addtask/AdvancedOptions.vue'
 import DirectoryPopover from '@/components/common/DirectoryPopover.vue'
+import BtFileSelector from '@/components/task/BtFileSelector.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -80,10 +83,11 @@ const taskStore = useTaskStore()
 const preferenceStore = usePreferenceStore()
 const httpAuthStore = useHttpAuthStore()
 const message = useAppMessage()
+const { constraint, configFieldProps, areConfigFieldsValid } = usePreferenceNumericValidation()
 /** Tracks whether the user manually edited the download directory in this session. */
 const dirUserModified = ref(false)
 
-const activeTab = ref(ADD_TASK_TYPE.URI)
+const activeTab = ref<BatchItemKind>(ADD_TASK_TYPE.URI)
 const tabsRef = ref<InstanceType<typeof import('naive-ui').NTabs> | null>(null)
 
 /**
@@ -95,7 +99,7 @@ const tabsRef = ref<InstanceType<typeof import('naive-ui').NTabs> | null>(null)
  * source and sets it on the component instance before updating `activeTab`.
  */
 const TAB_ORDER = [ADD_TASK_TYPE.URI, ADD_TASK_TYPE.TORRENT] as const
-function switchTab(target: string): void {
+function switchTab(target: BatchItemKind): void {
   if (activeTab.value === target) return
   const inst = tabsRef.value as Record<string, unknown> | null
   if (inst && 'animationDirection' in inst) {
@@ -104,6 +108,10 @@ function switchTab(target: string): void {
     ;(inst as { animationDirection: string }).animationDirection = tgtIdx > curIdx ? 'next' : 'prev'
   }
   activeTab.value = target
+}
+
+function activateTab(value: string): void {
+  if (value === ADD_TASK_TYPE.URI || value === ADD_TASK_TYPE.TORRENT) activeTab.value = value
 }
 const showAdvanced = ref(false)
 const submitting = ref(false)
@@ -135,7 +143,7 @@ const form = ref<AddTaskForm>({
   uris: '',
   out: '',
   dir: preferenceStore.config.dir || '',
-  split: preferenceStore.config.split || 16,
+  streamMaxConnections: preferenceStore.config.streamMaxConnections,
   userAgent: '',
   authorization: '',
   httpAuthUsername: '',
@@ -152,7 +160,6 @@ const form = ref<AddTaskForm>({
   uriRequestContexts: {},
 })
 
-const maxSplit = ENGINE_MAX_CONNECTION_PER_SERVER
 const firstRegularUri = computed(
   () =>
     form.value.uris
@@ -192,61 +199,38 @@ function applyResolvedUserAgent() {
   form.value.userAgent = resolved.userAgent
 }
 
-// Real-time tracking: NInputNumber only commits v-model on blur,
-// so we capture the native `input` event via bubbling from the inner
-// <input> element. The watch covers +/− button clicks (immediate update).
-const splitAtLimit = ref(form.value.split > maxSplit)
-
-function onSplitRawInput(e: Event) {
-  const raw = (e.target as HTMLInputElement).value
-  const val = Number(raw)
-  splitAtLimit.value = raw !== '' && !isNaN(val) && val > maxSplit
-}
-
-watch(
-  () => form.value.split,
-  (v) => {
-    splitAtLimit.value = v > maxSplit
-  },
-)
-
-const fileColumns = computed<DataTableColumns>(() => {
-  const data = (selectedItem.value?.torrentMeta?.files ?? []) as Array<{ idx: number; length: number; path: string }>
-  return [
-    { type: 'selection' },
-    {
-      title: t('task.file-index'),
-      key: 'idx',
-      width: calcColumnWidth({
-        title: t('task.file-index'),
-        values: data.map((r) => String(r.idx)),
-      }),
-    },
-    { title: t('task.file-name'), key: 'path', ellipsis: { tooltip: true } },
-    {
-      title: t('task.file-size'),
-      key: 'length',
-      width: calcColumnWidth({
-        title: t('task.file-size'),
-        values: data.map((r) => bytesToSize(r.length)),
-        sortable: true,
-      }),
-      sorter: (a: Record<string, unknown>, b: Record<string, unknown>) => (a.length as number) - (b.length as number),
-      render(row: Record<string, unknown>) {
-        return bytesToSize(row.length as number)
-      },
-    },
-  ]
-})
-
 // ── Computed batch accessors ────────────────────────────────────────
 
 const batch = computed(() => appStore.pendingBatch)
 const hasBatch = computed(() => batch.value.length > 0)
 const fileItems = computed(() => batch.value.filter((i) => i.kind !== 'uri'))
-const selectedItem = computed(() => fileItems.value[selectedBatchIndex.value] || null)
+const selectedItem = computed(() => fileItems.value[selectedBatchIndex.value] ?? null)
+const selectedTorrentFiles = computed<BtFileSelectionItem[]>(() =>
+  (selectedItem.value?.torrentMeta?.files ?? []).map((file) => {
+    const pathParts = file.path.split(/[/\\]/)
+    return {
+      index: Number(file.index),
+      name: pathParts[pathParts.length - 1] || file.path,
+      path: file.path,
+      length: Number(file.length),
+    }
+  }),
+)
+const selectedFileIndices = computed<number[]>({
+  get: () => selectedItem.value?.selectedFileIndices ?? [],
+  set: (indices) => {
+    if (selectedItem.value) selectedItem.value.selectedFileIndices = indices
+  },
+})
+const torrentItemsReady = computed(() =>
+  fileItems.value.every((item) => item.inspectionState === 'ready' && Boolean(item.selectedFileIndices?.length)),
+)
+const uriOptionsValid = computed(
+  () => !form.value.uris.trim() || areConfigFieldsValid({ streamMaxConnections: form.value.streamMaxConnections }),
+)
+const canSubmit = computed(() => uriOptionsValid.value && torrentItemsReady.value)
 
-// Sync download dir and split with latest preference every time the dialog
+// Sync download settings with the latest preference every time the dialog
 // opens. AddTask is kept mounted (`:show` not `v-if`), so form values would
 // otherwise be stale if the user changes defaults in preferences.
 watch(
@@ -260,8 +244,7 @@ watch(
       } else {
         form.value.dir = preferenceStore.config.dir || form.value.dir
       }
-      // Sync split from the user's Basic preference value
-      form.value.split = preferenceStore.config.split ?? form.value.split
+      form.value.streamMaxConnections = preferenceStore.config.streamMaxConnections
       syncDefaultTaskProxy()
       // Reset the manual-override flag each time the dialog opens
       dirUserModified.value = false
@@ -293,14 +276,6 @@ watch(
   { deep: true },
 )
 
-const checkedRowKeys = computed({
-  get: () => selectedItem.value?.selectedFileIndices || [],
-  set: (keys: number[]) => {
-    const item = selectedItem.value
-    if (item) item.selectedFileIndices = keys
-  },
-})
-
 const submitLabel = computed(() => t('app.submit'))
 
 /** Whether file classification is currently enabled in preferences. */
@@ -331,8 +306,32 @@ function resolveCategoryMatches(): Map<string, { label: string; directory: strin
   return matched
 }
 
+function resolveSelectedTorrentCategory(): { label: string; directory: string } | undefined {
+  const item = selectedItem.value
+  if (!item?.torrentMeta) return undefined
+
+  const selectedIndices = new Set(item.selectedFileIndices ?? [])
+  const category = resolveFileSetCategory(
+    item.torrentMeta.files
+      .filter((file) => selectedIndices.has(Number(file.index)) && Number(file.length) > 0)
+      .map((file) => ({ path: file.path })),
+    preferenceStore.config.fileCategories,
+    { urls: [item.source] },
+  )
+  if (!category) return undefined
+
+  return {
+    label: category.builtIn ? t(`preferences.${category.label}`) : category.label,
+    directory: category.directory,
+  }
+}
+
 const categoryMatches = computed(() => {
   if (!categoryEnabled.value || dirUserModified.value) return new Map<string, { label: string; directory: string }>()
+  if (activeTab.value === ADD_TASK_TYPE.TORRENT) {
+    const category = resolveSelectedTorrentCategory()
+    return category ? new Map([[category.directory, category]]) : new Map()
+  }
   return resolveCategoryMatches()
 })
 
@@ -350,6 +349,12 @@ const displayedDir = computed(() => {
 const categoryPreviewText = computed(() => {
   if (!categoryEnabled.value) return ''
   if (dirUserModified.value) return t('task.category-hint-overridden')
+
+  if (activeTab.value === ADD_TASK_TYPE.TORRENT) {
+    if (!selectedItem.value) return t('task.category-hint-active')
+    const matched = categoryMatchPreview.value
+    return matched ? t('task.category-match-single', { category: matched.label }) : t('task.category-match-none')
+  }
 
   const uris = normalizeUriLines(form.value.uris).filter((uri) => !isMagnetUri(uri))
   if (uris.length === 0) return t('task.category-hint-active')
@@ -504,6 +509,10 @@ async function chooseTorrentFile() {
   })
 }
 
+async function retryTorrent(item: BatchItem) {
+  await retryTorrentInspection(item, t, getDownloadProxy(preferenceStore.config.proxy))
+}
+
 async function chooseDirectory() {
   try {
     const selected = await openDialog({ directory: true })
@@ -564,7 +573,7 @@ function handleClose() {
 }
 
 async function handleSubmit() {
-  if (submitting.value) return
+  if (submitting.value || !canSubmit.value) return
   submitting.value = true
 
   try {
@@ -588,22 +597,20 @@ async function handleSubmit() {
       userAgentRules: preferenceStore.config.userAgentRules,
     }
     const options = buildEngineOptions(effectiveForm)
+    const fileCategory = {
+      enabled: preferenceStore.config.fileCategoryEnabled && !dirUserModified.value,
+      categories: preferenceStore.config.fileCategories,
+    }
     let manualResult: ManualUriSubmitResult = { submittedTaskNames: [], magnetGids: [], magnetFailures: [] }
 
     if (hasBatch.value) {
-      await submitBatchItems(batch.value, options, taskStore)
+      await submitBatchItems(batch.value, options, taskStore, fileCategory)
     }
     if (form.value.uris.trim()) {
-      // User's custom path takes highest priority — skip classification when overridden
-      const shouldClassify = preferenceStore.config.fileCategoryEnabled && !dirUserModified.value
       manualResult = await submitManualUris(
         effectiveForm,
-        options,
         taskStore,
-        {
-          enabled: shouldClassify,
-          categories: preferenceStore.config.fileCategories,
-        },
+        fileCategory,
         getDownloadProxy(preferenceStore.config.proxy),
       )
     }
@@ -714,7 +721,7 @@ async function handleSubmit() {
       @close="handleClose"
     >
       <NForm label-placement="left" label-width="110px">
-        <NTabs ref="tabsRef" :value="activeTab" type="line" animated @update:value="(v: string) => (activeTab = v)">
+        <NTabs ref="tabsRef" :value="activeTab" type="line" animated @update:value="activateTab">
           <!-- ── URI Tab ──────────────────────────────────────── -->
           <NTabPane :name="ADD_TASK_TYPE.URI" :tab="t('task.uri-task') || 'URL'">
             <div class="tab-pane-content">
@@ -732,11 +739,11 @@ async function handleSubmit() {
 
           <!-- ── Torrent Tab ─────────────────────────────────── -->
           <NTabPane :name="ADD_TASK_TYPE.TORRENT" :tab="t('task.torrent-task') || 'Torrent'">
-            <div v-auto-animate="{ duration: 200, easing: 'ease-out' }" class="tab-pane-content">
+            <div v-motion-auto-animate="{ duration: 200, easing: 'ease-out' }" class="tab-pane-content">
               <!-- Torrent panel: animated batch list + file detail -->
               <div v-if="fileItems.length > 0" class="torrent-panel">
                 <!-- Batch list with AutoAnimate transitions -->
-                <div v-auto-animate="{ duration: 200, easing: 'ease-out' }" class="batch-list">
+                <div v-motion-auto-animate="{ duration: 200, easing: 'ease-out' }" class="batch-list">
                   <div
                     v-for="(item, idx) in fileItems"
                     :key="item.id"
@@ -764,21 +771,22 @@ async function handleSubmit() {
                   {{ t('task.select-torrent') || 'Select torrent files' }}
                 </NButton>
 
-                <!-- File detail for selected torrent -->
                 <Transition name="content-fade" mode="out-in">
                   <div
-                    v-if="selectedItem?.torrentMeta && selectedItem.torrentMeta.files.length > 0"
-                    :key="selectedItem?.id"
-                    class="torrent-file-list"
+                    v-if="selectedItem?.inspectionState === 'failed'"
+                    :key="`${selectedItem.id}-failed`"
+                    class="torrent-inspection-error"
                   >
-                    <NDataTable
-                      v-model:checked-row-keys="checkedRowKeys"
-                      :columns="fileColumns"
-                      :data="selectedItem.torrentMeta.files"
-                      :row-key="(row: any) => row.idx as number"
-                      size="small"
+                    <span>{{ selectedItem.error }}</span>
+                    <NButton size="tiny" type="primary" ghost @click="retryTorrent(selectedItem)">
+                      {{ t('app.retry') }}
+                    </NButton>
+                  </div>
+                  <div v-else-if="selectedItem?.torrentMeta" :key="selectedItem.id" class="torrent-inspection-result">
+                    <BtFileSelector
+                      v-model:selected-indices="selectedFileIndices"
+                      :files="selectedTorrentFiles"
                       :max-height="200"
-                      :scroll-x="400"
                     />
                   </div>
                 </Transition>
@@ -800,18 +808,16 @@ async function handleSubmit() {
           <NFormItem :label="t('task.task-out') + ':'">
             <NInput v-model:value="form.out" :placeholder="t('task.task-out-tips')" :autofocus="false" />
           </NFormItem>
-          <NFormItem :label="t('preferences.split-count') + ':'">
-            <div class="split-field-wrapper" @input="onSplitRawInput">
-              <NInputNumber v-model:value="form.split" :min="1" :max="maxSplit" style="width: 120px" />
-              <!-- Limit hint — CSS Grid 0fr→1fr slide-in, mirrors ua-warn pattern -->
-              <div class="split-limit-collapse" :class="{ 'split-limit-collapse--open': splitAtLimit }">
-                <div class="split-limit-collapse__inner">
-                  <div class="split-limit-bar">
-                    <span class="split-limit-text">⚠ {{ t('task.split-limit-hint') }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <NFormItem
+            :label="t('task.task-connections') + ':'"
+            v-bind="configFieldProps('streamMaxConnections', form.streamMaxConnections)"
+          >
+            <NInputNumber
+              v-model:value="form.streamMaxConnections"
+              :min="constraint('streamMaxConnections').min"
+              :max="constraint('streamMaxConnections').max"
+              style="width: 120px"
+            />
           </NFormItem>
           <NFormItem :label="dirLabel + ':'">
             <div style="width: 100%">
@@ -866,7 +872,13 @@ async function handleSubmit() {
       <template #footer>
         <NSpace justify="end">
           <NButton @click="handleClose">{{ t('app.cancel') }}</NButton>
-          <NButton data-testid="submit-button" type="primary" :loading="submitting" @click="handleSubmit">
+          <NButton
+            data-testid="submit-button"
+            type="primary"
+            :loading="submitting"
+            :disabled="!canSubmit"
+            @click="handleSubmit"
+          >
             {{ submitLabel }}
           </NButton>
         </NSpace>
@@ -876,10 +888,6 @@ async function handleSubmit() {
 </template>
 
 <style scoped>
-.torrent-file-list {
-  margin-top: 8px;
-}
-
 /* Fixed-height tab panes prevent jitter when switching tabs.
  * URI textarea rows=5 ≈ 138px — keep both panes at same min-height. */
 .tab-pane-content {
@@ -909,6 +917,20 @@ async function handleSubmit() {
   overflow: hidden;
 }
 
+.torrent-inspection-result,
+.torrent-inspection-error {
+  margin-top: 8px;
+}
+
+.torrent-inspection-error {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--m3-error);
+}
+
 /* ── Upload zone (when no torrents) ───────────────────────────────── */
 .torrent-upload-zone {
   display: flex;
@@ -933,43 +955,6 @@ async function handleSubmit() {
 /* ── Download settings ────────────────────────────────────────────── */
 .download-settings {
   margin-top: 4px;
-}
-
-/* ── Split limit hint — CSS Grid 0fr→1fr slide-in (mirrors ua-warn) ─── */
-.split-field-wrapper {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-.split-limit-collapse {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.35s cubic-bezier(0.2, 0, 0, 1);
-}
-.split-limit-collapse--open {
-  grid-template-rows: 1fr;
-}
-.split-limit-collapse__inner {
-  overflow: hidden;
-}
-.split-limit-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  margin-top: 6px;
-  border-radius: var(--border-radius);
-  background: var(--m3-error-container);
-  opacity: 0;
-  transition: opacity 0.25s cubic-bezier(0.2, 0, 0, 1);
-}
-.split-limit-collapse--open .split-limit-bar {
-  opacity: 1;
-}
-.split-limit-text {
-  font-size: var(--font-size-sm);
-  color: var(--m3-on-error-container);
-  flex: 1;
 }
 </style>
 

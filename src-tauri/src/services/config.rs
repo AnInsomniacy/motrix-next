@@ -15,90 +15,49 @@ pub const DEFAULT_EXTENSION_API_PORT: u16 = 29110;
 
 /// Subset of `AppConfig` fields consumed by Rust runtime services.
 ///
-/// Field names use `camelCase` via `#[serde(rename_all = "camelCase")]` to
-/// match the JSON layout in `config.json`'s `preferences` object.
-///
-/// Fields are consumed by monitor, scheduler, and stat_service (Tasks 5-7).
+/// Missing fields use the same defaults as a fresh runtime configuration.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct RuntimeConfig {
-    #[serde(default = "default_locale")]
     pub locale: String,
-    #[serde(default)]
     pub speed_limit_enabled: bool,
-    #[serde(default)]
     pub speed_schedule_enabled: bool,
-    #[serde(default = "default_schedule_from")]
     pub speed_schedule_from: String,
-    #[serde(default = "default_schedule_to")]
     pub speed_schedule_to: String,
-    #[serde(default)]
     pub speed_schedule_days: u8,
-    #[serde(default)]
     pub max_overall_download_limit: String,
-    #[serde(default)]
     pub max_overall_upload_limit: String,
-    #[serde(default)]
     pub tray_speedometer: bool,
     #[cfg(target_os = "macos")]
-    #[serde(default = "default_true")]
     pub dock_badge_speed: bool,
     #[cfg(not(target_os = "linux"))]
-    #[serde(default)]
     pub show_progress_bar: bool,
     /// Whether to shut down the system after all downloads complete.
-    #[serde(default)]
     pub shutdown_when_complete: bool,
     /// Whether to prevent system idle sleep during active downloads.
     /// Uses platform-native power assertions: Windows Power Requests,
     /// macOS IOPMAssertion, and Linux systemd Inhibit.
-    #[serde(default)]
     pub keep_awake: bool,
     /// Whether task lifecycle events should trigger native system notifications.
-    #[serde(default = "default_true")]
     pub task_notification: bool,
     /// Whether completed downloads should trigger native system notifications.
-    #[serde(default = "default_true")]
     pub notify_on_complete: bool,
     /// Whether newly started downloads should trigger native system notifications.
-    #[serde(default = "default_true")]
     pub notify_on_start: bool,
     /// Port for the embedded HTTP API (browser extension communication).
-    #[serde(default = "default_extension_api_port")]
     pub extension_api_port: u16,
     /// Whether local control endpoints may listen on LAN interfaces.
-    #[serde(default)]
     pub allow_remote_access: bool,
-}
-
-fn default_true() -> bool {
-    true
-}
-
-fn default_locale() -> String {
-    "auto".to_string()
-}
-
-fn default_schedule_from() -> String {
-    "00:00".to_string()
-}
-
-fn default_schedule_to() -> String {
-    "06:00".to_string()
-}
-
-fn default_extension_api_port() -> u16 {
-    DEFAULT_EXTENSION_API_PORT
 }
 
 impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
-            locale: default_locale(),
+            locale: "auto".into(),
             speed_limit_enabled: false,
             speed_schedule_enabled: false,
-            speed_schedule_from: default_schedule_from(),
-            speed_schedule_to: default_schedule_to(),
+            speed_schedule_from: "00:00".into(),
+            speed_schedule_to: "06:00".into(),
             speed_schedule_days: 0,
             max_overall_download_limit: String::new(),
             max_overall_upload_limit: String::new(),
@@ -112,7 +71,7 @@ impl Default for RuntimeConfig {
             task_notification: true,
             notify_on_complete: true,
             notify_on_start: true,
-            extension_api_port: default_extension_api_port(),
+            extension_api_port: DEFAULT_EXTENSION_API_PORT,
             allow_remote_access: false,
         }
     }
@@ -134,7 +93,7 @@ impl RuntimeConfigState {
         let cfg: RuntimeConfig = serde_json::from_value(prefs.clone())
             .map_err(|e| format!("Failed to parse runtime config: {e}"))?;
         *self.0.write().await = cfg;
-        log::info!("runtime_config refreshed");
+        log::debug!("runtime_config refreshed");
         Ok(())
     }
 
@@ -199,7 +158,7 @@ mod tests {
             // Extra fields from AppConfig that RuntimeConfig ignores:
             "theme": "dark",
             "dir": "/downloads",
-            "split": 16,
+            "streamMaxConnections": 16,
             "rpcListenPort": 29100,
             "rpcSecret": "changeme"
         });
@@ -227,13 +186,6 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_shutdown_when_complete_defaults_to_false() {
-        let json = serde_json::json!({ "speedLimitEnabled": true });
-        let cfg: RuntimeConfig = serde_json::from_value(json).expect("deserialize");
-        assert!(!cfg.shutdown_when_complete);
-    }
-
-    #[test]
     fn deserialize_empty_json_uses_defaults() {
         let json = serde_json::json!({});
         let cfg: RuntimeConfig = serde_json::from_value(json).expect("deserialize");
@@ -242,17 +194,6 @@ mod tests {
         assert!(cfg.dock_badge_speed); // default true
         assert_eq!(cfg.speed_schedule_from, "00:00");
         assert_eq!(cfg.speed_schedule_to, "06:00");
-    }
-
-    #[test]
-    fn deserialize_ignores_unknown_fields() {
-        let json = serde_json::json!({
-            "speedLimitEnabled": true,
-            "unknownField": "should be ignored",
-            "anotherUnknown": 42
-        });
-        let cfg: RuntimeConfig = serde_json::from_value(json).expect("deserialize");
-        assert!(cfg.speed_limit_enabled);
     }
 
     // ── RuntimeConfigState ──────────────────────────────────────────

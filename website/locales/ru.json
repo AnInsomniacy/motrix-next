@@ -58,7 +58,7 @@
   "motion.tokens.desc": "Все длительности и кривые — CSS-переменные, обеспечивающие единый ритм для 12+ компонентов.",
   "features.title": "Возможности",
   "features.protocol.title": "Мульти-протокол",
-  "features.protocol.desc": "HTTP, FTP, ED2K, BitTorrent и Magnet-ссылки.",
+  "features.protocol.desc": "HTTP, SFTP, ED2K, BitTorrent и Magnet-ссылки.",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "Выборочная загрузка файлов, DHT, обмен пирами, шифрование.",
   "features.tracker.title": "Управление трекерами",

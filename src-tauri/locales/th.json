@@ -1,0 +1,15 @@
+{
+  "_version": 1,
+  "notification.bt-complete-body": "กำลังแชร์: %{task_name}",
+  "notification.bt-complete-title": "ดาวน์โหลด BT เสร็จสิ้น",
+  "notification.download-batch-start-body": "กำลังดาวน์โหลด: %{task_name} และอีก %{count} งาน",
+  "notification.download-complete-body": "บันทึกแล้ว: %{task_name}",
+  "notification.download-complete-title": "ดาวน์โหลดเสร็จสิ้น",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "ดาวน์โหลดไม่สำเร็จ",
+  "notification.download-start-body": "กำลังดาวน์โหลด: %{task_name}",
+  "notification.download-start-title": "เริ่มดาวน์โหลดแล้ว",
+  "notification.ed2k-complete-body": "กำลังแชร์: %{task_name}",
+  "notification.ed2k-complete-title": "ดาวน์โหลด ED2K เสร็จสิ้น",
+  "notification.error-unknown": "Unknown error"
+}

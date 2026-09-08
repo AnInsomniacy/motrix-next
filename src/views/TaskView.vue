@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** @fileoverview Task list view with polling, task actions, and file delete confirmation. */
-import { computed, watch, onMounted, onBeforeUnmount, ref, provide } from 'vue'
+import { computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTaskStore } from '@/stores/task'
 import { useAppStore } from '@/stores/app'
@@ -19,7 +19,7 @@ import TaskDetail from '@/components/task/TaskDetail.vue'
 import watermarkDark from '@/assets/logo-bolt-dark.png'
 import watermarkLight from '@/assets/logo-bolt-light.png'
 
-const props = withDefaults(defineProps<{ status?: string }>(), { status: 'active' })
+const props = withDefaults(defineProps<{ status?: string }>(), { status: 'all' })
 
 const { t } = useI18n()
 const taskStore = useTaskStore()
@@ -31,32 +31,33 @@ const { isDark } = useTheme()
 const watermarkSrc = computed(() => (isDark.value ? watermarkLight : watermarkDark))
 const showTaskListWatermark = computed(() => preferenceStore.config.taskListWatermark)
 
-const stoppingGids = ref<string[]>([])
-provide('stoppingGids', stoppingGids)
-
 const {
   handlePauseTask,
   handleResumeTask,
+  handleRetryTask,
+  handleRedownloadTask,
+  handleFinishSharing,
   handleDeleteTask,
   handleDeleteRecord,
   handleCopyLink,
   handleShowInfo,
   handleShowInFolder,
   handleOpenFile,
-  handleStopSharing,
+  handleSelectFiles,
 } = useTaskActions({
   taskStore,
   preferenceConfig: () => preferenceStore.config,
   t,
   dialog,
   message,
-  stoppingGids,
+  requestMagnetSelection: appStore.requestMagnetSelection,
 })
 
 const subnavs = computed(() => [
-  { key: 'all', title: t('task.all') || 'All' },
-  { key: 'active', title: t('task.active') || 'Active' },
-  { key: 'stopped', title: t('task.stopped') || 'Completed' },
+  { key: 'all', title: t('task.scope-all') || 'All' },
+  { key: 'progress', title: t('task.scope-progress') || 'In Progress' },
+  { key: 'failed', title: t('task.scope-failed') || 'Failed' },
+  { key: 'completed', title: t('task.scope-completed') || 'Completed' },
 ])
 
 const title = computed(() => {
@@ -136,13 +137,16 @@ onBeforeUnmount(() => {
         <TaskList
           @pause="handlePauseTask"
           @resume="handleResumeTask"
+          @retry="handleRetryTask"
+          @redownload="handleRedownloadTask"
+          @finish-sharing="handleFinishSharing"
           @delete="handleDeleteTask"
           @delete-record="handleDeleteRecord"
           @copy-link="handleCopyLink"
           @show-info="handleShowInfo"
           @folder="handleShowInFolder"
           @open-file="handleOpenFile"
-          @stop-sharing="handleStopSharing"
+          @select-files="handleSelectFiles"
         />
       </div>
     </div>

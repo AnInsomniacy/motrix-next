@@ -1,0 +1,15 @@
+{
+  "_version": 1,
+  "notification.bt-complete-body": "در حال بذرگذاری: %{task_name}",
+  "notification.bt-complete-title": "دانلود BT تکمیل شد",
+  "notification.download-batch-start-body": "در حال دانلود: %{task_name} و %{count} وظیفه دیگر",
+  "notification.download-complete-body": "ذخیره شد: %{task_name}",
+  "notification.download-complete-title": "دانلود تکمیل شد",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "دانلود ناموفق بود",
+  "notification.download-start-body": "در حال دانلود: %{task_name}",
+  "notification.download-start-title": "دانلود شروع شد",
+  "notification.ed2k-complete-body": "در حال اشتراک‌گذاری: %{task_name}",
+  "notification.ed2k-complete-title": "دانلود ED2K تکمیل شد",
+  "notification.error-unknown": "Unknown error"
+}

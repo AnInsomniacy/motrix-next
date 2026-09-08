@@ -1,0 +1,15 @@
+{
+  "_version": 1,
+  "notification.bt-complete-body": "Споделяне: %{task_name}",
+  "notification.bt-complete-title": "BT изтеглянето е завършено",
+  "notification.download-batch-start-body": "Изтегляне: %{task_name} и %{count} други задачи",
+  "notification.download-complete-body": "Запазено: %{task_name}",
+  "notification.download-complete-title": "Изтеглянето е завършено",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "Изтеглянето е неуспешно",
+  "notification.download-start-body": "Изтегляне: %{task_name}",
+  "notification.download-start-title": "Изтеглянето започна",
+  "notification.ed2k-complete-body": "Споделяне: %{task_name}",
+  "notification.ed2k-complete-title": "ED2K изтеглянето е завършено",
+  "notification.error-unknown": "Unknown error"
+}

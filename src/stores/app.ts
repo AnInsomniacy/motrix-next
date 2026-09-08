@@ -12,7 +12,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { listen } from '@tauri-apps/api/event'
-import { formatLogFields, logger } from '@shared/logger'
+import { logger } from '@shared/logger'
 import { STAT_BASE_INTERVAL, STAT_PER_TASK_INTERVAL, STAT_MIN_INTERVAL, STAT_MAX_INTERVAL } from '@shared/timing'
 import {
   detectExternalInputKind,
@@ -22,9 +22,7 @@ import {
 } from '@shared/utils/batchHelpers'
 import { summarizeExternalInput } from '@shared/utils/externalInputDiagnostics'
 import { parseMotrixDeepLink } from '@shared/utils/motrixDeepLink'
-import { buildEngineOptions, submitBatchItems, submitManualUris } from '@/composables/useAddTaskSubmit'
-import { getDownloadProxy } from '@/composables/useAddTaskSubmit'
-import { resolveUnresolvedItems } from '@/composables/useAddTaskFileOps'
+import { getDownloadProxy, submitManualUris } from '@/composables/useAddTaskSubmit'
 import { usePreferenceStore } from '@/stores/preference'
 import { useTaskStore } from '@/stores/task'
 import type {
@@ -33,7 +31,6 @@ import type {
   ExternalDownloadContext,
   ExternalDownloadInput,
   TauriUpdate,
-  AppConfig,
   BatchItem,
 } from '@shared/types'
 import type { AddTaskForm } from '@/composables/useAddTaskSubmit'
@@ -65,11 +62,6 @@ export const useAppStore = defineStore('app', () => {
   const systemTheme = ref('light')
   const trayFocused = ref(false)
   const aboutPanelVisible = ref(false)
-  const engineInfo = ref<{ version: string; enabledFeatures: string[] }>({
-    version: '',
-    enabledFeatures: [],
-  })
-  const engineOptions = ref<Partial<AppConfig>>({})
   const interval = ref(STAT_BASE_INTERVAL)
   const stat = ref({
     downloadSpeed: 0,
@@ -94,29 +86,10 @@ export const useAppStore = defineStore('app', () => {
   const pendingRequestHeaders = ref<BrowserRequestHeader[]>([])
   const progress = ref(0)
   const pendingUpdate = ref<TauriUpdate | null>(null)
-  const engineRestarting = ref(true)
-  let engineRestartingSince = Date.now()
-  const MIN_BANNER_MS = 1000
-
-  /** Set engine restarting state with minimum display time to prevent flicker. */
-  function setEngineRestarting(value: boolean) {
-    if (value) {
-      engineRestarting.value = true
-      engineRestartingSince = Date.now()
-    } else {
-      const elapsed = Date.now() - engineRestartingSince
-      const remaining = MIN_BANNER_MS - elapsed
-      if (remaining > 0) {
-        setTimeout(() => {
-          engineRestarting.value = false
-        }, remaining)
-      } else {
-        engineRestarting.value = false
-      }
-    }
-  }
-  const engineReady = ref(false)
+  const updateCheckRequestId = ref(0)
   const pendingMagnetGids = ref<string[]>([])
+  const automaticMagnetPromptGids = ref<string[]>([])
+  const requestedMagnetSelectionGid = ref('')
   const externalInputSubmitting = ref(false)
   let externalInputSubmitCount = 0
   let externalInputErrorHandler: ((error: unknown) => void) | null = null
@@ -128,6 +101,41 @@ export const useAppStore = defineStore('app', () => {
     pendingFilename.value = ''
     pendingUserAgent.value = ''
     pendingRequestHeaders.value = []
+  }
+
+  function requestMagnetSelection(gid: string) {
+    requestedMagnetSelectionGid.value = ''
+    requestedMagnetSelectionGid.value = gid
+  }
+
+  function queueMagnetSelection(gid: string, automatic: boolean) {
+    if (!pendingMagnetGids.value.includes(gid)) {
+      pendingMagnetGids.value = [...pendingMagnetGids.value, gid]
+    }
+    if (automatic && !automaticMagnetPromptGids.value.includes(gid)) {
+      automaticMagnetPromptGids.value = [...automaticMagnetPromptGids.value, gid]
+    }
+  }
+
+  function replacePendingMagnetSelections(gids: string[]) {
+    pendingMagnetGids.value = [...new Set(gids)]
+    const pending = new Set(pendingMagnetGids.value)
+    automaticMagnetPromptGids.value = automaticMagnetPromptGids.value.filter((gid) => pending.has(gid))
+  }
+
+  function clearMagnetSelections(gids: string[]) {
+    const removed = new Set(gids)
+    pendingMagnetGids.value = pendingMagnetGids.value.filter((gid) => !removed.has(gid))
+    automaticMagnetPromptGids.value = automaticMagnetPromptGids.value.filter((gid) => !removed.has(gid))
+    if (removed.has(requestedMagnetSelectionGid.value)) requestedMagnetSelectionGid.value = ''
+  }
+
+  function disableAutomaticMagnetPrompt(gid: string) {
+    automaticMagnetPromptGids.value = automaticMagnetPromptGids.value.filter((candidate) => candidate !== gid)
+  }
+
+  function requestUpdateCheck() {
+    updateCheckRequestId.value += 1
   }
 
   function setPendingExternalMetadata(context: ExternalDownloadContext, filenameHint: string) {
@@ -207,7 +215,7 @@ export const useAppStore = defineStore('app', () => {
   function handleStatEvent(payload: StatPayload) {
     const { numActive } = payload
     stat.value = {
-      downloadSpeed: numActive > 0 ? payload.downloadSpeed : 0,
+      downloadSpeed: payload.downloadSpeed,
       uploadSpeed: payload.uploadSpeed,
       numActive,
       numWaiting: payload.numWaiting,
@@ -229,17 +237,6 @@ export const useAppStore = defineStore('app', () => {
     return listen<StatPayload>('stat:update', (event) => {
       handleStatEvent(event.payload)
     })
-  }
-
-  async function fetchEngineInfo(api: { getVersion: () => Promise<{ version: string; enabledFeatures: string[] }> }) {
-    const data = await api.getVersion()
-    engineInfo.value = { ...engineInfo.value, ...data }
-  }
-
-  async function fetchEngineOptions(api: { getGlobalOption: () => Promise<Record<string, string>> }) {
-    const data = await api.getGlobalOption()
-    engineOptions.value = { ...engineOptions.value, ...data }
-    return data
   }
 
   /**
@@ -281,22 +278,26 @@ export const useAppStore = defineStore('app', () => {
           result.autoSubmitted += routed.autoSubmitted
         } else {
           result.ignored += 1
-          const fields = formatLogFields({
+          const fields = {
             action: motrixDeepLink.action,
             hasUrl: motrixDeepLink.downloadUrl ? 'true' : 'false',
             reason: motrixDeepLink.downloadUrl ? 'unhandled-action' : 'wake-only',
-          })
+          }
           if (motrixDeepLink.downloadUrl) {
-            logger.warn('DeepLink.ignored', fields)
+            logger.warn('DeepLink.ignored', 'deep_link_ignored', fields)
           } else {
-            logger.debug('DeepLink.ignored', fields)
+            logger.debug('DeepLink.ignored', 'deep_link_ignored', fields)
           }
         }
         continue
       }
       if (motrixDeepLink.reason === 'malformed') {
         result.ignored += 1
-        logger.warn('DeepLink.ignored', formatLogFields({ action: 'unknown', hasUrl: 'false', reason: 'malformed' }))
+        logger.warn('DeepLink.ignored', 'deep_link_ignored', {
+          action: 'unknown',
+          hasUrl: 'false',
+          reason: 'malformed',
+        })
         continue
       }
 
@@ -305,7 +306,7 @@ export const useAppStore = defineStore('app', () => {
       const isRemoteUri =
         lower.startsWith('http://') ||
         lower.startsWith('https://') ||
-        lower.startsWith('ftp://') ||
+        lower.startsWith('sftp://') ||
         lower.startsWith('magnet:') ||
         lower.startsWith('ed2k://') ||
         lower.startsWith('thunder://')
@@ -388,31 +389,19 @@ export const useAppStore = defineStore('app', () => {
 
     const preferenceStore = usePreferenceStore()
     const autoSubmit = preferenceStore.config.autoSubmitFromExtension
-    const autoSelectAllBt = preferenceStore.config.autoSelectAllBtFilesFromExtension === true
-    logger.info(
-      'ExternalInput.new',
-      formatLogFields({
-        url: summarizeExternalInput(downloadUrl),
-        kind,
-        source: input.source || 'unknown',
-        traceId: context.traceId ?? 'none',
-        hasUserAgent: context.userAgent ? 'true' : 'false',
-        hasCookie: context.cookie ? 'true' : 'false',
-        headerCount: context.requestHeaders?.length ?? 0,
-        filename: input.filename ? 'present' : 'none',
-        resolvedFilename: resolvedHint ? 'present' : 'none',
-        autoSubmit,
-      }),
-    )
+    logger.debug('ExternalInput.new', 'external_input_received', {
+      url: summarizeExternalInput(downloadUrl),
+      kind,
+      input_source: input.source || 'unknown',
+      trace_id: context.traceId ?? 'none',
+      has_user_agent: context.userAgent ? 'true' : 'false',
+      has_cookie: context.cookie ? 'true' : 'false',
+      header_count: context.requestHeaders?.length ?? 0,
+      filename: input.filename ? 'present' : 'none',
+      resolved_filename: resolvedHint ? 'present' : 'none',
+      auto_submit: autoSubmit,
+    })
 
-    if (autoSubmit && autoSelectAllBt && kind === 'uri' && downloadUrl.toLowerCase().startsWith('magnet:')) {
-      void autoSubmitExtensionUrl(downloadUrl, context, resolvedHint, true)
-      return { autoSubmitted: 1, ignored: 0 }
-    }
-    if (autoSubmit && autoSelectAllBt && kind === 'torrent') {
-      void autoSubmitExtensionFile(downloadUrl, context)
-      return { autoSubmitted: 1, ignored: 0 }
-    }
     if (autoSubmit && kind === 'uri') {
       void autoSubmitExtensionUrl(downloadUrl, context, resolvedHint)
       return { autoSubmitted: 1, ignored: 0 }
@@ -434,22 +423,16 @@ export const useAppStore = defineStore('app', () => {
     url: string,
     context: ExternalDownloadContext,
     filenameHint: string,
-    autoSelectAllFiles = false,
   ): Promise<void> {
     const preferenceStore = usePreferenceStore()
     const taskStore = useTaskStore()
 
     const form = buildExtensionSubmitForm(url, preferenceStore, context, filenameHint)
-    const options = buildEngineOptions(form)
-    if (autoSelectAllFiles) {
-      options['pause-metadata'] = 'false'
-    }
     externalInputSubmitCount += 1
     externalInputSubmitting.value = true
     try {
       const result = await submitManualUris(
         form,
-        options,
         taskStore,
         {
           enabled: preferenceStore.config.fileCategoryEnabled,
@@ -460,14 +443,11 @@ export const useAppStore = defineStore('app', () => {
       const taskNames = result.submittedTaskNames.length > 0 ? result.submittedTaskNames : [filenameHint || url]
       externalInputStartHandler?.(taskNames)
       preferenceStore.recordHistoryDirectory(form.dir || preferenceStore.config.dir)
-      logger.info(
-        'autoSubmit',
-        formatLogFields({
-          traceId: context.traceId ?? 'none',
-          url: summarizeExternalInput(url),
-          result: 'submitted',
-        }),
-      )
+      logger.debug('autoSubmit', 'external_input_submitted', {
+        trace_id: context.traceId ?? 'none',
+        url: summarizeExternalInput(url),
+        result: 'submitted',
+      })
     } catch (e) {
       logger.error('autoSubmit', e)
       externalInputErrorHandler?.(e)
@@ -487,7 +467,7 @@ export const useAppStore = defineStore('app', () => {
       uris: url,
       out: filenameHint,
       dir: preferenceStore.config.dir,
-      split: preferenceStore.config.split ?? 16,
+      streamMaxConnections: preferenceStore.config.streamMaxConnections,
       userAgent: context.userAgent || preferenceStore.config.userAgent || '',
       defaultUserAgent: preferenceStore.config.userAgent || '',
       userAgentProfiles: preferenceStore.config.userAgentProfiles,
@@ -510,45 +490,10 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  async function autoSubmitExtensionFile(url: string, context: ExternalDownloadContext): Promise<void> {
-    const preferenceStore = usePreferenceStore()
-    const taskStore = useTaskStore()
-    const form = buildExtensionSubmitForm(url, preferenceStore, context, '')
-    const options = buildEngineOptions(form)
-    const item = createBatchItem('torrent', url)
-    item.browserContext = context
-    externalInputSubmitCount += 1
-    externalInputSubmitting.value = true
-    try {
-      await resolveUnresolvedItems([item], (key) => key, getDownloadProxy(preferenceStore.config.proxy))
-      if (item.status === 'failed') throw new Error(item.error || 'Failed to load torrent')
-      const failures = await submitBatchItems([item], options, taskStore)
-      if (failures > 0) throw new Error(item.error || 'Failed to submit torrent')
-      externalInputStartHandler?.([item.displayName])
-      preferenceStore.recordHistoryDirectory(form.dir || preferenceStore.config.dir)
-      logger.info(
-        'autoSubmit',
-        formatLogFields({
-          traceId: context.traceId ?? 'none',
-          url: summarizeExternalInput(url),
-          result: 'submitted-file',
-        }),
-      )
-    } catch (e) {
-      logger.error('autoSubmit', e)
-      externalInputErrorHandler?.(e)
-    } finally {
-      externalInputSubmitCount = Math.max(0, externalInputSubmitCount - 1)
-      externalInputSubmitting.value = externalInputSubmitCount > 0
-    }
-  }
-
   return {
     systemTheme,
     trayFocused,
     aboutPanelVisible,
-    engineInfo,
-    engineOptions,
     interval,
     stat,
     addTaskVisible,
@@ -560,10 +505,16 @@ export const useAppStore = defineStore('app', () => {
     pendingRequestHeaders,
     progress,
     pendingUpdate,
-    engineRestarting,
-    setEngineRestarting,
-    engineReady,
+    updateCheckRequestId,
     pendingMagnetGids,
+    automaticMagnetPromptGids,
+    requestedMagnetSelectionGid,
+    queueMagnetSelection,
+    replacePendingMagnetSelections,
+    clearMagnetSelections,
+    disableAutomaticMagnetPrompt,
+    requestMagnetSelection,
+    requestUpdateCheck,
     updateInterval,
     increaseInterval,
     enqueueBatch,
@@ -572,8 +523,6 @@ export const useAppStore = defineStore('app', () => {
     updateAddTaskOptions,
     handleStatEvent,
     setupStatListener,
-    fetchEngineInfo,
-    fetchEngineOptions,
     handleDeepLinkUrls,
     handleExternalInputs,
     setExternalInputErrorHandler,

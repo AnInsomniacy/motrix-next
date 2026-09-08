@@ -9,6 +9,7 @@ const TAURI_ERROR_LABELS: Record<string, string> = {
   Upnp: 'UPnP error',
   Protocol: 'Protocol error',
   Aria2: 'Aria2 Next error',
+  TorrentInspection: 'Torrent inspection error',
   Database: 'Database error',
 }
 
@@ -88,6 +89,15 @@ function normalizeMessage(value: unknown, options: ErrorMessageOptions): string 
     }
     const nested = normalizeMessage(nestedError, options)
     if (nested) return nested
+  }
+
+  const torrentInspection = value.TorrentInspection
+  if (isRecord(torrentInspection)) {
+    const kind = torrentInspection.kind
+    const message = torrentInspection.message
+    if (typeof kind === 'string' && typeof message === 'string') {
+      return `${TAURI_ERROR_LABELS.TorrentInspection} [${kind}]: ${message}`
+    }
   }
 
   for (const variant of Object.keys(TAURI_ERROR_LABELS) as TauriErrorVariant[]) {

@@ -9,7 +9,13 @@
  * V2: FileCategory uses absolute `directory` paths (not relative subdirectory).
  */
 import { describe, it, expect } from 'vitest'
-import { extractExtension, resolveCategory, resolveDownloadDir, validateCategoryUrlPatterns } from '../fileCategory'
+import {
+  extractExtension,
+  resolveCategory,
+  resolveDownloadDir,
+  resolveFileSetCategory,
+  validateCategoryUrlPatterns,
+} from '../fileCategory'
 import type { FileCategory } from '@shared/types'
 
 // ── Test fixtures ───────────────────────────────────────────────────
@@ -68,8 +74,8 @@ describe('extractExtension', () => {
     expect(extractExtension('https://cdn.example.com/releases/v2/file.tar.gz')).toBe('gz')
   })
 
-  it('extracts extension from FTP URL', () => {
-    expect(extractExtension('ftp://mirror.example.com/pub/archive.zip')).toBe('zip')
+  it('extracts extension from SFTP URL', () => {
+    expect(extractExtension('sftp://mirror.example.com/pub/archive.zip')).toBe('zip')
   })
 
   // ── Query strings & fragments ──────────────────────────────────
@@ -394,5 +400,36 @@ describe('resolveDownloadDir', () => {
     const result = resolveDownloadDir('https://example.com/a/b/file.zip?token=1', BASE, true, categories)
 
     expect(result).toBe('/Users/test/Downloads/Example')
+  })
+})
+
+describe('resolveFileSetCategory', () => {
+  it('classifies a single torrent payload file', () => {
+    const result = resolveFileSetCategory([{ path: 'release/movie.mkv' }], TEST_CATEGORIES)
+    expect(result?.directory).toBe('/Users/test/Downloads/Videos')
+  })
+
+  it('classifies selected files that share one category', () => {
+    const result = resolveFileSetCategory(
+      [{ path: 'album/track-1.flac' }, { path: 'album/track-2.mp3' }],
+      TEST_CATEGORIES,
+    )
+    expect(result?.directory).toBe('/Users/test/Downloads/Music')
+  })
+
+  it('keeps mixed torrent content in the default directory', () => {
+    const result = resolveFileSetCategory(
+      [{ path: 'release/movie.mkv' }, { path: 'release/readme.txt' }],
+      TEST_CATEGORIES,
+    )
+    expect(result).toBeUndefined()
+  })
+
+  it('keeps partially unclassified content in the default directory', () => {
+    const result = resolveFileSetCategory(
+      [{ path: 'release/movie.mkv' }, { path: 'release/subtitle.srt' }],
+      TEST_CATEGORIES,
+    )
+    expect(result).toBeUndefined()
   })
 })

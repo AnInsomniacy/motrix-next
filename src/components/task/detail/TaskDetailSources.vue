@@ -12,6 +12,7 @@ import { nextFrame, renderDetailCopyableText } from './TaskDetailShared'
 const props = defineProps<{
   task: Aria2Task | null
   summary: UriDetailSummary
+  terminal?: boolean
   tooltip: string
   onCopy: (value: string, label: string) => void
 }>()
@@ -64,35 +65,38 @@ const pagination = computed<PaginationProps | false>(() =>
     : false,
 )
 
-const columns = computed(() => [
-  {
-    title: t('task.file-index') || '#',
-    key: 'fileIndex',
-    width: calcColumnWidth({
+const columns = computed(() => {
+  const result = [
+    {
       title: t('task.file-index') || '#',
-      values: rows.value.map((row) => String(row.fileIndex)),
-      sortable: true,
-    }),
-    align: 'center' as const,
-    sorter: (a: SourceDetailRow, b: SourceDetailRow) => a.fileIndex - b.fileIndex,
-  },
-  {
-    title: 'URL',
-    key: 'uri',
-    render: (row: SourceDetailRow) =>
-      renderDetailCopyableText({ value: row.uri, label: 'URL', tooltip: props.tooltip, onCopy: props.onCopy }),
-  },
-  {
-    title: t('task.task-source-status'),
-    key: 'status',
-    width: calcColumnWidth({
+      key: 'fileIndex',
+      width: calcColumnWidth({
+        title: t('task.file-index') || '#',
+        values: rows.value.map((row) => String(row.fileIndex)),
+        sortable: true,
+      }),
+      align: 'center' as const,
+      sorter: (a: SourceDetailRow, b: SourceDetailRow) => a.fileIndex - b.fileIndex,
+    },
+    {
+      title: 'URL',
+      key: 'uri',
+      render: (row: SourceDetailRow) =>
+        renderDetailCopyableText({ value: row.uri, label: 'URL', tooltip: props.tooltip, onCopy: props.onCopy }),
+    },
+    {
       title: t('task.task-source-status'),
-      values: ['used', 'waiting', '-'].map(sourceStatusLabel),
-    }),
-    align: 'center' as const,
-    render: (row: SourceDetailRow) => sourceStatusLabel(row.status),
-  },
-])
+      key: 'status',
+      width: calcColumnWidth({
+        title: t('task.task-source-status'),
+        values: ['used', 'waiting', '-'].map(sourceStatusLabel),
+      }),
+      align: 'center' as const,
+      render: (row: SourceDetailRow) => sourceStatusLabel(row.status),
+    },
+  ]
+  return props.terminal ? result.filter((column) => column.key !== 'status') : result
+})
 </script>
 
 <template>
@@ -123,10 +127,10 @@ const columns = computed(() => [
       <NDescriptionsItem :label="t('task.task-source-mirrors')">
         {{ summary.mirrorCount }}
       </NDescriptionsItem>
-      <NDescriptionsItem :label="t('task.task-source-used')">
+      <NDescriptionsItem v-if="!terminal" :label="t('task.task-source-used')">
         {{ summary.usedMirrorCount }}
       </NDescriptionsItem>
-      <NDescriptionsItem :label="t('task.task-source-waiting')">
+      <NDescriptionsItem v-if="!terminal" :label="t('task.task-source-waiting')">
         {{ summary.waitingMirrorCount }}
       </NDescriptionsItem>
     </NDescriptions>

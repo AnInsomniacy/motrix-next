@@ -1,0 +1,15 @@
+{
+  "_version": 1,
+  "notification.bt-complete-body": "Seeding: %{task_name}",
+  "notification.bt-complete-title": "BT-Download abgeschlossen",
+  "notification.download-batch-start-body": "Wird heruntergeladen: %{task_name} und %{count} weitere Aufgaben",
+  "notification.download-complete-body": "Gespeichert: %{task_name}",
+  "notification.download-complete-title": "Download abgeschlossen",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "Download fehlgeschlagen",
+  "notification.download-start-body": "Wird heruntergeladen: %{task_name}",
+  "notification.download-start-title": "Download gestartet",
+  "notification.ed2k-complete-body": "Teilen: %{task_name}",
+  "notification.ed2k-complete-title": "ED2K-Download abgeschlossen",
+  "notification.error-unknown": "Unknown error"
+}

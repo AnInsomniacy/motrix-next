@@ -1,13 +1,17 @@
+rust_i18n::i18n!("locales", fallback = "en-US");
+
 mod aria2;
 mod commands;
-mod db_guard;
+mod diagnostics;
 mod engine;
 mod error;
 mod gpu_guard;
 mod history;
+mod i18n;
 mod log_policy;
 #[cfg(target_os = "macos")]
 mod menu;
+mod native_messaging;
 mod services;
 mod tray;
 mod upnp;
@@ -32,7 +36,7 @@ use upnp::UpnpState;
 /// Pre-reads the user's log-level preference from the raw config.json file.
 ///
 /// `tauri-plugin-store` isn't available until after `Builder.build()`, so we
-/// read the raw JSON file directly. Falls back to `Warn` when no preference
+/// read the raw JSON file directly. Falls back to `Info` when no preference
 /// has been persisted yet.
 pub(crate) fn read_log_level() -> log::LevelFilter {
     (|| -> Option<log::LevelFilter> {
@@ -49,7 +53,7 @@ pub(crate) fn read_log_level() -> log::LevelFilter {
             _ => None,
         }
     })()
-    .unwrap_or(log::LevelFilter::Warn)
+    .unwrap_or(log::LevelFilter::Info)
 }
 
 /// Tracks the application lifecycle phase for window visibility decisions.
@@ -204,16 +208,33 @@ pub(crate) fn handle_minimize_to_tray(app: &tauri::AppHandle, window: &tauri::We
 
 /// Initialises menus, tray, deep links, window state, and platform-specific
 /// workarounds.  Called once by `Builder.setup()`.
+fn install_panic_hook() {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let backtrace = std::backtrace::Backtrace::force_capture();
+        log::error!(
+            target: "panic",
+            event = "panic",
+            backtrace:% = backtrace;
+            "{info}"
+        );
+        log::logger().flush();
+        default_hook(info);
+    }));
+}
+
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let handle = app.handle();
-    match handle.path().app_log_dir() {
-        Ok(log_dir) => {
-            if let Err(error) = log_policy::remove_legacy_log_files(&log_dir) {
-                log::warn!("Failed to remove legacy log files: {error}");
-            }
-        }
-        Err(error) => log::warn!("Failed to resolve log directory for cleanup: {error}"),
-    }
+    install_panic_hook();
+    log::info!(
+        target: "lifecycle",
+        event = "app_started",
+        version:% = handle.package_info().version,
+        os = std::env::consts::OS,
+        arch = std::env::consts::ARCH;
+        "app_started"
+    );
+    native_messaging::schedule_repair(app.handle());
     #[cfg(target_os = "macos")]
     {
         let m = menu::build_menu(handle)?;
@@ -251,15 +272,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // visibility decisions.  See AppLifecycleState doc and issue #206.
     app.manage(AppLifecycleState::new());
 
-    // History database — opens the same DB as tauri-plugin-sql migrations.
-    {
-        use tauri::Manager;
-        let app_data = app.path().app_data_dir()?;
-        let db_path = app_data.join("history.db");
-        let history_db = history::HistoryDb::open(&db_path)
-            .map_err(|e| format!("Failed to open history.db: {e}"))?;
-        app.manage(history::HistoryDbState(std::sync::Arc::new(history_db)));
-    }
+    // Database failures must not prevent the window from opening.
+    app.manage(history::HistoryDbState(std::sync::Arc::new(
+        history::HistoryDb::unavailable(),
+    )));
 
     #[cfg(target_os = "macos")]
     app.on_menu_event(|app, event| match event.id().as_ref() {
@@ -356,42 +372,6 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // The window starts hidden (tauri.conf.json visible: false) and
     // transitions through this pipeline before becoming visible.
 
-    // Force Windows 11 DWM native rounded corners on the main window.
-    //
-    // With `transparent: true` + `decorations: false`, the HWND is a
-    // layered window — DWM does NOT auto-round layered windows.  We
-    // explicitly request DWMWCP_ROUND (value 2) so DWM applies its
-    // native ~8px corner rounding, matching the original Motrix look.
-    //
-    // Previously this block used DWMWCP_DONOTROUND (value 1) to
-    // *disable* DWM corners because CSS `border-radius: 12px` was
-    // drawing its own competing rounded corners on the transparent
-    // canvas.  Now that CSS border-radius is removed, DWM handles
-    // all corner rounding natively — no CSS workarounds needed.
-    //
-    // Safe no-op on Windows 10 (DWM ignores the preference).
-    // DWM auto-disables rounding when the window is maximized.
-    #[cfg(target_os = "windows")]
-    {
-        use windows_sys::Win32::Graphics::Dwm::{
-            DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE,
-        };
-        if let Some(w) = app.get_webview_window("main") {
-            if let Ok(hwnd_handle) = w.hwnd() {
-                let hwnd = hwnd_handle.0 as *mut std::ffi::c_void;
-                // DWMWCP_ROUND = 2: force DWM native rounded corners
-                let preference: u32 = 2;
-                unsafe {
-                    DwmSetWindowAttribute(
-                        hwnd,
-                        DWMWA_WINDOW_CORNER_PREFERENCE as u32,
-                        &preference as *const u32 as *const _,
-                        std::mem::size_of::<u32>() as u32,
-                    );
-                }
-            }
-        }
-    }
     // Hide Dock icon on startup when both autoHideWindow and
     // hideDockOnMinimize are enabled, AND the app was launched by
     // the OS autostart mechanism (--autostart flag).  Manual launches
@@ -504,45 +484,14 @@ fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
             }
         }
         tauri::RunEvent::Exit => {
-            log::info!("app:exit — saving session, stopping engine and UPnP");
+            log::info!("app:exit — stopping engine and runtime services");
 
-            // ── Clear completed download records on exit ────────────
-            // When the user exits via tray-quit (app.exit(0)), the frontend's
-            // handleExitConfirm() is bypassed. Read the preference from the
-            // persistent store and clear records directly via HistoryDb.
-            // Best-effort with 2s timeout — never blocks app exit.
-            {
-                let clear_on_exit = read_pref_bool(app, "clearCompletedOnExit", false);
-                if clear_on_exit {
-                    if let Some(db_state) = app.try_state::<history::HistoryDbState>() {
-                        let db = db_state.0.clone();
-                        let _ = tauri::async_runtime::block_on(async {
-                            tokio::time::timeout(
-                                std::time::Duration::from_secs(2),
-                                db.clear_records(Some("complete")),
-                            )
-                            .await
-                        });
-                        log::info!("app:exit — cleared completed history records");
-                    }
-                }
+            if let Some(supervisor) = app.try_state::<engine::supervisor::EngineSupervisor>() {
+                let clear_completed = read_pref_bool(app, "clearCompletedOnExit", false);
+                let _ = tauri::async_runtime::block_on(
+                    supervisor.stop_for_app_exit(app, clear_completed),
+                );
             }
-
-            // Save aria2 session before killing the engine so in-progress
-            // downloads survive across restarts.  Best-effort with 500ms
-            // timeout — never blocks app exit.
-            if let Some(aria2) = app.try_state::<aria2::client::Aria2State>() {
-                let client = aria2.0.clone();
-                let _ = tauri::async_runtime::block_on(async {
-                    tokio::time::timeout(
-                        std::time::Duration::from_millis(500),
-                        client.save_session(),
-                    )
-                    .await
-                });
-                log::info!("aria2 session save attempted via managed client");
-            }
-            let _ = engine::stop_engine(app, true);
             // Stop the extension HTTP API server gracefully.
             if let Some(api_state) = app.try_state::<services::http_api::HttpApiState>() {
                 let _ = tauri::async_runtime::block_on(async {
@@ -564,23 +513,6 @@ fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
                     )
                     .await;
                 });
-            }
-            // Stop stat service before process shutdown so any active
-            // keep-awake power assertion is released deterministically.
-            if let Some(stat_state) = app.try_state::<services::stat::StatServiceState>() {
-                let _ = tauri::async_runtime::block_on(async {
-                    tokio::time::timeout(std::time::Duration::from_millis(500), async {
-                        let handle = {
-                            let mut guard = stat_state.0.lock().await;
-                            guard.take()
-                        };
-                        if let Some(handle) = handle {
-                            handle.stop().await;
-                        }
-                    })
-                    .await
-                });
-                log::info!("stat_service: stopped");
             }
         }
         #[cfg(target_os = "macos")]
@@ -616,66 +548,52 @@ pub fn run() {
     // Tauri's thread pool, the async runtime, or any plugin initialisation.
     gpu_guard::pre_flight();
 
-    // ── Panic hook: route panics through log crate for file persistence ──
-    // Must be set BEFORE Tauri Builder so even plugin init panics are caught.
-    // Without this, panics only reach stderr and are lost on process exit.
-    std::panic::set_hook(Box::new(|info| {
-        log::error!("PANIC: {}", info);
-    }));
-
     let log_level = read_log_level();
-
-    // ── Pre-flight DB migration guard ────────────────────────────
-    // Must run BEFORE tauri_plugin_sql to prevent panic on downgrade.
-    // Uses the platform-specific app data directory (same path that
-    // tauri_plugin_sql's "sqlite:history.db" resolves to).
-    if let Some(dir) = dirs::data_dir().map(|d| d.join("com.motrix.next")) {
-        db_guard::check(&dir);
-    }
+    let log_control = log_policy::LogLevelControl::new(log_level);
+    let log_filter = log_control.clone();
+    let log_targets = vec![tauri_plugin_log::Target::new(
+        tauri_plugin_log::TargetKind::LogDir {
+            file_name: Some("motrix-next".into()),
+        },
+    )];
+    #[cfg(debug_assertions)]
+    let log_targets = {
+        let mut log_targets = log_targets;
+        log_targets.push(
+            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout).format(
+                |out, message, record| {
+                    out.finish(format_args!(
+                        "{}",
+                        log_policy::format_terminal_record(message, record)
+                    ))
+                },
+            ),
+        );
+        log_targets
+    };
 
     let mut builder = tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
-                .targets([
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
-                        file_name: Some("motrix-next".into()),
-                    }),
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
-                ])
+                .clear_targets()
+                .targets(log_targets)
                 .format(|out, message, record| {
-                    let now = chrono::Local::now();
-                    let source = if record
-                        .target()
-                        .starts_with(tauri_plugin_log::WEBVIEW_TARGET)
-                    {
-                        "webview"
-                    } else {
-                        "rust"
-                    };
-                    out.finish(format_args!(
-                        "{} [{:<5}] [{}] {}",
-                        now.format("%Y-%m-%dT%H:%M:%S%.3f%:z"),
-                        record.level(),
-                        source,
-                        message
-                    ))
+                    out.finish(format_args!("{}", log_policy::format_record(message, record)))
                 })
                 .max_file_size(log_policy::MAX_LOG_FILE_SIZE.into())
-                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
-                .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
-                .level(log_level)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(
+                    log_policy::MAX_LOG_FILES,
+                ))
+                .level(log::LevelFilter::Debug)
                 .level_for("maxminddb", log::LevelFilter::Warn)
                 .level_for("sqlx", log::LevelFilter::Warn)
                 .level_for("zbus", log::LevelFilter::Warn)
                 .level_for("hyper_util", log::LevelFilter::Warn)
                 .level_for("reqwest", log::LevelFilter::Warn)
-                .filter(|metadata| {
-                    !metadata.target().starts_with("tao")
-                        && !metadata.target().starts_with("tracing")
-                })
+                .filter(move |metadata| log_filter.enabled(metadata))
                 .build(),
         )
+        .manage(log_control)
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(
@@ -777,21 +695,26 @@ pub fn run() {
 
     builder
         .manage(EngineState::new())
+        .manage(engine::supervisor::EngineSupervisor::new())
         .manage(UpnpState::new())
         .manage(std::sync::Arc::new(UpdateCancelState::new()))
         .manage(std::sync::Arc::new(DownloadedUpdate::new()))
         .manage(std::sync::Arc::new(ShutdownCancelState::new()))
         .invoke_handler(tauri::generate_handler![
-            commands::get_system_config,
-            commands::save_system_config,
+            commands::replace_system_config,
             commands::read_settings_backup_file,
             commands::write_settings_backup_file,
-            commands::start_engine_command,
-            commands::stop_engine_command,
-            commands::restart_engine_command,
+            commands::engine_supervisor_state,
+            commands::engine_ensure_running,
+            commands::engine_restart,
+            commands::engine_stop,
+            commands::engine_cancel,
+            commands::engine_recover_runtime_state,
             commands::resolve_bt_listen_port,
             commands::factory_reset,
-            commands::clear_session_file,
+            commands::database_prepare,
+            commands::database_initialize,
+            commands::database_reset,
             commands::update_tray_title,
             commands::update_tray_menu_labels,
             commands::update_menu_labels,
@@ -813,10 +736,10 @@ pub fn run() {
             commands::reconcile_bt_peer_blocklist,
             commands::set_dock_visible,
             commands::minimize_to_tray,
-            commands::probe_trackers,
             commands::fetch_tracker_sources,
             commands::is_autostart_launch,
             commands::clear_log_file,
+            commands::set_app_log_level,
             commands::export_diagnostic_logs,
             commands::check_path_exists,
             commands::check_path_is_dir,
@@ -855,8 +778,12 @@ pub fn run() {
             commands::aria2_fetch_active_task_list,
             commands::aria2_fetch_task_item,
             commands::aria2_fetch_task_item_with_peers,
+            commands::aria2_get_bt_trackers,
+            commands::aria2_force_bt_recheck,
+            commands::aria2_replace_bt_trackers,
+            commands::aria2_replace_bt_web_seeds,
+            commands::aria2_add_bt_peers,
             commands::aria2_get_version,
-            commands::aria2_get_global_option,
             commands::aria2_get_global_stat,
             commands::aria2_change_global_option,
             commands::aria2_get_option,
@@ -864,20 +791,23 @@ pub fn run() {
             commands::aria2_get_files,
             commands::aria2_add_uri,
             commands::aria2_add_torrent,
+            commands::aria2_inspect_torrent,
             commands::aria2_ed2k_search,
             commands::aria2_get_ed2k_search_results,
             commands::aria2_cleanup_ed2k_search,
             commands::aria2_force_remove,
+            commands::aria2_delete_task,
+            commands::aria2_batch_delete_tasks,
+            commands::aria2_finish_sharing,
+            commands::aria2_batch_finish_sharing,
             commands::aria2_force_pause,
             commands::aria2_pause,
             commands::aria2_unpause,
             commands::aria2_save_session,
             commands::aria2_remove_download_result,
-            commands::aria2_purge_download_result,
-            commands::aria2_batch_unpause,
-            commands::aria2_batch_force_pause,
-            commands::aria2_batch_force_remove,
-            commands::wait_for_engine,
+            commands::aria2_purge_task_records,
+            commands::aria2_force_pause_all,
+            commands::aria2_resume_eligible,
             commands::system_shutdown,
             commands::cancel_shutdown,
         ])

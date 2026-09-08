@@ -7,21 +7,15 @@
  */
 import { createI18n } from 'vue-i18n'
 import { setI18nLocale } from '@shared/utils/i18n'
-// @ts-expect-error JS locale module without type declarations
-import enUS from '@shared/locales/en-US/index.js'
+import { isSupportedLocale, type SupportedLocale } from '@shared/localeCatalog'
+import enUS from '@shared/locales/en-US/messages.json'
 
-type LocaleMessages = Record<string, Record<string, string>>
+type LocaleMessages = typeof enUS
 
-const localeLoaders = import.meta.glob('@shared/locales/*/index.js') as Record<
-  string,
-  () => Promise<{ default: LocaleMessages }>
->
-
-/** Every locale the app ships translations for — derived from the locale
- * directories on disk, so adding a locale needs no code change. */
-export const SUPPORTED_LOCALES: string[] = Object.keys(localeLoaders)
-  .map((path) => path.match(/locales\/([^/]+)\/index\.js$/)?.[1])
-  .filter((locale): locale is string => !!locale)
+const localeLoaders = import.meta.glob<{ default: LocaleMessages }>([
+  '@shared/locales/*/messages.json',
+  '!@shared/locales/en-US/messages.json',
+])
 
 const messages: Record<string, LocaleMessages> = { 'en-US': enUS as LocaleMessages }
 
@@ -37,16 +31,17 @@ export const i18n = createI18n({
  * No-op for en-US and already-loaded locales. Unknown locales resolve
  * without loading (the fallback covers rendering).
  */
-export async function loadLocale(locale: string): Promise<void> {
+export async function loadLocale(locale: SupportedLocale): Promise<void> {
   if (i18n.global.availableLocales.includes(locale)) return
-  const loader = Object.entries(localeLoaders).find(([path]) => path.endsWith(`/locales/${locale}/index.js`))?.[1]
-  if (!loader) return
+  const loader = Object.entries(localeLoaders).find(([path]) => path.endsWith(`/locales/${locale}/messages.json`))?.[1]
+  if (!loader) throw new Error(`Locale resource is not bundled: ${locale}`)
   const messages = (await loader()).default
   i18n.global.setLocaleMessage(locale, messages)
 }
 
 export function useLocale() {
   async function setLocale(locale: string) {
+    if (!isSupportedLocale(locale)) throw new Error(`Unsupported locale: ${locale}`)
     await loadLocale(locale)
     setI18nLocale(i18n, locale)
   }

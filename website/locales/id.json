@@ -58,7 +58,7 @@
   "motion.tokens.desc": "Semua durasi dan kurva adalah properti CSS kustom, memastikan ritme terpadu di 12+ komponen.",
   "features.title": "Fitur",
   "features.protocol.title": "Multi-protokol",
-  "features.protocol.desc": "HTTP, FTP, ED2K, BitTorrent, tautan Magnet.",
+  "features.protocol.desc": "HTTP, SFTP, ED2K, BitTorrent, tautan Magnet.",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "Unduhan file selektif, DHT, pertukaran peer, enkripsi.",
   "features.tracker.title": "Manajemen tracker",

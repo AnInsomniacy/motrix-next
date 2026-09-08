@@ -58,7 +58,7 @@
   "motion.tokens.desc": "ระยะเวลาและเส้นโค้งทั้งหมดเป็น CSS custom properties รับประกันจังหวะที่สม่ำเสมอใน 12+ คอมโพเนนต์",
   "features.title": "คุณสมบัติ",
   "features.protocol.title": "หลายโปรโตคอล",
-  "features.protocol.desc": "HTTP, FTP, ED2K, BitTorrent และลิงก์ Magnet",
+  "features.protocol.desc": "HTTP, SFTP, ED2K, BitTorrent และลิงก์ Magnet",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "ดาวน์โหลดไฟล์เลือกได้, DHT, แลกเปลี่ยนเพียร์, การเข้ารหัส",
   "features.tracker.title": "การจัดการ Tracker",

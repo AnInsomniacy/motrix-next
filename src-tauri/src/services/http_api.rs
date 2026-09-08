@@ -383,23 +383,8 @@ fn extension_input_route(app: &AppHandle, req: &AddRequest) -> external_input::E
                 .get("silentAutoSubmitFromExtension")
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(true);
-            let auto_select_all = p
-                .get("autoSelectAllBtFilesFromExtension")
-                .and_then(serde_json::Value::as_bool)
-                .unwrap_or(false);
-            let pause_metadata = p
-                .get("pauseMetadata")
-                .and_then(serde_json::Value::as_bool)
-                .unwrap_or(true);
             let effective_url = req.final_url.as_deref().unwrap_or(&req.url);
-            extension_input_route_url(
-                effective_url,
-                auto_submit,
-                use_independent_window,
-                silent,
-                auto_select_all,
-                pause_metadata,
-            )
+            extension_input_route_url(effective_url, auto_submit, use_independent_window, silent)
         })
         .unwrap_or(external_input::ExternalInputRoute::MainWindow)
 }
@@ -409,8 +394,6 @@ fn extension_input_route_url(
     auto_submit: bool,
     use_independent_window: bool,
     silent: bool,
-    auto_select_all: bool,
-    pause_metadata: bool,
 ) -> external_input::ExternalInputRoute {
     if !auto_submit {
         return if use_independent_window {
@@ -419,38 +402,23 @@ fn extension_input_route_url(
             external_input::ExternalInputRoute::MainWindow
         };
     }
-    if should_silent_route_url(
-        raw_url,
-        auto_submit,
-        silent,
-        auto_select_all,
-        pause_metadata,
-    ) {
+    if should_silent_route_url(raw_url, auto_submit, silent) {
         external_input::ExternalInputRoute::Silent
     } else {
         external_input::ExternalInputRoute::MainWindow
     }
 }
 
-fn should_silent_route_url(
-    raw_url: &str,
-    auto_submit: bool,
-    silent: bool,
-    auto_select_all: bool,
-    pause_metadata: bool,
-) -> bool {
+fn should_silent_route_url(raw_url: &str, auto_submit: bool, silent: bool) -> bool {
     if !(auto_submit && silent) {
         return false;
     }
     let lower = raw_url.to_ascii_lowercase();
     if lower.starts_with("magnet:") {
-        if auto_select_all {
-            return true;
-        }
-        return !pause_metadata;
+        return true;
     }
     if is_remote_torrent_url(raw_url) {
-        return auto_select_all;
+        return false;
     }
     true
 }
@@ -768,14 +736,7 @@ mod tests {
     #[test]
     fn extension_route_requires_confirmation_when_auto_submit_is_disabled() {
         assert_eq!(
-            extension_input_route_url(
-                "https://example.com/file.zip",
-                false,
-                true,
-                true,
-                false,
-                true,
-            ),
+            extension_input_route_url("https://example.com/file.zip", false, true, true,),
             external_input::ExternalInputRoute::DownloadConfirmation
         );
     }
@@ -783,14 +744,7 @@ mod tests {
     #[test]
     fn extension_route_uses_main_window_when_independent_window_is_disabled() {
         assert_eq!(
-            extension_input_route_url(
-                "https://example.com/file.zip",
-                false,
-                false,
-                true,
-                false,
-                true,
-            ),
+            extension_input_route_url("https://example.com/file.zip", false, false, true,),
             external_input::ExternalInputRoute::MainWindow
         );
     }
@@ -798,19 +752,33 @@ mod tests {
     #[test]
     fn extension_route_keeps_non_silent_auto_submit_in_main_window() {
         assert_eq!(
-            extension_input_route_url(
-                "https://example.com/file.zip",
-                true,
-                true,
-                false,
-                false,
-                true,
-            ),
+            extension_input_route_url("https://example.com/file.zip", true, true, false,),
             external_input::ExternalInputRoute::MainWindow
         );
     }
 
     // ── AddRequest deserialization ───────────────────────────────────
+
+    #[test]
+    fn extension_auto_submit_preserves_upstream_routing_for_both_window_settings() {
+        for independent in [false, true] {
+            for url in ["https://example.com/file.zip", "magnet:?xt=urn:btih:abc"] {
+                assert_eq!(
+                    extension_input_route_url(url, true, independent, true),
+                    external_input::ExternalInputRoute::Silent
+                );
+            }
+            assert_eq!(
+                extension_input_route_url(
+                    "https://example.com/file.torrent",
+                    true,
+                    independent,
+                    true
+                ),
+                external_input::ExternalInputRoute::MainWindow
+            );
+        }
+    }
 
     #[test]
     fn deserialize_add_request_full() {

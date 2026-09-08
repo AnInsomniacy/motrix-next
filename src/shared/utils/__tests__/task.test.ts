@@ -2,20 +2,18 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   calcProgress,
-  calcRatio,
   getTaskCompletedLength,
   getTaskName,
-  isMagnetTask,
   isBtMetadataTask,
   checkTaskIsBT,
   checkTaskIsEd2kSearch,
   checkTaskIsSharing,
   getTaskSharingKind,
+  getTaskSharingState,
+  getTaskSharingTime,
   getFileNameFromFile,
   getTaskDisplayName,
   getTaskUri,
-  checkTaskTitleIsEmpty,
-  mergeTaskResult,
   resolveOpenTarget,
   getRestartDescriptors,
 } from '../task'
@@ -79,25 +77,6 @@ describe('calcProgress', () => {
   })
 })
 
-describe('calcRatio', () => {
-  it('returns 0 for zero total length', () => {
-    expect(calcRatio(0, 0)).toBe(0)
-  })
-
-  it('calculates ratio correctly', () => {
-    expect(calcRatio(1000, 500)).toBe(0.5)
-    expect(calcRatio(1000, 1000)).toBe(1)
-  })
-
-  it('returns 0 when upload is 0', () => {
-    expect(calcRatio(1000, 0)).toBe(0)
-  })
-
-  it('handles string inputs', () => {
-    expect(calcRatio('1000', '2000')).toBe(2)
-  })
-})
-
 describe('getTaskCompletedLength', () => {
   it('uses aria2 completedLength for display progress', () => {
     const task = createMockTask({
@@ -143,6 +122,22 @@ describe('getTaskName', () => {
       bittorrent: { info: { name: 'My Torrent' } },
     })
     expect(getTaskName(task)).toBe('My Torrent')
+  })
+
+  it('returns BT info name before file metadata is populated', () => {
+    const task = createMockTask({
+      files: [],
+      bittorrent: { info: { name: 'My Torrent' } },
+    })
+    expect(getTaskName(task)).toBe('My Torrent')
+  })
+
+  it('uses the magnet display name while torrent metadata is pending', () => {
+    const task = createMockTask({
+      files: [],
+      bittorrent: { magnetLink: 'magnet:?xt=urn:btih:abc&dn=Ubuntu%20ISO' },
+    })
+    expect(getTaskName(task)).toBe('Ubuntu ISO')
   })
 
   it('returns filename for single-file HTTP task', () => {
@@ -334,37 +329,19 @@ describe('getTaskDisplayName', () => {
   })
 })
 
-describe('isMagnetTask', () => {
-  it('returns true for magnet task without info', () => {
-    const task = createMockTask({ bittorrent: {} })
-    expect(isMagnetTask(task)).toBe(true)
-  })
-
-  it('returns false for regular BT task', () => {
-    const task = createMockTask({ bittorrent: { info: { name: 'test' } } })
-    expect(isMagnetTask(task)).toBe(false)
-  })
-
-  it('returns false for HTTP task', () => {
-    const task = createMockTask()
-    expect(isMagnetTask(task)).toBe(false)
-  })
-})
-
 describe('isBtMetadataTask', () => {
   it('returns true for native aria2 metadata task without torrent info', () => {
     const task = createMockTask({
-      bittorrent: {},
+      bittorrent: { state: 'downloadingMetadata' },
       files: [],
     })
 
     expect(isBtMetadataTask(task)).toBe(true)
   })
 
-  it('returns false for native aria2 content task with following parent', () => {
+  it('returns false for native aria2 task awaiting file selection', () => {
     const task = createMockTask({
-      bittorrent: {},
-      following: 'metadata-gid',
+      bittorrent: { info: { name: 'Archive' }, state: 'paused', fileSelectionState: 'awaiting' },
     })
 
     expect(isBtMetadataTask(task)).toBe(false)
@@ -450,13 +427,20 @@ describe('task sharing state', () => {
     expect(getTaskSharingKind(task)).toBeNull()
   })
 
-  it('returns false when seeder is true but task is paused', () => {
+  it('preserves the protocol and paused sharing phase', () => {
     const task = createMockTask({
       status: 'paused',
       bittorrent: { info: { name: 'test' } },
       seeder: 'true',
     })
-    expect(getTaskSharingKind(task)).toBeNull()
+    expect(getTaskSharingKind(task)).toBe('bt')
+    expect(getTaskSharingState(task)).toEqual({ kind: 'bt', phase: 'paused' })
+    expect(checkTaskIsSharing(task)).toBe(false)
+  })
+
+  it('reads native sharing time from both P2P protocols', () => {
+    expect(getTaskSharingTime(createMockTask({ bittorrent: { finishedTime: '42' } }))).toBe(42)
+    expect(getTaskSharingTime(createMockTask({ ed2k: { sharingTime: '84' } }))).toBe(84)
   })
 })
 
@@ -502,69 +486,6 @@ describe('getTaskUri', () => {
       files: [createMockFile(), createMockFile({ index: '2' })],
     })
     expect(getTaskUri(task)).toBe('')
-  })
-})
-
-describe('checkTaskTitleIsEmpty', () => {
-  it('returns true when path is empty and no BT info', () => {
-    const task = createMockTask({
-      files: [createMockFile({ path: '' })],
-    })
-    expect(checkTaskTitleIsEmpty(task)).toBe(true)
-  })
-
-  it('returns false when path has value', () => {
-    const task = createMockTask({
-      files: [createMockFile({ path: '/tmp/file.txt' })],
-    })
-    expect(checkTaskTitleIsEmpty(task)).toBe(false)
-  })
-
-  it('returns false when BT info name is present', () => {
-    const task = createMockTask({
-      files: [createMockFile({ path: '' })],
-      bittorrent: { info: { name: 'My Torrent' } },
-    })
-    expect(checkTaskTitleIsEmpty(task)).toBe(false)
-  })
-
-  it('falls through to file path when BT info name is empty', () => {
-    const task = createMockTask({
-      files: [createMockFile({ path: '/tmp/file.txt' })],
-      bittorrent: { info: { name: '' } },
-    })
-    // bittorrent.info.name is falsy (''), so code falls through to file.path
-    expect(checkTaskTitleIsEmpty(task)).toBe(false)
-  })
-
-  it('uses BT info name when present (non-empty)', () => {
-    const task = createMockTask({
-      files: [createMockFile({ path: '' })],
-      bittorrent: { info: { name: 'My Torrent' } },
-    })
-    expect(checkTaskTitleIsEmpty(task)).toBe(false)
-  })
-})
-
-describe('mergeTaskResult', () => {
-  it('merges multiple arrays', () => {
-    const result = mergeTaskResult([
-      ['a', 'b'],
-      ['c', 'd'],
-    ])
-    expect(result).toEqual(['a', 'b', 'c', 'd'])
-  })
-
-  it('returns empty for empty input', () => {
-    expect(mergeTaskResult([])).toEqual([])
-  })
-
-  it('returns empty for default parameter', () => {
-    expect(mergeTaskResult()).toEqual([])
-  })
-
-  it('handles single nested array', () => {
-    expect(mergeTaskResult([['x']])).toEqual(['x'])
   })
 })
 

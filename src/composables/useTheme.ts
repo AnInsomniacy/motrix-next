@@ -9,12 +9,6 @@ const isDark = ref(false)
 /** Module-level flag: true once the global matchMedia listener is registered. */
 let mediaListenerRegistered = false
 
-/** @internal Reset singleton state for test isolation. */
-export function _resetThemeState() {
-  mediaListenerRegistered = false
-  isDark.value = false
-}
-
 export function useTheme() {
   const preferenceStore = usePreferenceStore()
 

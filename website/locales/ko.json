@@ -58,7 +58,7 @@
   "motion.tokens.desc": "모든 지속 시간과 커브가 CSS 커스텀 프로퍼티로, 12개 이상의 컴포넌트에서 통일된 리듬 보장.",
   "features.title": "기능",
   "features.protocol.title": "멀티 프로토콜",
-  "features.protocol.desc": "HTTP, FTP, ED2K, BitTorrent, 마그넷 링크.",
+  "features.protocol.desc": "HTTP, SFTP, ED2K, BitTorrent, 마그넷 링크.",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "선택적 파일 다운로드, DHT, 피어 교환, 암호화.",
   "features.tracker.title": "트래커 관리",

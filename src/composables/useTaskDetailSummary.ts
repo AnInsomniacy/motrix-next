@@ -18,7 +18,6 @@ export interface BtHealthSummary {
   metadataState: BtMetadataState
   hasMetadata: boolean
   trackerCount: number
-  unprobeableTrackerCount: number
   peerCount: number
   seederPeerCount: number
   activeDownloadPeerCount: number
@@ -54,7 +53,13 @@ export interface TaskTransferSummary {
 }
 
 export function getTaskDetailStatusLabelKey(status: string | undefined): string {
-  return status === 'seeding' || status === 'sharing' || status === 'bt-metadata-fetching'
+  return status === 'seeding' ||
+    status === 'sharing' ||
+    status === 'bt-metadata-fetching' ||
+    status === 'bt-recovering' ||
+    status === 'awaiting-file-selection' ||
+    status === 'seeding-paused' ||
+    status === 'sharing-paused'
     ? `task.${status}`
     : `task.status-${status}`
 }
@@ -79,17 +84,13 @@ function fileLength(file: Aria2File): number {
   return toPositiveInt(file.length)
 }
 
-function isUnprobeableTracker(url: string): boolean {
-  return /^(?:udp|ws|wss):\/\//i.test(url)
-}
-
 function hasSpeed(value: string | undefined): boolean {
   return toPositiveInt(value) > 0
 }
 
 function normalizeBtMetadataState(task: Aria2Task | null | undefined, hasMetadata: boolean): BtMetadataState {
   if (hasMetadata) return 'ready'
-  if (task?.bittorrent && !task.following) return 'downloading'
+  if (task?.bittorrent?.state === 'downloadingMetadata') return 'downloading'
   return 'unknown'
 }
 
@@ -117,11 +118,13 @@ export function buildBtHealthSummary(task: Aria2Task | null | undefined): BtHeal
     metadataState: normalizeBtMetadataState(task, hasMetadata),
     hasMetadata,
     trackerCount: trackers.length,
-    unprobeableTrackerCount: trackers.filter(isUnprobeableTracker).length,
-    peerCount: peers.length,
-    seederPeerCount: peers.filter((peer: Aria2Peer) => peer.seeder === 'true').length,
-    activeDownloadPeerCount: peers.filter((peer: Aria2Peer) => hasSpeed(peer.downloadSpeed)).length,
-    activeUploadPeerCount: peers.filter((peer: Aria2Peer) => hasSpeed(peer.uploadSpeed)).length,
+    peerCount: toPositiveInt(task?.bittorrent?.numPeers) || peers.filter((peer) => peer.state === 'connected').length,
+    seederPeerCount: peers.filter((peer: Aria2Peer) => peer.state === 'connected' && peer.seeder === 'true').length,
+    activeDownloadPeerCount: peers.filter(
+      (peer: Aria2Peer) => peer.state === 'connected' && hasSpeed(peer.downloadSpeed),
+    ).length,
+    activeUploadPeerCount: peers.filter((peer: Aria2Peer) => peer.state === 'connected' && hasSpeed(peer.uploadSpeed))
+      .length,
     amChokingCount: peers.filter((peer: Aria2Peer) => peer.amChoking === 'true').length,
     peerChokingCount: peers.filter((peer: Aria2Peer) => peer.peerChoking === 'true').length,
     selectedFileCount: selected.length,

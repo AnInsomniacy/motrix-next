@@ -33,6 +33,9 @@ pub enum AppError {
     /// Aria2 JSON-RPC communication error.
     #[error("Aria2 RPC error: {0}")]
     Aria2(String),
+    /// Native torrent metainfo inspection failure.
+    #[error("Torrent inspection error [{kind}]: {message}")]
+    TorrentInspection { kind: String, message: String },
     /// Database read/write error (rusqlite).
     #[error("Database error: {0}")]
     Database(String),
@@ -154,6 +157,13 @@ mod tests {
             ("Upnp", AppError::Upnp("p".into())),
             ("Protocol", AppError::Protocol("r".into())),
             ("Aria2", AppError::Aria2("a".into())),
+            (
+                "TorrentInspection",
+                AppError::TorrentInspection {
+                    kind: "invalidTorrent".into(),
+                    message: "invalid metadata".into(),
+                },
+            ),
             ("Database", AppError::Database("d".into())),
         ];
         for (tag, err) in cases {

@@ -58,7 +58,7 @@
   "motion.tokens.desc": "सभी durations और curves CSS custom properties हैं, जिससे 12+ components में unified rhythm रहती है।",
   "features.title": "सुविधाएं",
   "features.protocol.title": "Multi-protocol",
-  "features.protocol.desc": "HTTP, FTP, ED2K, BitTorrent, Magnet links.",
+  "features.protocol.desc": "HTTP, SFTP, ED2K, BitTorrent, Magnet links.",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "Selective file download, DHT, peer exchange, encryption.",
   "features.tracker.title": "Tracker management",

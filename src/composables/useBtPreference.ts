@@ -1,15 +1,21 @@
 /**
  * @fileoverview Pure functions for the BitTorrent preference tab.
  *
- * Manages BT-specific config: auto-download content, encryption,
- * connection, discovery, seeding, max peers, and tracker management. Key business logic:
- * - btAutoDownloadContent ↔ pauseMetadata
+ * Manages BT-specific config: file selection, encryption,
+ * connection, discovery, max peers, and tracker management. Key business logic:
+ * - BitTorrent file-selection presentation
  * - Tracker comma ↔ newline format conversion
  *
  * Tracker source URL validation (isValidTrackerSourceUrl) is co-located
  * here since it is only used in the BT tab's tracker source management.
  */
-import type { AppConfig } from '@shared/types'
+import type {
+  AppConfig,
+  BtBlocklistScope,
+  BtEncryptionMode,
+  BtTransportMode,
+  MagnetFileSelectionPolicy,
+} from '@shared/types'
 import { DEFAULT_APP_CONFIG as D } from '@shared/constants'
 import { PORT_RECOVERY_RANGE_END, PORT_RECOVERY_RANGE_START } from '@shared/constants'
 import { convertCommaToLine, convertLineToComma, generateRandomInt } from '@shared/utils'
@@ -37,20 +43,25 @@ export function isValidTrackerSourceUrl(input: string): boolean {
 
 export interface BtForm {
   [key: string]: unknown
-  btAutoDownloadContent: boolean
-  btForceEncryption: boolean
-  btDhtIpv4Enabled: boolean
-  btDhtIpv6Enabled: boolean
+  magnetFileSelectionPolicy: MagnetFileSelectionPolicy
+  btEncryption: BtEncryptionMode
+  btTransport: BtTransportMode
+  btMaxConnections: number
+  btMaxUploads: number
+  btMaxUploadsPerTorrent: number
+  btFirstLastPieceFirst: boolean
+  btRateLimitOverhead: boolean
+  btAnonymousMode: boolean
+  btUserAgent: string
+  btPeerIdPrefix: string
+  btBlocklistScope: BtBlocklistScope
+  btDhtEnabled: boolean
   btPeerExchangeEnabled: boolean
   btLocalPeerDiscoveryEnabled: boolean
   btMaxPeers: number
   listenPort: number
   btExternalIp: string
   btExternalPort: number
-  dhtListenPort: number
-  sharingMode: 'stop-by-condition' | 'manual-stop'
-  shareRatio: number
-  shareTime: number
   btPeerBlocklistEnabled: boolean
   btPeerBlocklistUrl: string
   btPeerBlocklistAutoSync: boolean
@@ -67,27 +78,28 @@ export interface BtForm {
 
 /**
  * Builds the BT form state from the preference store config.
- * Maps pauseMetadata into btAutoDownloadContent.
  */
 export function buildBtForm(config: AppConfig): BtForm {
-  const pauseMetadata = config.pauseMetadata ?? D.pauseMetadata
-  const btAutoDownloadContent = !pauseMetadata
-
   return {
-    btAutoDownloadContent,
-    btForceEncryption: config.btForceEncryption ?? D.btForceEncryption,
-    btDhtIpv4Enabled: config.btDhtIpv4Enabled ?? D.btDhtIpv4Enabled,
-    btDhtIpv6Enabled: config.btDhtIpv6Enabled ?? D.btDhtIpv6Enabled,
+    magnetFileSelectionPolicy: config.magnetFileSelectionPolicy ?? D.magnetFileSelectionPolicy,
+    btEncryption: config.btEncryption ?? D.btEncryption,
+    btTransport: config.btTransport ?? D.btTransport,
+    btMaxConnections: config.btMaxConnections ?? D.btMaxConnections,
+    btMaxUploads: config.btMaxUploads ?? D.btMaxUploads,
+    btMaxUploadsPerTorrent: config.btMaxUploadsPerTorrent ?? D.btMaxUploadsPerTorrent,
+    btFirstLastPieceFirst: config.btFirstLastPieceFirst ?? D.btFirstLastPieceFirst,
+    btRateLimitOverhead: config.btRateLimitOverhead ?? D.btRateLimitOverhead,
+    btAnonymousMode: config.btAnonymousMode ?? D.btAnonymousMode,
+    btUserAgent: config.btUserAgent ?? D.btUserAgent,
+    btPeerIdPrefix: config.btPeerIdPrefix ?? D.btPeerIdPrefix,
+    btBlocklistScope: config.btBlocklistScope ?? D.btBlocklistScope,
+    btDhtEnabled: config.btDhtEnabled ?? D.btDhtEnabled,
     btPeerExchangeEnabled: config.btPeerExchangeEnabled ?? D.btPeerExchangeEnabled,
     btLocalPeerDiscoveryEnabled: config.btLocalPeerDiscoveryEnabled ?? D.btLocalPeerDiscoveryEnabled,
     btMaxPeers: config.btMaxPeers ?? D.btMaxPeers,
     listenPort: Number(config.listenPort ?? D.listenPort),
     btExternalIp: config.btExternalIp ?? D.btExternalIp,
     btExternalPort: Number(config.btExternalPort ?? D.btExternalPort),
-    dhtListenPort: Number(config.dhtListenPort ?? D.dhtListenPort),
-    sharingMode: (config.keepSharing ?? D.keepSharing) ? 'manual-stop' : 'stop-by-condition',
-    shareRatio: config.shareRatio ?? D.shareRatio,
-    shareTime: config.shareTime ?? D.shareTime,
     btPeerBlocklistEnabled: config.btPeerBlocklistEnabled ?? D.btPeerBlocklistEnabled,
     btPeerBlocklistUrl: config.btPeerBlocklistUrl ?? D.btPeerBlocklistUrl,
     btPeerBlocklistAutoSync: config.btPeerBlocklistAutoSync ?? D.btPeerBlocklistAutoSync,
@@ -105,32 +117,35 @@ export function buildBtForm(config: AppConfig): BtForm {
 
 /**
  * Converts the BT form into aria2 system config key-value pairs.
- * Handles btAutoDownloadContent → pause-metadata.
+ * The global engine default pauses magnet metadata for explicit file control.
+ * The download-all policy overrides it per task through the native RPC option.
  *
  * IMPORTANT: force-save is intentionally excluded from global config.
  * It must only be set per-download on BT tasks to prevent aria2 from
  * re-downloading completed HTTP tasks on restart.
  */
 export function buildBtSystemConfig(f: BtForm): Record<string, string> {
-  const autoContent = !!f.btAutoDownloadContent
-  const keepSharing = f.sharingMode === 'manual-stop'
   return {
     'detach-share-only': 'true',
-    'seed-ratio': keepSharing ? '0' : String(f.shareRatio),
-    'seed-time': keepSharing ? '' : String(f.shareTime),
-    'keep-sharing': String(keepSharing),
     'bt-max-peers': String(f.btMaxPeers),
     'listen-port': String(f.listenPort),
     'bt-external-ip': f.btExternalIp.trim(),
     'bt-external-port': String(f.btExternalPort),
-    'dht-listen-port': String(f.dhtListenPort),
-    'bt-force-encryption': String(!!f.btForceEncryption),
-    'bt-require-crypto': String(!!f.btForceEncryption),
-    'enable-dht': String(!!f.btDhtIpv4Enabled),
-    'enable-dht6': String(!!f.btDhtIpv6Enabled),
+    'bt-encryption': f.btEncryption,
+    'bt-transport': f.btTransport,
+    'bt-max-connections': String(f.btMaxConnections),
+    'bt-max-uploads': String(f.btMaxUploads),
+    'bt-max-uploads-per-torrent': String(f.btMaxUploadsPerTorrent),
+    'bt-first-last-piece-first': String(!!f.btFirstLastPieceFirst),
+    'bt-rate-limit-overhead': String(!!f.btRateLimitOverhead),
+    'bt-anonymous-mode': String(!!f.btAnonymousMode),
+    'bt-user-agent': f.btUserAgent,
+    'bt-peer-id-prefix': f.btPeerIdPrefix,
+    'bt-blocklist-scope': f.btBlocklistScope,
+    'enable-dht': String(!!f.btDhtEnabled),
     'enable-peer-exchange': String(!!f.btPeerExchangeEnabled),
     'bt-enable-lpd': String(!!f.btLocalPeerDiscoveryEnabled),
-    'pause-metadata': String(!autoContent),
+    'pause-metadata': 'true',
     'bt-tracker': convertLineToComma(f.btTracker),
   }
 }
@@ -138,9 +153,6 @@ export function buildBtSystemConfig(f: BtForm): Record<string, string> {
 export function validateBtEndpoint(f: BtForm): string | null {
   if (!Number.isInteger(f.listenPort) || f.listenPort < 1024 || f.listenPort > 65535) {
     return 'preferences.bt-port-unavailable'
-  }
-  if (!Number.isInteger(f.dhtListenPort) || f.dhtListenPort < 1024 || f.dhtListenPort > 65535) {
-    return 'preferences.dht-port-invalid'
   }
   if (!isValidOptionalIpAddress(f.btExternalIp)) {
     return 'preferences.bt-external-ip-invalid'
@@ -155,29 +167,14 @@ export function randomBtPort(): number {
   return generateRandomInt(PORT_RECOVERY_RANGE_START, PORT_RECOVERY_RANGE_END + 1)
 }
 
-export function randomDhtPort(): number {
-  return generateRandomInt(PORT_RECOVERY_RANGE_START, PORT_RECOVERY_RANGE_END + 1)
-}
-
 /**
  * Transforms the BT form for store persistence.
- * Expands btAutoDownloadContent back into pauseMetadata.
  * Converts tracker newline format back to comma-separated for storage.
  */
 export function transformBtForStore(f: BtForm): Partial<AppConfig> {
   const data = { ...f } as Partial<AppConfig> & Record<string, unknown>
 
-  delete data.btAutoDownloadContent
-  delete data.sharingMode
-
-  if (f.btAutoDownloadContent) {
-    data.pauseMetadata = false
-  } else {
-    data.pauseMetadata = true
-  }
-
   data.btTracker = convertLineToComma(f.btTracker)
-  data.keepSharing = f.sharingMode === 'manual-stop'
 
   return data
 }

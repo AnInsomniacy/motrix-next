@@ -2,7 +2,7 @@
  *
  * Tests the pure logic extracted from the magnet flow:
  * - Detecting magnet URIs
- * - Building metadata-only options
+ * - Building policy-specific aria2 options
  * - Parsing file selection from getFiles response
  * - Building select-file option string
  */
@@ -10,15 +10,8 @@ import { describe, it, expect } from 'vitest'
 import type { Aria2File } from '@shared/types'
 
 // Dynamic import after module exists
-const {
-  isMagnetUri,
-  buildMetadataOnlyOptions,
-  buildSelectFileOption,
-  parseFilesForSelection,
-  shouldShowFileSelection,
-  getResolvedMagnetSelection,
-  getPendingMagnetSelectionGids,
-} = await import('@/composables/useMagnetFlow')
+const { isMagnetUri, buildMagnetOptions, buildSelectFileOption, parseFilesForSelection } =
+  await import('@/composables/useMagnetFlow')
 
 describe('useMagnetFlow', () => {
   // ── isMagnetUri ─────────────────────────────────────────────────
@@ -45,18 +38,29 @@ describe('useMagnetFlow', () => {
     })
   })
 
-  // ── buildMetadataOnlyOptions ────────────────────────────────────
+  // ── buildMagnetOptions ──────────────────────────────────────────
 
-  describe('buildMetadataOnlyOptions', () => {
-    it('sets pause-metadata for magnet file selection', () => {
-      const options = buildMetadataOnlyOptions({ dir: '/downloads', split: '8' })
+  describe('buildMagnetOptions', () => {
+    it('uses aria2 native continuation when every file should download', () => {
+      const options = buildMagnetOptions({ dir: '/downloads' }, 'download-all')
+      expect(options['pause-metadata']).toBe('false')
+    })
+
+    it('pauses metadata when download-all needs native file classification', () => {
+      const options = buildMagnetOptions({ dir: '/downloads' }, 'download-all', true)
       expect(options['pause-metadata']).toBe('true')
     })
 
+    it('pauses metadata for prompt and manual selection', () => {
+      const options = buildMagnetOptions({ dir: '/downloads', 'stream-max-connections': '8' }, 'prompt')
+      expect(options['pause-metadata']).toBe('true')
+      expect(buildMagnetOptions({}, 'manual')['pause-metadata']).toBe('true')
+    })
+
     it('preserves existing options', () => {
-      const options = buildMetadataOnlyOptions({ dir: '/custom', split: '4' })
+      const options = buildMagnetOptions({ dir: '/custom', 'stream-max-connections': '4' }, 'prompt')
       expect(options.dir).toBe('/custom')
-      expect(options.split).toBe('4')
+      expect(options['stream-max-connections']).toBe('4')
     })
   })
 
@@ -110,6 +114,10 @@ describe('useMagnetFlow', () => {
       expect(parseFilesForSelection([])).toEqual([])
     })
 
+    it('excludes zero-length metadata entries', () => {
+      expect(parseFilesForSelection([{ ...mockFiles[0], length: '0' }])).toEqual([])
+    })
+
     it('extracts filename from Windows backslash path', () => {
       const winFiles: Aria2File[] = [
         {
@@ -158,105 +166,6 @@ describe('useMagnetFlow', () => {
 
     it('returns empty string for empty selection', () => {
       expect(buildSelectFileOption([])).toBe('')
-    })
-  })
-
-  // ── shouldShowFileSelection ───────────────────────────────────────
-
-  describe('shouldShowFileSelection', () => {
-    it('returns true when pauseMetadata is true (user wants file selection)', () => {
-      expect(shouldShowFileSelection({ pauseMetadata: true })).toBe(true)
-    })
-
-    it('returns false when pauseMetadata is false (auto-download mode)', () => {
-      expect(shouldShowFileSelection({ pauseMetadata: false })).toBe(false)
-    })
-
-    it('returns true when pauseMetadata is undefined (safe default)', () => {
-      expect(shouldShowFileSelection({ pauseMetadata: undefined })).toBe(true)
-    })
-
-    it('returns true when config object has no pauseMetadata key', () => {
-      expect(shouldShowFileSelection({})).toBe(true)
-    })
-  })
-
-  describe('getResolvedMagnetSelection', () => {
-    it('returns the followedBy content task when native aria2 metadata resolves', () => {
-      const result = getResolvedMagnetSelection({
-        gid: 'metadata-gid',
-        status: 'complete',
-        totalLength: '0',
-        completedLength: '0',
-        uploadLength: '0',
-        downloadSpeed: '0',
-        uploadSpeed: '0',
-        connections: '0',
-        dir: '/downloads',
-        files: [],
-        bittorrent: {
-          announceList: [['udp://tracker.example:6969']],
-        },
-        followedBy: ['content-gid'],
-      })
-
-      expect(result).toEqual({ metadataGid: 'metadata-gid', downloadGid: 'content-gid' })
-    })
-
-    it('returns null while metadata has not produced a content task', () => {
-      const result = getResolvedMagnetSelection({
-        gid: 'metadata-gid',
-        status: 'active',
-        totalLength: '0',
-        completedLength: '0',
-        uploadLength: '0',
-        downloadSpeed: '0',
-        uploadSpeed: '0',
-        connections: '1',
-        dir: '/downloads',
-        files: [],
-        bittorrent: {
-          announceList: [['udp://tracker.example:6969']],
-        },
-      })
-
-      expect(result).toBeNull()
-    })
-  })
-
-  describe('getPendingMagnetSelectionGids', () => {
-    it('restores native aria2 metadata parent GIDs from paused content tasks', () => {
-      const gids = getPendingMagnetSelectionGids([
-        {
-          gid: 'content-gid',
-          status: 'paused',
-          totalLength: '1000',
-          completedLength: '0',
-          uploadLength: '0',
-          downloadSpeed: '0',
-          uploadSpeed: '0',
-          connections: '0',
-          dir: '/downloads',
-          files: [
-            {
-              index: '1',
-              path: '/downloads/Movie/video.mkv',
-              length: '1000',
-              completedLength: '0',
-              selected: 'true',
-              uris: [],
-            },
-          ],
-          bittorrent: {
-            info: {
-              name: 'Movie',
-            },
-          },
-          following: 'metadata-gid',
-        },
-      ])
-
-      expect(gids).toEqual(['metadata-gid'])
     })
   })
 })

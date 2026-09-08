@@ -151,6 +151,7 @@ describe('sanitizeBrowserRequestHeadersWithDiagnostics', () => {
   it('reports safe header names and drop reasons without exposing header values', () => {
     const result = sanitizeBrowserRequestHeadersWithDiagnostics([
       { name: 'Accept', value: 'application/octet-stream' },
+      { name: 'Accept-Encoding', value: 'gzip, br' },
       { name: 'Host', value: 'secret.example.com' },
       { name: 'Origin', value: 'https://example.com\r\nInjected: secret' },
       { name: 'DNT', value: '1' },
@@ -162,11 +163,11 @@ describe('sanitizeBrowserRequestHeadersWithDiagnostics', () => {
       { name: 'DNT', value: '1' },
     ])
     expect(result.diagnostics).toEqual({
-      inputCount: 5,
+      inputCount: 6,
       keptCount: 2,
-      droppedCount: 3,
+      droppedCount: 4,
       keptNames: ['Accept', 'DNT'],
-      droppedReasons: ['forbidden', 'unsafe-value', 'unsafe-value'],
+      droppedReasons: ['forbidden', 'forbidden', 'unsafe-value', 'unsafe-value'],
     })
     expect(JSON.stringify(result.diagnostics)).not.toContain('secret')
     expect(JSON.stringify(result.diagnostics)).not.toContain('application/octet-stream')

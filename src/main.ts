@@ -2,21 +2,18 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import router from './router'
-import { i18n, loadLocale, SUPPORTED_LOCALES } from '@/composables/useLocale'
+import { i18n, loadLocale } from '@/composables/useLocale'
+import { isSupportedLocale, SUPPORTED_LOCALES, type SupportedLocale } from '@shared/localeCatalog'
 import { setI18nLocale } from '@shared/utils/i18n'
 import { usePreferenceStore } from './stores/preference'
 import { useTaskStore } from './stores/task'
 import { useAppStore } from './stores/app'
 import { useHistoryStore } from './stores/history'
+import { useDatabaseStore } from './stores/database'
+import { useEngineStore } from './stores/engine'
 import aria2Api from './api/aria2'
-import {
-  BT_LISTEN_PORT,
-  DEFAULT_TRACKER_SOURCE,
-  DHT_LISTEN_PORT,
-  ENGINE_RPC_PORT,
-  PROXY_SCOPES,
-} from '@shared/constants'
-import { convertTrackerDataToLine, convertTrackerDataToComma, reduceTrackerString } from '@shared/utils/tracker'
+import { DEFAULT_TRACKER_SOURCE, ENGINE_RPC_PORT, PROXY_SCOPES } from '@shared/constants'
+import { convertTrackerDataToLine, convertTrackerDataToComma } from '@shared/utils/tracker'
 import { logger } from '@shared/logger'
 import { getErrorMessage } from '@shared/utils/errorMessage'
 import { resolveUserVisibleDownloadDir, shouldPersistResolvedDownloadDir } from '@shared/utils/userVisibleDirectory'
@@ -31,6 +28,7 @@ import './styles/base.css'
 import './styles/transitions.css'
 import './styles/preferences.css'
 import './styles/naive-overrides.css'
+import './styles/reduced-motion.css'
 
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getLocale } from 'tauri-plugin-locale-api'
@@ -70,19 +68,8 @@ if (import.meta.env.PROD) {
   const preferenceStore = usePreferenceStore()
   const taskStore = useTaskStore()
   const appStore = useAppStore()
+  const engineStore = useEngineStore()
   const historyStore = useHistoryStore()
-
-  /** Rust-side health check: probes Aria2 Next HTTP RPC with retries.
-   *  Also updates Aria2Client credentials so invoke() commands work. */
-  async function waitForEngine(): Promise<boolean> {
-    const { invoke } = await import('@tauri-apps/api/core')
-    try {
-      return await invoke<boolean>('wait_for_engine')
-    } catch (e) {
-      logger.error('waitForEngine', `invoke failed: ${e}`)
-      return false
-    }
-  }
 
   async function autoCheckForUpdate() {
     const config = preferenceStore.config
@@ -105,7 +92,7 @@ if (import.meta.env.PROD) {
       }
       preferenceStore.updateAndSave({ lastCheckUpdateTime: Date.now() })
     } catch (e) {
-      logger.warn('Updater', 'auto check failed: ' + (e as Error).message)
+      logger.debug('Updater', 'update_check_failed', { reason: getErrorMessage(e) })
     }
   }
 
@@ -140,10 +127,12 @@ if (import.meta.env.PROD) {
       })
 
       const { invoke } = await import('@tauri-apps/api/core')
-      const reduced = reduceTrackerString(comma)
-      await invoke('save_system_config', { config: { 'bt-tracker': reduced } })
-      if (appStore.engineReady) {
-        await aria2Api.changeGlobalOption({ 'bt-tracker': reduced } as Partial<AppConfig>)
+      const { buildSystemConfigFromAppConfig } = await import('@shared/utils/systemConfig')
+      await invoke('replace_system_config', {
+        config: buildSystemConfigFromAppConfig(preferenceStore.config, preferenceStore.config.dir),
+      })
+      if (engineStore.isReady) {
+        await aria2Api.changeGlobalOption({ 'bt-tracker': comma } as Partial<AppConfig>)
       }
       logger.info('Tracker', `Auto-synced: ${result.data.length}/${sources.length} source(s) succeeded`)
       emitAppToast({ type: 'success', key: 'preferences.bt-tracker-sync-succeed' })
@@ -196,15 +185,13 @@ if (import.meta.env.PROD) {
   // window appears almost instantly while the engine boots in the background.
   //
   //  Phase 1 (critical path)   – loadPreference → locale → window.show()
-  //  Phase 2 (engine, async)   – rpcSecret → save config → start engine
-  //                              → on_engine_ready (Rust) → wait_for_engine
+  //  Phase 2 (engine, async)   – rpcSecret → save config → EngineSupervisor
   //  Phase 3 (non-critical)    – autostart, protocol sync (parallel)
   //  Phase 4 (deferred)        – update check, tracker sync, FS warmup,
   //                              clipboard monitor
   // ---------------------------------------------------------------------------
 
-  /** Start the aria2 engine, wait for readiness, and connect the RPC client.
-   *  Returns `true` if the engine is usable, `false` on failure. */
+  /** Persists the runtime configuration and delegates startup to EngineSupervisor. */
   async function initEngine(port: number, secret: string, config: AppConfig): Promise<boolean> {
     try {
       const { invoke } = await import('@tauri-apps/api/core')
@@ -239,13 +226,13 @@ if (import.meta.env.PROD) {
       }
 
       // Seed system.json with the FULL set of default system config values.
-      // This ensures CLI args include --split, --max-connection-per-server,
+      // This ensures the runtime config contains every user-controlled engine option,
       // --user-agent, etc. even before the user opens the preference page.
       // On subsequent launches, saved values from Downloads/BT/Network/Advanced
       // preferences already exist in system.json and will be merged (not overwritten).
       const { buildSystemConfigFromAppConfig } = await import('@shared/utils/systemConfig')
 
-      await invoke('save_system_config', {
+      await invoke('replace_system_config', {
         config: {
           ...buildSystemConfigFromAppConfig(config, defaultDir),
           // Override with runtime values — secret may have been auto-generated
@@ -253,27 +240,14 @@ if (import.meta.env.PROD) {
           'rpc-listen-port': String(port),
         },
       })
-      // start_engine_command ONLY spawns the bundled engine sidecar.
-      // Credential update + option sync happen in wait_for_engine
-      // (after Aria2 Next is confirmed ready).
-      await invoke('start_engine_command')
+      if (useDatabaseStore().phase === 'resetting') return false
+      const snapshot = await engineStore.ensureRunning('startup')
+      logger.info('Engine', `supervisor completed startup on port ${port}`)
+      return snapshot.phase === 'running'
     } catch (e) {
-      logger.error('Engine', e)
+      logger.error('Engine', getErrorMessage(e))
       return false
     }
-
-    // Rust-side health check: probe → on_engine_ready (credential + option sync)
-    const ready = await waitForEngine()
-    if (!ready) {
-      logger.error('Engine', 'Engine did not become ready after retries')
-      return false
-    }
-
-    // Mark frontend as ready — invoke() transport is always available
-    const { setEngineReady } = await import('@/api/aria2')
-    setEngineReady(true)
-    logger.info('Engine', `Rust aria2 client connected via invoke() on port ${port}`)
-    return true
   }
 
   /**
@@ -310,7 +284,7 @@ if (import.meta.env.PROD) {
     await preferenceStore.loadPreference()
 
     const storedLocale = preferenceStore.locale
-    let resolvedLocale: string
+    let resolvedLocale: SupportedLocale
 
     if (!storedLocale || storedLocale === 'auto') {
       // First install (empty/auto) or explicit Follow System mode:
@@ -333,16 +307,14 @@ if (import.meta.env.PROD) {
       // overwrite it — the config stays 'auto' across restarts.
     } else {
       // Explicit locale chosen by the user (e.g. 'zh-CN', 'ja').
-      resolvedLocale = storedLocale
+      resolvedLocale = isSupportedLocale(storedLocale) ? storedLocale : 'en-US'
     }
 
     // Apply resolved locale to vue-i18n and expose it on the store
     // so downstream consumers (direction, General.vue) can read it.
     // Locale messages are lazily loaded — only en-US ships in the main bundle.
-    if (resolvedLocale) {
-      await loadLocale(resolvedLocale)
-      setI18nLocale(i18n, resolvedLocale)
-    }
+    await loadLocale(resolvedLocale)
+    setI18nLocale(i18n, resolvedLocale)
 
     // Flush deferred migration toasts now that i18n locale is active.
     // loadPreference() buffers these signals to avoid showing English toasts.
@@ -356,6 +328,11 @@ if (import.meta.env.PROD) {
       taskStore.setApi(aria2Api)
     }
     app.mount('#app')
+    // The UI remains usable if database inspection or migrations fail.
+    const database = useDatabaseStore()
+    await database.init().catch(() => undefined)
+    if (database.phase === 'resetting') return
+    await engineStore.initialize()
 
     if (windowKind === 'download-confirmation') return
 
@@ -367,8 +344,7 @@ if (import.meta.env.PROD) {
 
     taskStore.setApi(aria2Api)
 
-    // Engine initializes in the background — does NOT block the UI.
-    // appStore.engineRestarting drives the engine banner in MainLayout.
+    // Engine initialization stays asynchronous while the supervisor publishes state.
     const enginePromise = initEngine(port, secret, config)
 
     // ── Phase 3: non-critical IPC ────────────────────────────────────────
@@ -385,9 +361,6 @@ if (import.meta.env.PROD) {
       import('@tauri-apps/api/core')
         .then(({ invoke }) =>
           invoke('start_upnp_mapping', {
-            btPort: Number(config.listenPort) || BT_LISTEN_PORT,
-            btExternalPort: Number(config.btExternalPort) || 0,
-            dhtPort: Number(config.dhtListenPort) || DHT_LISTEN_PORT,
             ed2kPort: Number(config.ed2kListenPort) > 0 ? Number(config.ed2kListenPort) : null,
             ed2kUdpPort: Number(config.ed2kUdpListenPort) > 0 ? Number(config.ed2kUdpListenPort) : null,
           }),
@@ -396,24 +369,19 @@ if (import.meta.env.PROD) {
     }
 
     // ── Phase 2 completion: engine ready ───────────────────────────────────
-    // try/finally guarantees engineRestarting always clears, even on failure.
-    // engineReady distinguishes success from failure for the UI toast.
     try {
       const ok = await enginePromise
-      appStore.engineReady = ok
 
       // Global option sync and speed scheduler are now handled by Rust:
       // - on_engine_ready() syncs system.json options to aria2 via changeGlobalOption
       // - spawn_speed_scheduler() runs a 60s timer in tokio (no WebView needed)
       if (ok) {
         await preferenceStore.reloadPreferenceFromDisk()
-        logger.info('Engine', 'Rust on_engine_ready completed: options synced, services spawned')
+        logger.debug('Engine', 'runtime_services_ready')
+        emitAppToast({ type: 'success', key: 'app.engine-ready' })
       }
     } catch (e) {
-      logger.error('Engine', 'unexpected startup error: ' + e)
-      appStore.engineReady = false
-    } finally {
-      appStore.setEngineRestarting(false)
+      logger.error('Engine', `unexpected startup error: ${getErrorMessage(e)}`)
     }
 
     // Resume all paused/waiting tasks on launch if configured
@@ -427,12 +395,7 @@ if (import.meta.env.PROD) {
 
     // Initialize download history database, then schedule lightweight cleanup.
     historyStore
-      .init({
-        onCorrupt: () => logger.warn('HistoryDB', 'Database corrupted, rebuilding…'),
-        onError: (e) => logger.warn('HistoryDB', `Load failed, rebuilding… ${e}`),
-        onRebuilt: () => logger.info('HistoryDB', 'Database rebuilt successfully'),
-        onRebuildFailed: (e) => logger.error('HistoryDB', `Rebuild failed: ${e}`),
-      })
+      .init()
       .then(() => {
         const runCleanup = async () => {
           try {
@@ -447,6 +410,7 @@ if (import.meta.env.PROD) {
               removeTaskRecord: aria2Api.removeTaskRecord,
               extractFilePaths: extractHistoryFilePaths,
             })
+            await taskStore.fetchList()
           } catch (e) {
             logger.debug('HistoryMaintenance', e)
           }
@@ -526,6 +490,5 @@ if (import.meta.env.PROD) {
 
   void bootstrapWindow().catch((e) => {
     logger.error('main.bootstrap', e)
-    appStore.setEngineRestarting(false)
   })
 } // end: main window initialization

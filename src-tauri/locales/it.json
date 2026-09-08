@@ -1,0 +1,15 @@
+{
+  "_version": 1,
+  "notification.bt-complete-body": "Condivisione: %{task_name}",
+  "notification.bt-complete-title": "Download BT completato",
+  "notification.download-batch-start-body": "Download in corso: %{task_name} e altre %{count} attività",
+  "notification.download-complete-body": "Salvato: %{task_name}",
+  "notification.download-complete-title": "Download completato",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "Download non riuscito",
+  "notification.download-start-body": "Download in corso: %{task_name}",
+  "notification.download-start-title": "Download avviato",
+  "notification.ed2k-complete-body": "Condivisione: %{task_name}",
+  "notification.ed2k-complete-title": "Download ED2K completato",
+  "notification.error-unknown": "Unknown error"
+}

@@ -18,7 +18,9 @@ const display = computed(() => Math.round(animated.value).toLocaleString())
 </script>
 
 <template>
-  <span class="subnav-count" aria-hidden="true">{{ display }}</span>
+  <span class="subnav-count" aria-hidden="true">
+    {{ display }}
+  </span>
 </template>
 
 <style scoped>

@@ -1,4 +1,5 @@
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::collections::VecDeque;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 use tauri_plugin_shell::process::CommandChild;
 
@@ -27,18 +28,12 @@ pub(crate) fn strip_ansi(input: &str) -> String {
     strip_ansi_escapes::strip_str(input)
 }
 
-/// Holds the Aria2 Next child process handle, protected by a Mutex for thread-safe access.
-///
-/// `intentional_stop` distinguishes deliberate kills (restart, update, relaunch)
-/// from genuine crashes.  Set to `true` before `child.kill()`, checked by the
-/// async Terminated handler to suppress false `engine-error` events.
+const STDERR_TAIL_LINES: usize = 24;
+
+/// Low-level process state owned by the engine supervisor.
 pub struct EngineState {
     pub(crate) child: Mutex<Option<CommandChild>>,
-    pub(crate) intentional_stop: AtomicBool,
-    /// Monotonically increasing generation counter.
-    /// Each call to `start_engine` / `restart_engine` increments this.
-    /// Terminated handlers capture their generation at spawn time and
-    /// silently ignore events when their generation is stale.
+    stderr_tail: Mutex<VecDeque<String>>,
     gen: AtomicU32,
 }
 
@@ -46,7 +41,7 @@ impl EngineState {
     pub fn new() -> Self {
         Self {
             child: Mutex::new(None),
-            intentional_stop: AtomicBool::new(false),
+            stderr_tail: Mutex::new(VecDeque::with_capacity(STDERR_TAIL_LINES)),
             gen: AtomicU32::new(0),
         }
     }
@@ -65,6 +60,36 @@ impl EngineState {
     /// Returns `true` if `gen` matches the current generation.
     pub fn is_current_generation(&self, gen: u32) -> bool {
         self.gen.load(Ordering::SeqCst) == gen
+    }
+
+    pub fn invalidate_generation(&self) {
+        self.next_generation();
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.child.lock().is_ok_and(|child| child.is_some())
+    }
+
+    pub fn push_stderr(&self, line: String) {
+        if let Ok(mut tail) = self.stderr_tail.lock() {
+            if tail.len() == STDERR_TAIL_LINES {
+                tail.pop_front();
+            }
+            tail.push_back(line);
+        }
+    }
+
+    pub fn clear_stderr(&self) {
+        if let Ok(mut tail) = self.stderr_tail.lock() {
+            tail.clear();
+        }
+    }
+
+    pub fn stderr_tail(&self) -> Vec<String> {
+        self.stderr_tail
+            .lock()
+            .map(|tail| tail.iter().cloned().collect())
+            .unwrap_or_default()
     }
 }
 
@@ -177,12 +202,15 @@ mod tests {
     }
 
     #[test]
-    fn intentional_stop_is_independent_of_generation() {
+    fn stderr_tail_is_bounded() {
         let state = EngineState::new();
-        state.intentional_stop.store(true, Ordering::SeqCst);
-        let _gen = state.next_generation();
-        // Incrementing generation must NOT touch intentional_stop
-        assert!(state.intentional_stop.load(Ordering::SeqCst));
+        for index in 0..40 {
+            state.push_stderr(format!("line-{index}"));
+        }
+        let tail = state.stderr_tail();
+        assert_eq!(tail.len(), STDERR_TAIL_LINES);
+        assert_eq!(tail.first().map(String::as_str), Some("line-16"));
+        assert_eq!(tail.last().map(String::as_str), Some("line-39"));
     }
 
     // ── path_to_safe_string tests ───────────────────────────────────────
@@ -194,7 +222,9 @@ mod tests {
 
     #[test]
     fn safe_string_strips_extended_length_prefix() {
-        let p = std::path::Path::new(r"\\?\D:\Program Files\MotrixNext\binaries\aria2.conf");
+        let p = std::path::Path::new(
+            r"\\?\C:\Users\test\AppData\Local\com.motrix.next\engine\aria2.conf",
+        );
         let result = path_to_safe_string(p);
         // On Windows: \\?\ prefix must be stripped for aria2c compatibility.
         // On non-Windows: \\?\ has no special meaning — dunce is a no-op.
@@ -225,16 +255,20 @@ mod tests {
 
     #[test]
     fn safe_string_preserves_normal_windows_path() {
-        let p = std::path::Path::new(r"D:\Program Files\MotrixNext\binaries\aria2.conf");
+        let p =
+            std::path::Path::new(r"C:\Users\test\AppData\Local\com.motrix.next\engine\aria2.conf");
         let result = path_to_safe_string(p);
         assert_eq!(result, p.to_string_lossy().to_string());
     }
 
     #[test]
     fn safe_string_preserves_unix_path() {
-        let p = std::path::Path::new("/usr/local/share/motrix-next/binaries/aria2.conf");
+        let p = std::path::Path::new("/home/test/.local/share/com.motrix.next/engine/aria2.conf");
         let result = path_to_safe_string(p);
-        assert_eq!(result, "/usr/local/share/motrix-next/binaries/aria2.conf");
+        assert_eq!(
+            result,
+            "/home/test/.local/share/com.motrix.next/engine/aria2.conf"
+        );
     }
 
     #[test]

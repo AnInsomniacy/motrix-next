@@ -25,7 +25,7 @@ import { logger } from '@shared/logger'
 import type { AppConfig } from '@shared/types'
 
 /** Current schema version. Must equal `migrations.length`. */
-export const CONFIG_VERSION = 5
+export const CONFIG_VERSION = 7
 
 /** Result returned by runMigrations for callers to act on (e.g. toast). */
 export interface MigrationResult {
@@ -75,10 +75,6 @@ const migrations: Migration[] = [
   // engineMaxConnectionPerServer field that served as a sync anchor for
   // AddTask's maxSplit computation.
   //
-  // After v2:
-  //   - split controls aria2's --split (parallel segments per file)
-  //   - maxConnectionPerServer controls aria2's --max-connection-per-server
-  //   - Both are independently adjustable in Basic settings
   function migrateV2(config: Partial<AppConfig>): void {
     // Remove the obsolete sync anchor field
     delete (config as Record<string, unknown>).engineMaxConnectionPerServer
@@ -99,7 +95,7 @@ const migrations: Migration[] = [
   // magnet added unnecessary UX complexity without practical benefit.
   //
   // After v3, autoSubmitFromExtension is a simple boolean derived from
-  // the old master switch (enable).  URI types (HTTP/FTP/magnet) are
+  // the old master switch (enable). URI types (HTTP/SFTP/magnet) are
   // auto-submitted when true; torrent always shows the dialog.
   function migrateV3(config: Partial<AppConfig>): void {
     const old = (config as Record<string, unknown>).autoSubmitFromExtension
@@ -175,6 +171,37 @@ const migrations: Migration[] = [
       config.clipboard.ed2k = true
       logger.info('ConfigMigration', 'v5: backfilled clipboard.ed2k')
     }
+  },
+
+  // ── v5 → v6 ──────────────────────────────────────────────────────
+  // Adopt the native libtorrent configuration model, remove retired BT
+  // fields, and use explicit magnet dialog presentation.
+  function migrateV6(config: Partial<AppConfig>): void {
+    const legacy = config as Partial<AppConfig> & Record<string, unknown>
+    const forceEncryption = legacy.btForceEncryption === true
+    config.btEncryption = forceEncryption ? 'required' : 'preferred'
+    config.btDhtEnabled = legacy.btDhtIpv4Enabled !== false || legacy.btDhtIpv6Enabled !== false
+    delete legacy.btForceEncryption
+    delete legacy.btDhtIpv4Enabled
+    delete legacy.btDhtIpv6Enabled
+    delete legacy.dhtListenPort
+    delete legacy.pauseMetadata
+    delete legacy.autoSelectAllBtFilesFromExtension
+    if (config.portConflictRecovery) {
+      delete (config.portConflictRecovery as unknown as Record<string, unknown>).dht
+    }
+    logger.info('ConfigMigration', 'v6: adopted native BitTorrent settings and file-selection presentation')
+  },
+
+  // ── v6 → v7 ──────────────────────────────────────────────────────
+  // Replace the ambiguous two-state dialog presentation with a single
+  // magnet file-selection policy. The retired value is intentionally not
+  // mapped because the new default is the explicit prompt flow.
+  function migrateV7(config: Partial<AppConfig>): void {
+    const legacy = config as Partial<AppConfig> & Record<string, unknown>
+    delete legacy.btFileSelectionMode
+    config.magnetFileSelectionPolicy = 'prompt'
+    logger.info('ConfigMigration', 'v7: replaced legacy magnet dialog mode with the prompt policy')
   },
 ]
 

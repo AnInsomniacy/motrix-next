@@ -10,7 +10,7 @@ import {
 } from '@shared/utils/proxy'
 
 describe('proxyPolicy', () => {
-  it('normalizes legacy environment proxy mode to direct', () => {
+  it('rejects unsupported proxy modes', () => {
     expect(normalizeProxyMode('auto')).toBe('direct')
   })
 
@@ -19,7 +19,7 @@ describe('proxyPolicy', () => {
     expect(proxySwitchValueToMode(false)).toBe('direct')
   })
 
-  it('does not emit proxy-mode because aria2-next 2.4.0 does not support it', () => {
+  it('emits scoped HTTP download options', () => {
     expect(
       buildDownloadProxyOptions({
         mode: 'manual',
@@ -29,8 +29,22 @@ describe('proxyPolicy', () => {
       }),
     ).toEqual({
       'all-proxy': 'http://127.0.0.1:7890',
+      'bt-proxy': '',
       'no-proxy': 'localhost',
     })
+  })
+
+  it('embeds credentials in the BitTorrent proxy URI', () => {
+    expect(
+      buildDownloadProxyOptions({
+        mode: 'manual',
+        server: 'socks5://127.0.0.1:1080',
+        username: 'user',
+        password: 'pass',
+        bypass: '',
+        scope: [PROXY_SCOPES.BITTORRENT],
+      })['bt-proxy'],
+    ).toBe('socks5://user:pass@127.0.0.1:1080')
   })
 
   it('clears standard aria2 proxy keys for direct task mode', () => {
@@ -44,9 +58,6 @@ describe('proxyPolicy', () => {
       'https-proxy': '',
       'https-proxy-user': '',
       'https-proxy-passwd': '',
-      'ftp-proxy': '',
-      'ftp-proxy-user': '',
-      'ftp-proxy-passwd': '',
       'no-proxy': '',
     })
   })

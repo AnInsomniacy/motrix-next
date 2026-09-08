@@ -59,7 +59,7 @@ describe('externalInputDiagnostics', () => {
   it('summarizes aria2 options without leaking cookies or authorization values', () => {
     const fields = summarizeAria2Options({
       dir: '/downloads',
-      split: '16',
+      'stream-max-connections': '16',
       'user-agent': 'BrowserUA/1.0',
       referer: 'https://example.com/page?token=secret',
       header: ['Accept: application/octet-stream', 'Cookie: session=secret', 'Authorization: Bearer secret'],

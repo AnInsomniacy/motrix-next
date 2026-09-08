@@ -4,6 +4,7 @@ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import Sortable from 'sortablejs'
 import { useTaskStore } from '@/stores/task'
 import { usePreferenceStore } from '@/stores/preference'
+import { useReducedMotion } from '@/composables/useReducedMotion'
 import TaskItem from './TaskItem.vue'
 import TaskCompactItem from './TaskCompactItem.vue'
 import type { ComponentPublicInstance } from 'vue'
@@ -13,17 +14,21 @@ import type { Aria2Task } from '@shared/types'
 const emit = defineEmits<{
   pause: [task: Aria2Task]
   resume: [task: Aria2Task]
+  retry: [task: Aria2Task]
+  redownload: [task: Aria2Task]
+  'finish-sharing': [task: Aria2Task]
   delete: [task: Aria2Task]
   'delete-record': [task: Aria2Task]
   'copy-link': [task: Aria2Task]
   'show-info': [task: Aria2Task]
   folder: [task: Aria2Task]
   'open-file': [task: Aria2Task]
-  'stop-sharing': [task: Aria2Task]
+  'select-files': [task: Aria2Task]
 }>()
 
 const taskStore = useTaskStore()
 const preferenceStore = usePreferenceStore()
+const reduceMotion = useReducedMotion()
 
 type ListRefTarget = HTMLElement | ComponentPublicInstance | null
 
@@ -34,21 +39,12 @@ const containerTransitioning = ref(false)
 let lastFloatingRect: DOMRect | null = null
 let floatingRectFrame = 0
 let sortable: Sortable | null = null
-let renderedTransitionRevision = taskStore.taskListTransitionRevision
-const selectedGidList = computed(() => taskStore.selectedGidList)
 const taskCardComponent = computed(() =>
   preferenceStore.config.taskCardMode === 'compact' ? TaskCompactItem : TaskItem,
 )
-const taskPage = computed(
-  () =>
-    taskStore.taskPagination[
-      taskStore.currentList === 'stopped' ? 'stopped' : taskStore.currentList === 'all' ? 'all' : 'active'
-    ].page,
-)
+const taskPage = computed(() => taskStore.taskPagination[taskStore.currentList].page)
 const pageSize = computed(() => taskStore.taskPagination.pageSize)
-const pageTransitionKey = computed(
-  () => `${taskStore.currentList}:${taskPage.value}:${pageSize.value}:${taskStore.taskListTransitionRevision}`,
-)
+const pageTransitionKey = computed(() => taskStore.currentList)
 const visibleTaskList = computed<Aria2Task[]>({
   get() {
     const start = (taskPage.value - 1) * pageSize.value
@@ -101,6 +97,11 @@ function animateDropSettle(event: SortableEvent | undefined): Promise<void> {
   const item = event?.item
   if (!lastFloatingRect || !item?.isConnected) return Promise.resolve()
 
+  if (reduceMotion.value) {
+    lastFloatingRect = null
+    return Promise.resolve()
+  }
+
   const targetRect = item.getBoundingClientRect()
   const deltaX = lastFloatingRect.left - targetRect.left
   const deltaY = lastFloatingRect.top - targetRect.top
@@ -130,22 +131,10 @@ watch(
   () => taskStore.taskList,
   (v) => {
     if (sorting.value) return
-    if (renderedTransitionRevision !== taskStore.taskListTransitionRevision) return
     taskList.value = v
     taskStore.clampCurrentTaskPage()
   },
   { immediate: true },
-)
-
-watch(
-  () => taskStore.taskListTransitionRevision,
-  async (revision) => {
-    renderedTransitionRevision = revision
-    await nextTick()
-    if (sorting.value) return
-    taskList.value = taskStore.taskList
-    taskStore.clampCurrentTaskPage()
-  },
 )
 
 watch([taskPage, pageSize], () => {
@@ -163,7 +152,7 @@ watch(
 )
 
 const sortableOptions: SortableOptions = {
-  animation: 240,
+  animation: reduceMotion.value ? 0 : 240,
   handle: '.task-drag-handle',
   draggable: '.task-list-item',
   filter: '.task-item-actions, button, a, input, textarea, select, [data-no-drag]',
@@ -181,7 +170,7 @@ const sortableOptions: SortableOptions = {
   preventOnFilter: false,
   onStart: () => {
     sorting.value = true
-    startFloatingRectTracking()
+    if (!reduceMotion.value) startFloatingRectTracking()
   },
   onUpdate: (event) => {
     if (event.oldIndex === undefined || event.newIndex === undefined || event.oldIndex === event.newIndex) return
@@ -202,6 +191,12 @@ const sortableOptions: SortableOptions = {
   },
 }
 
+watch(reduceMotion, (enabled) => {
+  const duration = enabled ? 0 : 240
+  sortableOptions.animation = duration
+  sortable?.option('animation', duration)
+})
+
 function destroySortable() {
   sortable?.destroy()
   sortable = null
@@ -219,25 +214,6 @@ function mountSortable() {
   const element = resolveListElement()
   if (!element) return
   sortable = Sortable.create(element, sortableOptions)
-}
-
-function isSelected(gid: string) {
-  return selectedGidList.value.includes(gid)
-}
-
-function handleItemClick(task: Aria2Task, event: MouseEvent) {
-  if (sorting.value) return
-  const gid = task.gid
-  const list = [...selectedGidList.value]
-  if (event.metaKey || event.ctrlKey) {
-    const idx = list.indexOf(gid)
-    if (idx === -1) list.push(gid)
-    else list.splice(idx, 1)
-  } else {
-    list.length = 0
-    list.push(gid)
-  }
-  taskStore.selectTasks(list)
 }
 
 function handlePageSwapBeforeLeave() {
@@ -279,25 +255,23 @@ function handleCardBeforeLeave(element: Element) {
         class="task-list-inner"
         @before-leave="handleCardBeforeLeave"
       >
-        <div
-          v-for="item in visibleTaskList"
-          :key="item.gid"
-          :class="{ selected: isSelected(item.gid) }"
-          class="task-list-item"
-          @click="handleItemClick(item, $event)"
-        >
+        <div v-for="item in visibleTaskList" :key="taskStore.taskCardKey(item.gid)" class="task-list-item">
           <component
             :is="taskCardComponent"
             :task="item"
+            :action-pending="taskStore.resubmittingGids.includes(item.gid)"
             @pause="emit('pause', item)"
             @resume="emit('resume', item)"
+            @retry="emit('retry', item)"
+            @redownload="emit('redownload', item)"
+            @finish-sharing="emit('finish-sharing', item)"
             @delete="emit('delete', item)"
             @delete-record="emit('delete-record', item)"
             @copy-link="emit('copy-link', item)"
             @show-info="emit('show-info', item)"
             @folder="emit('folder', item)"
             @open-file="emit('open-file', item)"
-            @stop-sharing="emit('stop-sharing', item)"
+            @select-files="emit('select-files', item)"
           />
         </div>
       </TransitionGroup>
@@ -347,9 +321,6 @@ function handleCardBeforeLeave(element: Element) {
 .task-page-swap-leave-to {
   opacity: 0;
   transform: scale(0.98);
-}
-.selected :deep(.task-item) {
-  border-color: var(--task-item-hover-border);
 }
 .task-list-item {
   position: relative;
@@ -410,12 +381,5 @@ function handleCardBeforeLeave(element: Element) {
 .task-list-item--settling.task-list-item--settled {
   transform: translate3d(0, 0, 0);
   transition: transform 300ms ease;
-}
-.task-list-item :deep(button),
-.task-list-item :deep(a),
-.task-list-item :deep(input),
-.task-list-item :deep(textarea),
-.task-list-item :deep(select) {
-  cursor: auto;
 }
 </style>

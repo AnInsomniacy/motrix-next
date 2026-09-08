@@ -6,21 +6,19 @@
  *   2. trackFirstSeen assigns sequential timestamps
  *   3. loadAddedAtFromRecords does not overwrite existing entries
  *   4. buildSortableAddedAtMap merge priority (memory > DB)
- *   5. removeAddedAt cleanup
  */
-import { describe, it, expect, beforeEach } from 'vitest'
-import {
-  registerAddedAt,
-  getAddedAt,
-  trackFirstSeen,
-  loadAddedAtFromRecords,
-  buildSortableAddedAtMap,
-  removeAddedAt,
-  _resetForTesting,
-} from '@/composables/useTaskOrder'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+let registry: typeof import('../useTaskOrder')
+let registerAddedAt: typeof registry.registerAddedAt
+let getAddedAt: typeof registry.getAddedAt
+let trackFirstSeen: typeof registry.trackFirstSeen
+let loadAddedAtFromRecords: typeof registry.loadAddedAtFromRecords
+let buildSortableAddedAtMap: typeof registry.buildSortableAddedAtMap
 
-beforeEach(() => {
-  _resetForTesting()
+beforeEach(async () => {
+  vi.resetModules()
+  registry = await import('../useTaskOrder')
+  ;({ registerAddedAt, getAddedAt, trackFirstSeen, loadAddedAtFromRecords, buildSortableAddedAtMap } = registry)
 })
 
 // ── registerAddedAt ─────────────────────────────────────────────────
@@ -130,20 +128,6 @@ describe('buildSortableAddedAtMap', () => {
   it('returns empty map when no sources', () => {
     const result = buildSortableAddedAtMap([], [])
     expect(result.size).toBe(0)
-  })
-})
-
-// ── removeAddedAt ───────────────────────────────────────────────────
-
-describe('removeAddedAt', () => {
-  it('removes an entry', () => {
-    registerAddedAt('a', '2024-01-01T00:00:00Z')
-    removeAddedAt('a')
-    expect(getAddedAt('a')).toBeUndefined()
-  })
-
-  it('no-op for non-existent GID', () => {
-    expect(() => removeAddedAt('nonexistent')).not.toThrow()
   })
 })
 

@@ -1,0 +1,15 @@
+{
+  "_version": 1,
+  "notification.bt-complete-body": "Seeding: %{task_name}",
+  "notification.bt-complete-title": "BT डाउनलोड पूरा हुआ",
+  "notification.download-batch-start-body": "डाउनलोड हो रहा है: %{task_name} और %{count} अन्य task(s)",
+  "notification.download-complete-body": "सहेजा गया: %{task_name}",
+  "notification.download-complete-title": "डाउनलोड पूरा हुआ",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "डाउनलोड विफल",
+  "notification.download-start-body": "डाउनलोड हो रहा है: %{task_name}",
+  "notification.download-start-title": "डाउनलोड शुरू हुआ",
+  "notification.ed2k-complete-body": "Sharing: %{task_name}",
+  "notification.ed2k-complete-title": "ED2K डाउनलोड पूरा हुआ",
+  "notification.error-unknown": "अज्ञात त्रुटि"
+}

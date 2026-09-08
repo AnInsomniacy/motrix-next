@@ -14,10 +14,6 @@ export function normalizeProxyMode(mode: unknown): EngineProxyMode {
   return ENGINE_PROXY_MODES.includes(mode as EngineProxyMode) ? (mode as EngineProxyMode) : 'direct'
 }
 
-export function isProxyModeEnabled(mode: EngineProxyMode): boolean {
-  return mode !== 'direct'
-}
-
 export function proxySwitchValueToMode(enabled: boolean): EngineProxyMode {
   return enabled ? 'manual' : 'direct'
 }
@@ -63,7 +59,7 @@ export const UNSUPPORTED_PROXY_SCHEME_RE = /^socks[45a-z]*:\/\//i
 /**
  * Validates a proxy URL against aria2's `HttpProxyOptionHandler` whitelist.
  *
- * aria2 accepts `http://`, `https://`, `ftp://`, and bare `HOST:PORT`
+ * Aria2 Next accepts `http://`, `https://`, and bare `HOST:PORT`
  * values. SOCKS/custom schemes are rejected before they can crash the engine.
  */
 export function isValidAria2ProxyUrl(url: string): boolean {
@@ -72,7 +68,7 @@ export function isValidAria2ProxyUrl(url: string): boolean {
 
   if (UNSUPPORTED_PROXY_SCHEME_RE.test(trimmed)) return false
 
-  if (/^(https?|ftp):\/\//i.test(trimmed)) {
+  if (/^https?:\/\//i.test(trimmed)) {
     try {
       new URL(trimmed)
       return true
@@ -91,6 +87,17 @@ export function isValidAria2ProxyUrl(url: string): boolean {
   }
 
   return false
+}
+
+export function isValidBtProxyUrl(url: string): boolean {
+  if (!url.trim()) return true
+  const normalized = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(url.trim()) ? url.trim() : `http://${url.trim()}`
+  try {
+    const parsed = new URL(normalized)
+    return ['http:', 'socks4:', 'socks5:'].includes(parsed.protocol) && !!parsed.hostname && !!parsed.port
+  } catch {
+    return false
+  }
 }
 
 // ── App-side scoped proxy resolution ────────────────────────────────
@@ -123,11 +130,12 @@ function clearProxyOptions(): Aria2EngineOptions {
     'https-proxy': '',
     'https-proxy-user': '',
     'https-proxy-passwd': '',
-    'ftp-proxy': '',
-    'ftp-proxy-user': '',
-    'ftp-proxy-passwd': '',
     'no-proxy': '',
   }
+}
+
+function clearDownloadProxyOptions(): Aria2EngineOptions {
+  return { ...clearProxyOptions(), 'bt-proxy': '' }
 }
 
 function addProxyCredentials(options: Aria2EngineOptions, username?: string, password?: string): void {
@@ -139,19 +147,24 @@ function addProxyCredentials(options: Aria2EngineOptions, username?: string, pas
 }
 
 export function buildDownloadProxyOptions(proxy: ProxyConfig): Aria2EngineOptions {
-  if (!hasDownloadScope(proxy)) return clearProxyOptions()
-
   const mode = normalizeProxyMode(proxy.mode)
-  if (mode !== 'manual') return clearProxyOptions()
+  if (mode !== 'manual') return clearDownloadProxyOptions()
 
   const server = proxy.server.trim()
-  if (!server) return clearProxyOptions()
+  if (!server) return clearDownloadProxyOptions()
 
-  const options: Aria2EngineOptions = {
-    'all-proxy': server,
+  const options: Aria2EngineOptions = {}
+
+  if (hasDownloadScope(proxy)) {
+    options['all-proxy'] = server
+    addProxyCredentials(options, proxy.username, proxy.password)
+    if (proxy.bypass?.trim()) options['no-proxy'] = proxy.bypass.trim()
   }
-  addProxyCredentials(options, proxy.username, proxy.password)
-  if (proxy.bypass?.trim()) options['no-proxy'] = proxy.bypass.trim()
+  if (hasProxyScope(proxy, PROXY_SCOPES.BITTORRENT)) {
+    options['bt-proxy'] = buildProxyUrlWithCredentials(proxy) ?? ''
+  }
+  if (!hasDownloadScope(proxy)) Object.assign(options, clearProxyOptions())
+  if (!hasProxyScope(proxy, PROXY_SCOPES.BITTORRENT)) options['bt-proxy'] = ''
   return options
 }
 

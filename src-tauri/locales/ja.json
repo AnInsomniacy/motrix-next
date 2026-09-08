@@ -1,0 +1,15 @@
+{
+  "_version": 1,
+  "notification.bt-complete-body": "シード中：%{task_name}",
+  "notification.bt-complete-title": "BT ダウンロード完了",
+  "notification.download-batch-start-body": "ダウンロード中：%{task_name} 他 %{count} 件",
+  "notification.download-complete-body": "保存しました：%{task_name}",
+  "notification.download-complete-title": "ダウンロード完了",
+  "notification.download-failed-body": "%{task_name}：%{reason}",
+  "notification.download-failed-title": "ダウンロード失敗",
+  "notification.download-start-body": "ダウンロード中：%{task_name}",
+  "notification.download-start-title": "ダウンロード開始",
+  "notification.ed2k-complete-body": "共有中：%{task_name}",
+  "notification.ed2k-complete-title": "ED2K ダウンロード完了",
+  "notification.error-unknown": "不明なエラー"
+}

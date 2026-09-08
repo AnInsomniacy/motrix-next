@@ -1,19 +1,13 @@
 /** @fileoverview SQLite-backed HTTP Basic Auth credential store. */
 import { defineStore } from 'pinia'
-import Database from '@tauri-apps/plugin-sql'
+import { useDatabaseStore } from '@/stores/database'
 import { normalizeHttpAuthOrigin } from '@shared/utils/httpAuth'
 import { sanitizeHeaderValue } from '@shared/utils/headerSanitize'
 import type { HttpAuthCredential, HttpAuthInput } from '@shared/types'
 
-const DB_NAME = 'sqlite:history.db'
-
 export const useHttpAuthStore = defineStore('httpAuth', () => {
-  let db: Awaited<ReturnType<typeof Database.load>> | null = null
-
-  async function getDb() {
-    if (!db) db = await Database.load(DB_NAME)
-    return db
-  }
+  const database = useDatabaseStore()
+  const getDb = database.init
 
   async function saveCredential(input: HttpAuthInput): Promise<void> {
     const origin = normalizeHttpAuthOrigin(input.url)
@@ -36,6 +30,7 @@ export const useHttpAuthStore = defineStore('httpAuth', () => {
   }
 
   async function findByUrl(url: string): Promise<HttpAuthCredential | null> {
+    if (database.phase === 'failed' || database.phase === 'resetting') return null
     const origin = normalizeHttpAuthOrigin(url)
     if (!origin) return null
 

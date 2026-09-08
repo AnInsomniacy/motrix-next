@@ -3,9 +3,12 @@
   "productName": "MotrixNext",
   "identifier": "com.motrix.next",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": {
+      "script": "pnpm build:native-launcher && node node_modules/vite/bin/vite.js",
+      "wait": false
+    },
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "pnpm build:native-launcher && pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -21,7 +24,7 @@
         "decorations": false,
         "visible": false,
         "center": true,
-        "shadow": false
+        "shadow": true
       }
     ],
     "security": {
@@ -33,15 +36,16 @@
     "active": true,
     "targets": "all",
     "publisher": "AnInsomniacy",
-    "copyright": "Copyright © 2025 AnInsomniacy. All rights reserved.",
+    "copyright": "Copyright © 2025–present AnInsomniacy",
     "createUpdaterArtifacts": true,
-    "externalBin": ["binaries/motrix-next-engine"],
+    "externalBin": ["binaries/motrix-next-engine", "generated-binaries/motrix-next-browser-launcher"],
     "resources": [
-      "binaries/aria2.conf",
       "data/ed2k-bootstrap/server.met",
       "data/ed2k-bootstrap/nodes.dat",
       "data/bt-peer-blocklist.txt",
-      "data/dbip-country-lite.mmdb"
+      "data/dbip-country-lite.mmdb",
+      "native-messaging/manifests/chromium.json",
+      "native-messaging/manifests/firefox.json"
     ],
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "fileAssociations": [
@@ -128,9 +132,6 @@
       "desktop": {
         "schemes": ["magnet", "ed2k", "thunder", "motrixnext"]
       }
-    },
-    "sql": {
-      "preload": ["sqlite:history.db"]
     }
   }
 }

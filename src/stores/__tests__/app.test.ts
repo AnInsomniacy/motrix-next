@@ -45,17 +45,36 @@ vi.mock('@/composables/useAddTaskFileOps', async (importOriginal) => {
 })
 
 import { useAppStore } from '../app'
-import { createBatchItem, resetBatchIdCounter } from '@shared/utils/batchHelpers'
+import { createBatchItem } from '@shared/utils/batchHelpers'
 
 describe('useAppStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    resetBatchIdCounter()
     submitManualUrisMock.mockReset()
     submitManualUrisMock.mockResolvedValue({ submittedTaskNames: [], magnetGids: [], magnetFailures: [] })
     submitBatchItemsMock.mockReset()
     submitBatchItemsMock.mockResolvedValue(0)
     resolveUnresolvedItemsMock.mockClear()
+  })
+
+  it('keeps automatic prompting local to the task that captured it', () => {
+    const store = useAppStore()
+
+    store.queueMagnetSelection('prompt-gid', true)
+    store.queueMagnetSelection('manual-gid', false)
+    store.replacePendingMagnetSelections(['prompt-gid', 'manual-gid', 'restored-gid'])
+
+    expect(store.pendingMagnetGids).toEqual(['prompt-gid', 'manual-gid', 'restored-gid'])
+    expect(store.automaticMagnetPromptGids).toEqual(['prompt-gid'])
+
+    store.disableAutomaticMagnetPrompt('prompt-gid')
+
+    expect(store.pendingMagnetGids).toEqual(['prompt-gid', 'manual-gid', 'restored-gid'])
+    expect(store.automaticMagnetPromptGids).toEqual([])
+
+    store.clearMagnetSelections(['prompt-gid'])
+
+    expect(store.pendingMagnetGids).toEqual(['manual-gid', 'restored-gid'])
   })
 
   // ── enqueueBatch ────────────────────────────────────────────────
@@ -187,8 +206,8 @@ describe('useAppStore', () => {
   describe('updateAddTaskOptions', () => {
     it('replaces addTaskOptions with provided options', () => {
       const store = useAppStore()
-      store.updateAddTaskOptions({ dir: '/tmp/downloads', split: '4' } as never)
-      expect(store.addTaskOptions).toEqual({ dir: '/tmp/downloads', split: '4' })
+      store.updateAddTaskOptions({ dir: '/tmp/downloads', 'stream-max-connections': '4' } as never)
+      expect(store.addTaskOptions).toEqual({ dir: '/tmp/downloads', 'stream-max-connections': '4' })
     })
 
     it('defaults to empty object when called with no arguments', () => {
@@ -247,7 +266,7 @@ describe('useAppStore', () => {
       expect(store.interval).toBeGreaterThanOrEqual(before)
     })
 
-    it('zeros downloadSpeed when no active tasks', () => {
+    it('preserves the authoritative engine speed payload', () => {
       const store = useAppStore()
       store.handleStatEvent({
         downloadSpeed: 999,
@@ -257,9 +276,7 @@ describe('useAppStore', () => {
         numStopped: 1,
         numStoppedTotal: 1,
       })
-      // downloadSpeed is forced to 0 when numActive === 0
-      // (matches fetchGlobalStat behavior and Rust's expectation)
-      expect(store.stat.downloadSpeed).toBe(0)
+      expect(store.stat.downloadSpeed).toBe(999)
       expect(store.stat.uploadSpeed).toBe(100)
     })
 
@@ -274,34 +291,6 @@ describe('useAppStore', () => {
         numStoppedTotal: 0,
       })
       expect(store.stat.downloadSpeed).toBe(512000)
-    })
-  })
-
-  // ── fetchEngineInfo ─────────────────────────────────────────────
-
-  describe('fetchEngineInfo', () => {
-    it('stores engine version and features', async () => {
-      const store = useAppStore()
-      const api = {
-        getVersion: vi.fn().mockResolvedValue({ version: '1.37.0', enabledFeatures: ['BitTorrent', 'GZip'] }),
-      }
-      await store.fetchEngineInfo(api)
-      expect(store.engineInfo.version).toBe('1.37.0')
-      expect(store.engineInfo.enabledFeatures).toContain('BitTorrent')
-    })
-  })
-
-  // ── fetchEngineOptions ──────────────────────────────────────────
-
-  describe('fetchEngineOptions', () => {
-    it('stores global engine options and returns data', async () => {
-      const store = useAppStore()
-      const api = {
-        getGlobalOption: vi.fn().mockResolvedValue({ dir: '/downloads', split: '5' }),
-      }
-      const result = await store.fetchEngineOptions(api)
-      expect(store.engineOptions).toMatchObject({ dir: '/downloads', split: '5' })
-      expect(result).toEqual({ dir: '/downloads', split: '5' })
     })
   })
 
@@ -642,12 +631,11 @@ describe('useAppStore', () => {
       expect(store.addTaskVisible).toBe(true)
     })
 
-    it('shows AddTask for remote .torrent URLs when BT auto-select is disabled', async () => {
+    it('shows AddTask for remote .torrent URLs', async () => {
       const store = useAppStore()
       const { usePreferenceStore } = await import('@/stores/preference')
       const prefStore = usePreferenceStore()
       prefStore.config.autoSubmitFromExtension = true
-      prefStore.config.autoSelectAllBtFilesFromExtension = false
 
       store.handleDeepLinkUrls([buildDeepLink('https://example.com/linux.torrent')])
 
@@ -659,34 +647,16 @@ describe('useAppStore', () => {
       expect(submitBatchItemsMock).not.toHaveBeenCalled()
     })
 
-    it('auto-submits remote .torrent URLs when BT auto-select is enabled', async () => {
+    it('auto-submits magnet URLs without bypassing file selection', async () => {
       const store = useAppStore()
       const { usePreferenceStore } = await import('@/stores/preference')
       const prefStore = usePreferenceStore()
       prefStore.config.autoSubmitFromExtension = true
-      prefStore.config.autoSelectAllBtFilesFromExtension = true
-
-      store.handleDeepLinkUrls([buildDeepLink('https://example.com/linux.torrent')])
-      await new Promise((resolve) => setTimeout(resolve, 0))
-
-      expect(store.pendingBatch).toHaveLength(0)
-      expect(store.addTaskVisible).toBe(false)
-      expect(resolveUnresolvedItemsMock).toHaveBeenCalledTimes(1)
-      expect(submitBatchItemsMock).toHaveBeenCalledTimes(1)
-    })
-
-    it('auto-submits magnet URLs with metadata pause disabled when file auto-select is enabled', async () => {
-      const store = useAppStore()
-      const { usePreferenceStore } = await import('@/stores/preference')
-      const prefStore = usePreferenceStore()
-      prefStore.config.autoSubmitFromExtension = true
-      prefStore.config.autoSelectAllBtFilesFromExtension = true
 
       store.handleDeepLinkUrls([buildDeepLink('magnet:?xt=urn:btih:abc123')])
       await new Promise((resolve) => setTimeout(resolve, 0))
 
       expect(submitManualUrisMock).toHaveBeenCalledTimes(1)
-      expect(submitManualUrisMock.mock.calls[0][1]).toMatchObject({ 'pause-metadata': 'false' })
       expect(store.addTaskVisible).toBe(false)
     })
 
@@ -695,7 +665,6 @@ describe('useAppStore', () => {
       const { usePreferenceStore } = await import('@/stores/preference')
       const prefStore = usePreferenceStore()
       prefStore.config.autoSubmitFromExtension = true
-      prefStore.config.autoSelectAllBtFilesFromExtension = false
 
       store.handleDeepLinkUrls([
         buildDeepLink('https://example.com/file.zip'),
@@ -729,9 +698,7 @@ describe('useAppStore', () => {
       store.handleDeepLinkUrls([buildDeepLink('https://example.com/file.zip', 'https://example.com')])
 
       const submittedForm = submitManualUrisMock.mock.calls[0][0]
-      const submittedOptions = submitManualUrisMock.mock.calls[0][1]
       expect(submittedForm.referer).toBe('https://example.com')
-      expect(submittedOptions.referer).toBe('https://example.com')
       expect(store.pendingReferer).toBe('')
     })
 
@@ -744,9 +711,7 @@ describe('useAppStore', () => {
       store.handleDeepLinkUrls([buildDeepLink('https://cdn.quark.cn/file.zip', 'https://pan.quark.cn', 'auth=secret')])
 
       const submittedForm = submitManualUrisMock.mock.calls[0][0]
-      const submittedOptions = submitManualUrisMock.mock.calls[0][1]
       expect(submittedForm.cookie).toBe('auth=secret')
-      expect(submittedOptions.header).toContain('Cookie: auth=secret')
       expect(store.pendingCookie).toBe('')
     })
 
@@ -772,14 +737,10 @@ describe('useAppStore', () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
 
       const submittedForm = submitManualUrisMock.mock.calls[0][0]
-      const submittedOptions = submitManualUrisMock.mock.calls[0][1]
       expect(submittedForm.userAgent).toBe('BrowserUA/1.0')
+      expect(submittedForm.referer).toBe('https://www.amd.com/support')
+      expect(submittedForm.cookie).toBe('auth=secret')
       expect(submittedForm.requestHeaders).toEqual([{ name: 'Accept', value: 'application/octet-stream' }])
-      expect(submittedOptions).toMatchObject({
-        'user-agent': 'BrowserUA/1.0',
-        referer: 'https://www.amd.com/support',
-        header: ['Accept: application/octet-stream', 'Cookie: auth=secret'],
-      })
     })
 
     it('falls back to configured user agent when structured input has none', async () => {
@@ -797,8 +758,8 @@ describe('useAppStore', () => {
       ])
       await new Promise((resolve) => setTimeout(resolve, 0))
 
-      const submittedOptions = submitManualUrisMock.mock.calls[0][1]
-      expect(submittedOptions['user-agent']).toBe('ConfiguredUA/1.0')
+      const submittedForm = submitManualUrisMock.mock.calls[0][0]
+      expect(submittedForm.userAgent).toBe('ConfiguredUA/1.0')
     })
 
     it('keeps structured request headers for manual dialog submission', async () => {

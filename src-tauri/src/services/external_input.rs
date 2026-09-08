@@ -157,7 +157,7 @@ pub fn route_external_inputs(
         .unwrap_or(false);
     let main_frontend_ready = is_frontend_ready(app);
     let surface = choose_external_input_surface(route, main_window_visible, main_frontend_ready);
-    log::info!(
+    log::debug!(
         "external_input:route source={source} count={} route={route:?} surface={surface:?} main_window_alive={main_window_was_alive} main_window_visible={main_window_visible} main_frontend_ready={main_frontend_ready}",
         inputs.len(),
     );

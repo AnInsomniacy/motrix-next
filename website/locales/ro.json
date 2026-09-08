@@ -58,7 +58,7 @@
   "motion.tokens.desc": "Toate duratele și curbele sunt proprietăți CSS personalizate, asigurând un ritm unificat în 12+ componente.",
   "features.title": "Funcționalități",
   "features.protocol.title": "Multi-protocol",
-  "features.protocol.desc": "HTTP, FTP, ED2K, BitTorrent și linkuri Magnet.",
+  "features.protocol.desc": "HTTP, SFTP, ED2K, BitTorrent și linkuri Magnet.",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "Descărcare selectivă de fișiere, DHT, schimb de colegi, criptare.",
   "features.tracker.title": "Gestionare trackere",

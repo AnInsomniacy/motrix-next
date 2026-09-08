@@ -1,0 +1,15 @@
+{
+  "_version": 1,
+  "notification.bt-complete-body": "시딩 중: %{task_name}",
+  "notification.bt-complete-title": "BT 다운로드 완료",
+  "notification.download-batch-start-body": "다운로드 중: %{task_name} 외 %{count}개",
+  "notification.download-complete-body": "저장됨: %{task_name}",
+  "notification.download-complete-title": "다운로드 완료",
+  "notification.download-failed-body": "%{task_name}: %{reason}",
+  "notification.download-failed-title": "다운로드 실패",
+  "notification.download-start-body": "다운로드 중: %{task_name}",
+  "notification.download-start-title": "다운로드 시작",
+  "notification.ed2k-complete-body": "공유 중: %{task_name}",
+  "notification.ed2k-complete-title": "ED2K 다운로드 완료",
+  "notification.error-unknown": "알 수 없는 오류"
+}

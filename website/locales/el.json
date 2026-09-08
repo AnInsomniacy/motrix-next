@@ -58,7 +58,7 @@
   "motion.tokens.desc": "Όλες οι διάρκειες και καμπύλες είναι CSS ιδιότητες, εξασφαλίζοντας ενιαίο ρυθμό σε 12+ στοιχεία.",
   "features.title": "Χαρακτηριστικά",
   "features.protocol.title": "Πολλαπλά πρωτόκολλα",
-  "features.protocol.desc": "HTTP, FTP, ED2K, BitTorrent και σύνδεσμοι Magnet.",
+  "features.protocol.desc": "HTTP, SFTP, ED2K, BitTorrent και σύνδεσμοι Magnet.",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "Επιλεκτική λήψη αρχείων, DHT, ανταλλαγή ομοτίμων, κρυπτογράφηση.",
   "features.tracker.title": "Διαχείριση tracker",

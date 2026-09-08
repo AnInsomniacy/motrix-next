@@ -23,8 +23,10 @@ export interface DownloadsForm {
   fileCategoryEnabled: boolean
   fileCategories: FileCategory[]
   maxConcurrentDownloads: number
-  split: number
-  maxConnectionPerServer: number
+  streamMaxConnections: number
+  sharingMode: 'stop-by-condition' | 'manual-stop'
+  shareRatio: number
+  shareTime: number
   continue: boolean
   maxTries: number
   retryWait: number
@@ -92,8 +94,10 @@ export function buildDownloadsForm(config: AppConfig, defaultDir: string = ''): 
         ? hydrateCategories(config.fileCategories, config.dir || defaultDir)
         : buildDefaultCategories(config.dir || defaultDir),
     maxConcurrentDownloads: config.maxConcurrentDownloads ?? D.maxConcurrentDownloads,
-    split: config.split ?? D.split,
-    maxConnectionPerServer: config.maxConnectionPerServer ?? D.maxConnectionPerServer,
+    streamMaxConnections: config.streamMaxConnections ?? D.streamMaxConnections,
+    sharingMode: (config.keepSharing ?? D.keepSharing) ? 'manual-stop' : 'stop-by-condition',
+    shareRatio: config.shareRatio ?? D.shareRatio,
+    shareTime: config.shareTime ?? D.shareTime,
     continue: config.continue ?? D.continue,
     maxTries: config.maxTries ?? D.maxTries,
     retryWait: config.retryWait ?? D.retryWait,
@@ -126,27 +130,31 @@ export function buildDownloadsForm(config: AppConfig, defaultDir: string = ''): 
  * are excluded.
  */
 export function buildDownloadsSystemConfig(f: DownloadsForm): Record<string, string> {
+  const keepSharing = f.sharingMode === 'manual-stop'
   return {
     dir: f.dir,
     'max-concurrent-downloads': String(f.maxConcurrentDownloads),
-    'max-connection-per-server': String(f.maxConnectionPerServer),
-    split: String(f.split),
+    'stream-max-connections': String(f.streamMaxConnections),
     'max-overall-download-limit': f.maxOverallDownloadLimit,
     'max-overall-upload-limit': f.maxOverallUploadLimit,
     continue: String(f.continue !== false),
     'remote-time': String(!!f.remoteTime),
     'max-tries': String(f.maxTries),
     'retry-wait': String(f.retryWait),
+    'seed-ratio': keepSharing ? '0' : String(f.shareRatio),
+    'seed-time': keepSharing ? '' : String(f.shareTime),
+    'keep-sharing': String(keepSharing),
   }
 }
 
 /**
  * Transforms the downloads form for store persistence.
  * Handles the fileCategories auto-populate guard.
- * Since v2, split and maxConnectionPerServer are persisted independently.
  */
 export function transformDownloadsForStore(f: DownloadsForm): Partial<AppConfig> {
   const data = { ...f } as Partial<AppConfig> & Record<string, unknown>
+  delete data.sharingMode
+  data.keepSharing = f.sharingMode === 'manual-stop'
 
   // Guard: auto-populate default categories when classification is enabled but
   // the categories array is empty (edge case from GitHub issue #229).
@@ -155,8 +163,6 @@ export function transformDownloadsForStore(f: DownloadsForm): Partial<AppConfig>
   } else {
     data.fileCategories = f.fileCategories.map(normalizeFileCategory)
   }
-
-  data.split = f.split
 
   return data
 }

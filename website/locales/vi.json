@@ -58,7 +58,7 @@
   "motion.tokens.desc": "Tất cả thời lượng và đường cong đều là thuộc tính CSS tùy chỉnh, đảm bảo nhịp điệu thống nhất trên 12+ thành phần.",
   "features.title": "Tính năng",
   "features.protocol.title": "Đa giao thức",
-  "features.protocol.desc": "HTTP, FTP, ED2K, BitTorrent, liên kết Magnet.",
+  "features.protocol.desc": "HTTP, SFTP, ED2K, BitTorrent, liên kết Magnet.",
   "features.bt.title": "BitTorrent",
   "features.bt.desc": "Tải tệp chọn lọc, DHT, trao đổi peer, mã hóa.",
   "features.tracker.title": "Quản lý tracker",

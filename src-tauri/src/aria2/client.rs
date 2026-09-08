@@ -7,9 +7,10 @@
 
 use crate::aria2::types::*;
 use crate::error::AppError;
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::RwLock;
 
 /// Aria2 JSON-RPC HTTP client.  Thread-safe via interior mutability.
@@ -26,7 +27,8 @@ pub struct Aria2Client {
 /// Tauri managed state wrapper.
 pub struct Aria2State(pub Arc<Aria2Client>);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ResumeEligibleResult {
     pub resumed: usize,
     pub blocked: usize,
@@ -54,7 +56,7 @@ impl Aria2Client {
     pub async fn update_credentials(&self, port: u16, secret: String) {
         *self.port.write().await = port;
         *self.secret.write().await = secret;
-        log::info!("aria2 client credentials updated: port={}", port);
+        log::debug!("aria2 client credentials updated: port={}", port);
     }
 
     /// Returns the current local RPC port and secret for companion transports.
@@ -78,7 +80,7 @@ impl Aria2Client {
 
     /// Generic JSON-RPC call.  Handles request construction, token injection,
     /// HTTP transport, and response parsing.
-    async fn call<T: DeserializeOwned>(
+    async fn call_rpc<T: DeserializeOwned>(
         &self,
         method: &str,
         extra_params: Vec<serde_json::Value>,
@@ -90,34 +92,58 @@ impl Aria2Client {
         let req = JsonRpcRequest {
             jsonrpc: "2.0",
             id: id.to_string(),
-            method: format!("aria2.{method}"),
+            method: method.to_string(),
             params,
         };
 
-        let url = format!("http://127.0.0.1:{port}/jsonrpc");
-        let resp: reqwest::Response = self
-            .http
-            .post(&url)
-            .json(&req)
-            .send()
+        let started = Instant::now();
+        let result =
+            async {
+                let url = format!("http://127.0.0.1:{port}/jsonrpc");
+                let resp: reqwest::Response =
+                    self.http.post(&url).json(&req).send().await.map_err(|e| {
+                        AppError::Aria2(format!("HTTP request to aria2 failed: {e}"))
+                    })?;
+
+                let bytes = resp
+                    .bytes()
+                    .await
+                    .map_err(|e| AppError::Aria2(format!("Failed to read aria2 response: {e}")))?;
+                let body: JsonRpcResponse<T> = parse_jsonrpc_response(&bytes, "aria2")?;
+
+                if let Some(err) = body.error {
+                    if let Some(kind @ ("invalidBase64" | "torrentTooLarge" | "invalidTorrent")) =
+                        err.data
+                            .as_ref()
+                            .and_then(|data| data.get("kind"))
+                            .and_then(serde_json::Value::as_str)
+                    {
+                        return Err(AppError::TorrentInspection {
+                            kind: kind.to_string(),
+                            message: err.message,
+                        });
+                    }
+                    return Err(AppError::Aria2(format!(
+                        "aria2 RPC error [{}]: {}",
+                        err.code, err.message
+                    )));
+                }
+
+                body.result
+                    .ok_or_else(|| AppError::Aria2("aria2 returned null result".into()))
+            }
+            .await;
+        record_rpc_result(method, id, started, &result);
+        result
+    }
+
+    async fn call<T: DeserializeOwned>(
+        &self,
+        method: &str,
+        extra_params: Vec<serde_json::Value>,
+    ) -> Result<T, AppError> {
+        self.call_rpc(&format!("aria2.{method}"), extra_params)
             .await
-            .map_err(|e| AppError::Aria2(format!("HTTP request to aria2 failed: {e}")))?;
-
-        let bytes = resp
-            .bytes()
-            .await
-            .map_err(|e| AppError::Aria2(format!("Failed to read aria2 response: {e}")))?;
-        let body: JsonRpcResponse<T> = parse_jsonrpc_response(&bytes, "aria2")?;
-
-        if let Some(err) = body.error {
-            return Err(AppError::Aria2(format!(
-                "aria2 RPC error [{}]: {}",
-                err.code, err.message
-            )));
-        }
-
-        body.result
-            .ok_or_else(|| AppError::Aria2("aria2 returned null result".into()))
     }
 
     // ── Public API ──────────────────────────────────────────────────
@@ -125,6 +151,10 @@ impl Aria2Client {
     /// Saves the current aria2 download session to disk.
     pub async fn save_session(&self) -> Result<String, AppError> {
         self.call("saveSession", vec![]).await
+    }
+
+    pub async fn shutdown(&self) -> Result<String, AppError> {
+        self.call("shutdown", vec![]).await
     }
 
     /// Returns global download/upload statistics.
@@ -137,6 +167,45 @@ impl Aria2Client {
         self.call("tellActive", vec![]).await
     }
 
+    /// Read queue transitions in one native RPC dispatch, including terminal
+    /// results that have not reached application history yet.
+    pub async fn tell_task_snapshot(
+        &self,
+        include_stopped: bool,
+    ) -> Result<Vec<Aria2Task>, AppError> {
+        // aria2 clamps the requested range to the queue length, without allocating
+        // the requested capacity. Avoid silently dropping tasks after entry 1000.
+        let range = vec![0.into(), i32::MAX.into()];
+        let mut calls = vec![
+            ("tellActive".into(), vec![]),
+            ("tellWaiting".into(), range.clone()),
+        ];
+        if include_stopped {
+            calls.push(("tellStopped".into(), range));
+        }
+        let expected = calls.len();
+        let results = self.multicall(calls).await?;
+        if results.len() != expected {
+            return Err(AppError::Aria2("Incomplete task snapshot".into()));
+        }
+        let mut tasks = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for result in results {
+            let value = result
+                .as_array()
+                .filter(|row| row.len() == 1)
+                .and_then(|row| row.first())
+                .ok_or_else(|| AppError::Aria2(format!("Invalid task snapshot: {result}")))?;
+            let page: Vec<Aria2Task> = serde_json::from_value(value.clone())
+                .map_err(|error| AppError::Aria2(format!("Invalid task snapshot: {error}")))?;
+            tasks.extend(
+                page.into_iter()
+                    .filter(|task| seen.insert(task.gid.clone())),
+            );
+        }
+        Ok(tasks)
+    }
+
     /// Returns waiting tasks starting at `offset` up to `num` entries.
     pub async fn tell_waiting(&self, offset: i64, num: i64) -> Result<Vec<Aria2Task>, AppError> {
         self.call("tellWaiting", vec![offset.into(), num.into()])
@@ -147,6 +216,24 @@ impl Aria2Client {
     pub async fn tell_stopped(&self, offset: i64, num: i64) -> Result<Vec<Aria2Task>, AppError> {
         self.call("tellStopped", vec![offset.into(), num.into()])
             .await
+    }
+
+    /// Returns every stopped task using bounded native RPC pages.
+    pub async fn tell_all_stopped(&self) -> Result<Vec<Aria2Task>, AppError> {
+        const PAGE_SIZE: i64 = 256;
+
+        let mut tasks = Vec::new();
+        let mut offset = 0;
+        loop {
+            let page = self.tell_stopped(offset, PAGE_SIZE).await?;
+            let page_len = page.len();
+            tasks.extend(page);
+            if page_len < PAGE_SIZE as usize {
+                break;
+            }
+            offset += page_len as i64;
+        }
+        Ok(tasks)
     }
 
     /// Returns the status of a single task by GID.
@@ -177,39 +264,39 @@ impl Aria2Client {
             .into_iter()
             .filter(|task| task.status == "paused")
             .collect::<Vec<_>>();
-        let mut result = ResumeEligibleResult {
-            resumed: 0,
-            blocked: 0,
-        };
-
+        let mut resumable_gids = Vec::new();
+        let mut blocked = 0;
         for task in paused_tasks {
-            let is_resolved_magnet = task.following.is_some()
-                && task.bittorrent.is_some()
-                && task.files.iter().any(|file| file.length != "0");
-            if is_resolved_magnet {
-                let has_selection = self
-                    .get_option(&task.gid)
-                    .await
-                    .ok()
-                    .and_then(|options| {
-                        options
-                            .get("select-file")
-                            .and_then(serde_json::Value::as_str)
-                            .map(str::trim)
-                            .map(str::to_owned)
-                    })
-                    .is_some_and(|selection| !selection.is_empty());
-                if !has_selection {
-                    result.blocked += 1;
-                    continue;
-                }
+            let requires_file_selection = task
+                .bittorrent
+                .as_ref()
+                .and_then(|bt| bt.file_selection_state.as_deref())
+                == Some("awaiting");
+            if requires_file_selection {
+                blocked += 1;
+                continue;
             }
-
-            self.unpause(&task.gid).await?;
-            result.resumed += 1;
+            resumable_gids.push(task.gid);
         }
 
-        Ok(result)
+        if !resumable_gids.is_empty() {
+            let calls = resumable_gids
+                .iter()
+                .map(|gid| {
+                    (
+                        "unpause".to_string(),
+                        vec![serde_json::Value::String(gid.clone())],
+                    )
+                })
+                .collect();
+            let results = self.multicall(calls).await?;
+            validate_multicall_results("resume", &resumable_gids, &results)?;
+        }
+
+        Ok(ResumeEligibleResult {
+            resumed: resumable_gids.len(),
+            blocked,
+        })
     }
 
     /// Changes global aria2 options at runtime.
@@ -221,8 +308,49 @@ impl Aria2Client {
             .await
     }
 
-    pub async fn get_bt_endpoint(&self) -> Result<Aria2BtEndpoint, AppError> {
-        self.call("getBtEndpoint", vec![]).await
+    pub async fn get_bt_session_status(&self) -> Result<Aria2BtSessionStatus, AppError> {
+        self.call("getBtSessionStatus", vec![]).await
+    }
+
+    pub async fn get_bt_trackers(&self, gid: &str) -> Result<Vec<Aria2BtTracker>, AppError> {
+        self.call("getBtTrackers", vec![gid.into()]).await
+    }
+
+    pub async fn force_bt_recheck(&self, gid: &str) -> Result<String, AppError> {
+        self.call("forceBtRecheck", vec![gid.into()]).await
+    }
+
+    pub async fn replace_bt_trackers(
+        &self,
+        gid: &str,
+        trackers: Vec<Aria2BtTrackerConfig>,
+    ) -> Result<String, AppError> {
+        self.call(
+            "replaceBtTrackers",
+            vec![gid.into(), serde_json::json!(trackers)],
+        )
+        .await
+    }
+
+    pub async fn replace_bt_web_seeds(
+        &self,
+        gid: &str,
+        web_seeds: Vec<String>,
+    ) -> Result<String, AppError> {
+        self.call(
+            "replaceBtWebSeeds",
+            vec![gid.into(), serde_json::json!(web_seeds)],
+        )
+        .await
+    }
+
+    pub async fn add_bt_peers(
+        &self,
+        gid: &str,
+        peers: Vec<String>,
+    ) -> Result<Aria2BtPeerAddResult, AppError> {
+        self.call("addBtPeers", vec![gid.into(), serde_json::json!(peers)])
+            .await
     }
 
     /// Adds a URI-based download.
@@ -248,6 +376,11 @@ impl Aria2Client {
         .await
     }
 
+    /// Inspects torrent metainfo without creating a download task.
+    pub async fn inspect_torrent(&self, base64: &str) -> Result<Aria2TorrentInspection, AppError> {
+        self.call("inspectTorrent", vec![base64.into()]).await
+    }
+
     /// Returns file descriptors for a task.
     pub async fn get_files(&self, gid: &str) -> Result<Vec<Aria2File>, AppError> {
         self.call("getFiles", vec![gid.into()]).await
@@ -270,6 +403,10 @@ impl Aria2Client {
     /// Returns the aria2 engine version and enabled features.
     pub async fn get_version(&self) -> Result<serde_json::Value, AppError> {
         self.call("getVersion", vec![]).await
+    }
+
+    pub async fn list_methods(&self) -> Result<Vec<String>, AppError> {
+        self.call_rpc("system.listMethods", vec![]).await
     }
 
     /// Returns peer information for a BitTorrent task.
@@ -331,14 +468,49 @@ impl Aria2Client {
         self.call("removeDownloadResult", vec![gid.into()]).await
     }
 
+    /// Removes stopped results in bounded native RPC batches.
+    pub async fn remove_download_results(&self, gids: &[String]) -> Result<(), AppError> {
+        const BATCH_SIZE: usize = 256;
+
+        for batch in gids.chunks(BATCH_SIZE) {
+            let calls = batch
+                .iter()
+                .map(|gid| {
+                    (
+                        "removeDownloadResult".to_string(),
+                        vec![serde_json::Value::String(gid.clone())],
+                    )
+                })
+                .collect();
+            let results = self.multicall(calls).await?;
+            if results.len() != batch.len() {
+                return Err(AppError::Aria2(format!(
+                    "aria2 returned {} results for {} removals",
+                    results.len(),
+                    batch.len()
+                )));
+            }
+            for (gid, result) in batch.iter().zip(results) {
+                if let Some(error) = result
+                    .as_object()
+                    .filter(|value| value.contains_key("code"))
+                {
+                    let message = error
+                        .get("message")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("unknown RPC error");
+                    return Err(AppError::Aria2(format!(
+                        "Failed to remove completed result {gid}: {message}"
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Purges all completed/error/removed download results.
     pub async fn purge_download_result(&self) -> Result<String, AppError> {
         self.call("purgeDownloadResult", vec![]).await
-    }
-
-    /// Returns the global option set.
-    pub async fn get_global_option(&self) -> Result<serde_json::Value, AppError> {
-        self.call("getGlobalOption", vec![]).await
     }
 
     /// Batch execute multiple RPC calls via system.multicall.
@@ -375,32 +547,119 @@ impl Aria2Client {
             params: vec![serde_json::Value::Array(methods)],
         };
 
-        let url = format!("http://127.0.0.1:{port}/jsonrpc");
-        let resp = self
-            .http
-            .post(&url)
-            .json(&req)
-            .send()
-            .await
-            .map_err(|e| AppError::Aria2(format!("HTTP request to aria2 failed: {e}")))?;
+        let started = Instant::now();
+        let result =
+            async {
+                let url = format!("http://127.0.0.1:{port}/jsonrpc");
+                let resp =
+                    self.http.post(&url).json(&req).send().await.map_err(|e| {
+                        AppError::Aria2(format!("HTTP request to aria2 failed: {e}"))
+                    })?;
 
-        let bytes = resp
-            .bytes()
-            .await
-            .map_err(|e| AppError::Aria2(format!("Failed to read multicall response: {e}")))?;
-        let body: JsonRpcResponse<Vec<serde_json::Value>> =
-            parse_jsonrpc_response(&bytes, "multicall")?;
+                let bytes = resp.bytes().await.map_err(|e| {
+                    AppError::Aria2(format!("Failed to read multicall response: {e}"))
+                })?;
+                let body: JsonRpcResponse<Vec<serde_json::Value>> =
+                    parse_jsonrpc_response(&bytes, "multicall")?;
 
-        if let Some(err) = body.error {
+                if let Some(err) = body.error {
+                    return Err(AppError::Aria2(format!(
+                        "aria2 multicall error [{}]: {}",
+                        err.code, err.message
+                    )));
+                }
+
+                body.result
+                    .ok_or_else(|| AppError::Aria2("aria2 multicall returned null result".into()))
+            }
+            .await;
+        record_rpc_result("system.multicall", id, started, &result);
+        result
+    }
+}
+
+fn is_polling_method(method: &str) -> bool {
+    matches!(
+        method,
+        "aria2.getVersion"
+            | "aria2.getGlobalStat"
+            | "aria2.tellActive"
+            | "aria2.tellWaiting"
+            | "aria2.tellStopped"
+            | "aria2.tellStatus"
+            | "aria2.getPeers"
+            | "aria2.getFiles"
+    )
+}
+
+fn record_rpc_result<T>(method: &str, id: u64, started: Instant, result: &Result<T, AppError>) {
+    let duration_ms = started.elapsed().as_millis() as u64;
+    match result {
+        Err(error) if is_polling_method(method) => log::debug!(
+            target: "aria2_rpc",
+            event = "rpc_unavailable",
+            rpc_id = id,
+            method,
+            duration_ms,
+            error:% = error;
+            "rpc_unavailable"
+        ),
+        Err(error) => log::error!(
+            target: "aria2_rpc",
+            event = "rpc_failed",
+            rpc_id = id,
+            method,
+            duration_ms,
+            error:% = error;
+            "rpc_failed"
+        ),
+        Ok(_) if duration_ms >= 1_000 => log::warn!(
+            target: "aria2_rpc",
+            event = "rpc_slow",
+            rpc_id = id,
+            method,
+            duration_ms;
+            "rpc_slow"
+        ),
+        Ok(_) if !is_polling_method(method) => log::debug!(
+            target: "aria2_rpc",
+            event = "rpc_completed",
+            rpc_id = id,
+            method,
+            duration_ms;
+            "rpc_completed"
+        ),
+        Ok(_) => {}
+    }
+}
+
+fn validate_multicall_results(
+    operation: &str,
+    gids: &[String],
+    results: &[serde_json::Value],
+) -> Result<(), AppError> {
+    if results.len() != gids.len() {
+        return Err(AppError::Aria2(format!(
+            "aria2 returned {} results for {} {operation} calls",
+            results.len(),
+            gids.len()
+        )));
+    }
+    for (gid, result) in gids.iter().zip(results) {
+        if let Some(error) = result
+            .as_object()
+            .filter(|value| value.contains_key("code"))
+        {
+            let message = error
+                .get("message")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("unknown RPC error");
             return Err(AppError::Aria2(format!(
-                "aria2 multicall error [{}]: {}",
-                err.code, err.message
+                "Failed to {operation} task {gid}: {message}"
             )));
         }
-
-        body.result
-            .ok_or_else(|| AppError::Aria2("aria2 multicall returned null result".into()))
     }
+    Ok(())
 }
 
 fn parse_jsonrpc_response<T: DeserializeOwned>(
@@ -564,5 +823,20 @@ mod tests {
         assert_eq!(params[1], serde_json::json!("first"));
         assert_eq!(params[2], serde_json::json!(42));
         assert_eq!(params[3], serde_json::json!({"key": "val"}));
+    }
+
+    #[test]
+    fn multicall_validation_accepts_one_result_per_gid() {
+        let gids = vec!["a".to_string(), "b".to_string()];
+        let results = vec![serde_json::json!(["a"]), serde_json::json!(["b"])];
+        assert!(validate_multicall_results("resume", &gids, &results).is_ok());
+    }
+
+    #[test]
+    fn multicall_validation_rejects_per_task_errors() {
+        let gids = vec!["a".to_string()];
+        let results = vec![serde_json::json!({"code": 1, "message": "cannot resume"})];
+        let error = validate_multicall_results("resume", &gids, &results).unwrap_err();
+        assert!(error.to_string().contains("cannot resume"));
     }
 }

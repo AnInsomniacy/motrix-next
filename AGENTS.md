@@ -81,7 +81,7 @@ src-tauri/
 │   ├── engine/
 │   │   ├── mod.rs              # Module re-exports
 │   │   ├── lifecycle.rs        # aria2 sidecar start/stop/restart
-│   │   ├── args.rs             # aria2 command-line argument builder
+│   │   ├── config.rs           # Managed runtime aria2.conf generation
 │   │   ├── cleanup.rs          # Engine cleanup utilities
 │   │   └── state.rs            # Engine state management
 │   ├── services/
@@ -93,18 +93,18 @@ src-tauri/
 │   │   ├── http_api.rs         # Local HTTP API server for browser extensions
 │   │   ├── monitor.rs          # Task lifecycle monitor, history DB persistence, event emission
 │   │   ├── notification.rs     # Native notification dispatch service
-│   │   ├── notification_i18n.rs # Localised notification strings
 │   │   ├── port_guard.rs       # Runtime port conflict detection and recovery
 │   │   ├── power.rs            # Sleep prevention and power guard service
 │   │   ├── stat.rs             # Global stat polling, Dock badge, Dock progress bar (custom NSProgressIndicator)
 │   │   └── speed.rs            # Speed limit scheduler (time-of-day limits)
-│   ├── db_guard.rs             # Database health check, corruption detection, and auto-rebuild
 │   ├── gpu_guard.rs            # GPU compatibility detection and WebView renderer fallback
 │   ├── history.rs              # HistoryDbState: Rust-side SQLite history record persistence
+│   ├── i18n.rs                 # Native locale negotiation and rust-i18n message access
 │   ├── error.rs                # AppError enum (Store, Engine, Io, NotFound, Updater, Upnp)
 │   ├── menu.rs                 # Native menu builder (macOS only, cfg-gated)
 │   ├── tray.rs                 # System tray setup + native event handling (lightweight mode safe)
 │   └── upnp.rs                 # UPnP/IGD port mapping with renewal loop
+├── locales/                    # Compile-time embedded native JSON translations
 ├── migrations/
 │   ├── 001_download_history.sql  # Initial history table schema
 │   ├── 002_add_added_at.sql      # Added added_at column + task_birth table
@@ -209,6 +209,10 @@ Follow this exact checklist:
 - SQL migration files live in `src-tauri/migrations/` with `NNN_description.sql` naming
 - Each migration is registered as a `tauri_plugin_sql::Migration` struct in the `.add_migrations()` call in `lib.rs`
 - The plugin tracks executed versions in an internal `_sqlx_migrations` table
+- `src/stores/database.ts` owns deferred initialization after the UI mounts; `Database.load()` applies migrations without blocking window creation
+- `src-tauri/src/commands/database.rs` inspects the database and handles explicit reset; failures leave the UI and live downloads available
+- History and HTTP credentials share this lifecycle; never call `Database.load()` from individual stores
+- Reset closes both connection owners before removing database files and restarting; never delete a database automatically on initialization failure
 - Old users receive new migrations transparently on upgrade — no manual action needed
 
 ### Adding a New Migration
@@ -223,12 +227,11 @@ Follow this exact checklist:
        kind: tauri_plugin_sql::MigrationKind::Up,
    },
    ```
-3. Update `REGISTERED_VERSIONS` in `src-tauri/src/db_guard.rs`
-4. Update `CURRENT_DB_SCHEMA_VERSION` in `src/shared/constants.ts`
-5. If the migration adds/renames columns used by the frontend, update `HistoryRecord` in `src/shared/types.ts`
-6. Update relevant SQL queries in `src/stores/history.ts`
-7. Add a regression test that fresh installs persist the current DB schema version and do not show a false DB upgrade toast on second launch
-8. Run `cargo check` to verify the Rust compiles
+3. Update `CURRENT_DB_SCHEMA_VERSION` in `src/shared/constants.ts`
+4. If the migration adds/renames columns used by the frontend, update `HistoryRecord` in `src/shared/types.ts`
+5. Update relevant SQL queries in `src/stores/history.ts`
+6. Add a regression test that fresh installs persist the current DB schema version and do not show a false DB upgrade toast on second launch
+7. Run `cargo check` to verify the Rust compiles
 
 ### Rules
 
@@ -269,8 +272,9 @@ The hooks file defines three injection points:
 ### Rules
 
 1. **NEVER edit locale files manually one by one.** Always use a Python batch script.
-2. Strings containing `'` must be escaped as `\'` in JS source files.
-3. English (`en-US`) keys serve as the fallback — always verify this locale first.
+2. Every locale owns one `messages.json`; preserve its nested namespaces and placeholders.
+3. English (`en-US`) is the schema and fallback — always verify it first.
+4. Register locale metadata in `src/shared/locales/catalog.json` and native strings in `src-tauri/locales/<locale>.json`.
 
 ### 27 Locale Directories
 
@@ -283,9 +287,10 @@ ar bg ca de el en-US es fa fr hi hu id it ja ko nb nl pl pt-BR ro ru th tr uk vi
 ```python
 #!/usr/bin/env python3
 """Batch-update locale files with native translations."""
-import os, re
+import json
+from pathlib import Path
 
-LOCALES_DIR = "src/shared/locales"
+LOCALES_DIR = Path("src/shared/locales")
 
 TRANSLATIONS = {
     "ar":    ("Arabic text",),
@@ -297,20 +302,16 @@ TRANSLATIONS = {
 }
 
 def update_locale(locale_dir, values):
-    filepath = os.path.join(LOCALES_DIR, locale_dir, "preferences.js")
-    with open(filepath, "r", encoding="utf-8") as f:
-        content = f.read()
-    # Use regex or string replacement to insert/update keys
-    # Escape single quotes in values: value.replace("'", "\\'")
-    # Write back
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(content)
+    filepath = LOCALES_DIR / locale_dir / "messages.json"
+    messages = json.loads(filepath.read_text(encoding="utf-8"))
+    messages["preferences"]["new-key"] = values[0]
+    filepath.write_text(json.dumps(messages, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 for locale, vals in sorted(TRANSLATIONS.items()):
     update_locale(locale, vals)
 ```
 
-> **Critical:** After running, verify with `npx vite build` — locale parse errors will surface here.
+> **Critical:** After running, verify with `pnpm lint`, `pnpm check:repo`, `npx vue-tsc --noEmit`, and `npx vite build`.
 
 ---
 
@@ -378,7 +379,7 @@ All code changes must be finalized before starting. Execute these three steps in
 
    Generate an English release title and release notes from the commits included in this release, following the Release Notes Conventions below.
 
-   Use the exact version and channel specified by the user, and enforce the Tag Naming rules above when bumping and publishing. Do not infer or invent the next version. If the version or channel is missing or ambiguous, ask before bumping or publishing. Before creating the GitHub Release, show the user the exact version, whether it will be marked as a pre-release, the generated release title, and the generated release notes. If the GitHub CLI is available and authenticated, publish the release directly with `gh release create` after showing those details. Mark user-specified beta, alpha, or RC releases as pre-releases. This is preferred because the release workflow only starts after the GitHub Release is published.
+   Use the user-specified version and channel; otherwise increment the current channel's version without confirmation. Enforce the Tag Naming rules above. Before creating the GitHub Release, show the version, pre-release status, English title, and release notes, then publish with `gh release create` when authenticated. Mark beta, alpha, and RC releases as pre-releases. Publishing the GitHub Release starts the release workflow.
 
    If `gh` is unavailable, unauthenticated, or the user explicitly wants to publish manually, output the title and body in **two separate markdown code blocks** so the user can paste them into the GitHub Release page.
 
@@ -465,7 +466,7 @@ Two parallel jobs:
 | Job        | Steps                                                                                                                        |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `frontend` | `pnpm install` → `pnpm lint` → `pnpm format:check` → `vue-tsc --noEmit` → `vitest run` → `vite build`                        |
-| `backend`  | `cargo fmt --check` → `cargo clippy --all-targets -- -D warnings` → `cargo check --all-targets` → `cargo test --all-targets` |
+| `backend`  | `cargo fmt --all -- --check` → `pnpm build:native-launcher` → `cargo clippy --workspace --all-targets -- -D warnings` → `cargo check --workspace --all-targets` → `cargo test --workspace --all-targets` |
 
 ### `release.yml` (Release Published)
 
@@ -520,8 +521,9 @@ pnpm check:repo            # Locale parity + i18n literal-key usage (CI runs thi
 npx vue-tsc --noEmit       # TypeScript type checking
 
 # Backend
-cargo check --all-targets  # Fast compilation check
-cargo test --all-targets   # Rust unit tests
+pnpm build:native-launcher       # Build the target-specific Native Messaging sidecar
+cargo check --workspace --all-targets  # Fast compilation check
+cargo test --workspace --all-targets   # Rust unit tests
 
 # Version (when bumping)
 ./scripts/bump-version.sh <version>
@@ -537,4 +539,4 @@ All fast checks must pass with zero errors before any PR or release.
 
 ## I. Testing Constraints
 
-> **DO NOT use browser tools (Playwright, browser subagent, etc.) to test this app.** Tauri renders in a native webview — `localhost:1420` in a browser lacks IPC, tray, and sidecar access. Use CLI checks (`vue-tsc`, `pnpm test`, `cargo test --all-targets`) or ask the user to verify UI via `pnpm tauri dev`.
+> **DO NOT use browser tools (Playwright, browser subagent, etc.) to test this app.** Tauri renders in a native webview — `localhost:1420` in a browser lacks IPC, tray, and sidecar access. Use CLI checks (`vue-tsc`, `pnpm test`, `cargo test --workspace --all-targets`) or ask the user to verify UI via `pnpm tauri dev`.

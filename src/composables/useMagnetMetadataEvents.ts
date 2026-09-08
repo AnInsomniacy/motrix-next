@@ -1,19 +1,20 @@
 import { listen } from '@tauri-apps/api/event'
-import { formatLogFields, logger } from '@shared/logger'
+import { logger } from '@shared/logger'
 import {
   findPendingMagnetSelectionTask,
-  getResolvedMagnetSelection,
+  isPendingMagnetSelectionTask,
   parseFilesForSelection,
-  type MagnetFileItem,
   type MagnetSelectionResolution,
 } from '@/composables/useMagnetFlow'
-import type { Aria2Task } from '@shared/types'
+import type { Aria2Task, BtFileSelectionItem } from '@shared/types'
 import { getErrorMessage } from '@shared/utils/errorMessage'
+import { getTaskDisplayName } from '@shared/utils/task'
 
 export interface MagnetMetadataState {
   pendingGids: string[]
+  deferredGids: string[]
   visible: boolean
-  files: MagnetFileItem[]
+  files: BtFileSelectionItem[]
   session: MagnetSelectionResolution | null
   name: string
 }
@@ -27,7 +28,7 @@ export interface MagnetMetadataDeps {
 }
 
 export interface MagnetMetadataResolver {
-  request: (gid?: string) => Promise<void>
+  request: (gid: string) => Promise<void>
 }
 
 type PendingTaskLoader = () => Promise<Aria2Task[]>
@@ -40,80 +41,72 @@ export async function resolvePendingMagnetMetadata(
   const { state } = deps
   if (state.visible) return false
   if (!state.pendingGids.includes(gid)) return false
+  if (state.deferredGids.includes(gid)) return false
 
-  let metadataQueryError: unknown
-  let resolved: MagnetSelectionResolution | null = null
+  let queryError: unknown
   let task: Aria2Task | undefined
 
   try {
-    const metadataTask = await deps.fetchTaskStatus(gid)
-    resolved = getResolvedMagnetSelection(metadataTask)
+    const candidate = await deps.fetchTaskStatus(gid)
+    if (isPendingMagnetSelectionTask(candidate)) task = candidate
   } catch (error) {
-    metadataQueryError = error
+    queryError = error
   }
 
   try {
-    if (resolved) {
-      task = await deps.fetchTaskStatus(resolved.downloadGid)
-    } else {
-      task = findPendingMagnetSelectionTask(await loadPendingTasks(), gid)
-      if (task) resolved = { metadataGid: gid, downloadGid: task.gid }
-    }
+    task ??= findPendingMagnetSelectionTask(await loadPendingTasks(), gid)
 
-    if (!resolved || !task) {
-      if (metadataQueryError !== undefined) {
-        logger.debug(
-          'MagnetMetadata.resolve',
-          formatLogFields({ gid, outcome: 'skipped', reason: getErrorMessage(metadataQueryError) }),
-        )
+    if (!task) {
+      if (queryError !== undefined) {
+        state.pendingGids = state.pendingGids.filter((candidate) => candidate !== gid)
+        state.deferredGids = state.deferredGids.filter((candidate) => candidate !== gid)
+        logger.debug('MagnetMetadata.resolve', 'metadata_resolution_skipped', {
+          gid,
+          outcome: 'skipped',
+          reason: getErrorMessage(queryError),
+        })
       }
       return false
     }
 
-    const files = await deps.getFiles(resolved.downloadGid)
-    const realFiles = files.filter((file) => Number(file.length) > 0)
-    if (realFiles.length === 0) return false
+    const files = parseFilesForSelection(await deps.getFiles(gid))
+    if (files.length === 0) return false
 
     if (state.visible || !state.pendingGids.includes(gid)) return false
 
-    const parsed = parseFilesForSelection(realFiles)
-    state.files = parsed
-    state.session = resolved
-    state.name = task.bittorrent?.info?.name || parsed[0]?.name || deps.fallbackName()
+    state.files = files
+    state.session = { gid }
+    state.name = getTaskDisplayName(task, { defaultName: files[0]?.name || deps.fallbackName() })
     state.visible = true
     return true
   } catch (error) {
-    logger.debug('MagnetMetadata.resolve', formatLogFields({ gid, outcome: 'skipped', reason: getErrorMessage(error) }))
+    logger.debug('MagnetMetadata.resolve', 'metadata_resolution_skipped', {
+      gid,
+      outcome: 'skipped',
+      reason: getErrorMessage(error),
+    })
     return false
-  }
-}
-
-export async function resolveNextPendingMagnetMetadata(deps: MagnetMetadataDeps): Promise<void> {
-  if (deps.state.visible) return
-  let pendingTasks: Promise<Aria2Task[]> | undefined
-  const loadPendingTasks = () => (pendingTasks ??= deps.fetchPendingTasks())
-  for (const gid of [...deps.state.pendingGids]) {
-    if (await resolvePendingMagnetMetadata(deps, gid, loadPendingTasks)) return
   }
 }
 
 export function createMagnetMetadataResolver(getDeps: () => MagnetMetadataDeps): MagnetMetadataResolver {
   let running = false
-  let requested = false
+  const requestedGids = new Set<string>()
 
-  async function request(gid?: string): Promise<void> {
-    if (gid && !getDeps().state.pendingGids.includes(gid)) return
+  async function request(gid: string): Promise<void> {
+    if (!getDeps().state.pendingGids.includes(gid)) return
 
-    requested = true
+    requestedGids.add(gid)
     if (running) return
 
     running = true
     try {
-      while (requested) {
-        requested = false
+      while (requestedGids.size > 0) {
         const deps = getDeps()
-        if (deps.state.visible) continue
-        await resolveNextPendingMagnetMetadata(deps)
+        const next = requestedGids.values().next()
+        if (next.done) break
+        requestedGids.delete(next.value)
+        await resolvePendingMagnetMetadata(deps, next.value)
       }
     } finally {
       running = false
@@ -123,10 +116,10 @@ export function createMagnetMetadataResolver(getDeps: () => MagnetMetadataDeps):
   return { request }
 }
 
-export async function listenForAria2DownloadComplete(
-  onComplete: (gid: string) => unknown | Promise<unknown>,
+export async function listenForAria2DownloadPause(
+  onPause: (gid: string) => unknown | Promise<unknown>,
 ): Promise<() => void> {
-  return listen<{ gid: string }>('aria2-event:download-complete', (event) => {
-    void onComplete(event.payload.gid)
+  return listen<{ gid: string }>('aria2-event:download-pause', (event) => {
+    void onPause(event.payload.gid)
   })
 }

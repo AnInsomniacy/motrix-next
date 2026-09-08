@@ -3,7 +3,7 @@
 </script>
 
 <template>
-  <span class="task-drag-handle" role="button" tabindex="0" aria-label="Drag task" @click.stop>
+  <span class="task-drag-handle" role="button" tabindex="0" aria-label="Drag task">
     <span class="task-drag-dots" aria-hidden="true">⋮⋮</span>
   </span>
 </template>

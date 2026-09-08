@@ -1,5 +1,5 @@
 /** @fileoverview BitTorrent peer identification: bitfield parsing and client detection. */
-import { GRAPHIC, UNKNOWN_PEERID, UNKNOWN_PEERID_NAME } from '@shared/constants'
+import { UNKNOWN_PEERID, UNKNOWN_PEERID_NAME } from '@shared/constants'
 import { logger } from '@shared/logger'
 
 const PEER_CLIENT_MAP: Record<string, string> = {
@@ -82,16 +82,6 @@ export const bitfieldToPercent = (text: string): string => {
     }
   }
   return Math.floor((one / (4 * len)) * 100).toString()
-}
-
-/** Converts an aria2 hex bitfield to a visual block progress graphic. */
-export const bitfieldToGraphic = (text: string): string => {
-  const len = text.length
-  let result = ''
-  for (let i = 0; i < len; i++) {
-    result += GRAPHIC[Math.floor(parseInt(text[i], 16) / 4)] + ' '
-  }
-  return result
 }
 
 export const peerIdParser = (str: string): string => {
