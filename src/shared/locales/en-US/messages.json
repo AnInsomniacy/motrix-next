@@ -508,6 +508,7 @@
     "file-category-url-placeholder": "One rule per line, for example *://*.example.com/logs/*",
     "file-category-invalid-regex": "Invalid regex rule on line {line}",
     "file-category-invalid-url-rule-too-long": "URL rule on line {line} is too long",
+    "independent-download-window": "Enable independent download window",
     "auto-submit-from-extension": "Skip confirmation for extension downloads",
     "silent-auto-submit-from-extension": "Keep Window Hidden for Extension Downloads",
     "extension-api-port": "Extension API Port",

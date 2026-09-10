@@ -508,6 +508,7 @@
     "file-category-url-placeholder": "每行一條規則，例如 *://*.example.com/logs/*",
     "file-category-invalid-regex": "第 {line} 行正則規則無效",
     "file-category-invalid-url-rule-too-long": "第 {line} 行 URL 規則過長",
+    "independent-download-window": "啟用獨立下載視窗",
     "auto-submit-from-extension": "擴充下載略過確認",
     "silent-auto-submit-from-extension": "擴充功能下載時保持視窗隱藏",
     "extension-api-port": "擴充 API 連接埠",

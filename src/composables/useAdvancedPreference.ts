@@ -10,6 +10,7 @@ export interface AdvancedForm {
   extensionApiPort: number
   extensionApiSecret: string
   allowRemoteAccess: boolean
+  useIndependentDownloadWindow: boolean
   autoSubmitFromExtension: boolean
   silentAutoSubmitFromExtension: boolean
   logLevel: AppConfig['logLevel']
@@ -32,6 +33,7 @@ export function buildAdvancedForm(config: AppConfig): AdvancedForm {
     extensionApiPort: config.extensionApiPort,
     extensionApiSecret: config.extensionApiSecret,
     allowRemoteAccess: config.allowRemoteAccess,
+    useIndependentDownloadWindow: config.useIndependentDownloadWindow,
     autoSubmitFromExtension: config.autoSubmitFromExtension,
     silentAutoSubmitFromExtension: config.silentAutoSubmitFromExtension,
     logLevel: config.logLevel,

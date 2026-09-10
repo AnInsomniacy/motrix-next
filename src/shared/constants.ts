@@ -340,6 +340,7 @@ export const DEFAULT_APP_CONFIG = {
     scope: ['download', 'bittorrent', 'update-app', 'update-trackers'],
   },
   clipboard: { enable: true, http: true, sftp: true, magnet: true, ed2k: true, thunder: true, btHash: true },
+  useIndependentDownloadWindow: true,
   autoSubmitFromExtension: true,
   silentAutoSubmitFromExtension: true,
   userAgent:
