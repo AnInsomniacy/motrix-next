@@ -439,6 +439,22 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    // ── External CLI input URLs on cold start ────────────────────────
+    let argv: Vec<String> = std::env::args().collect();
+    let initial_urls = services::deep_link::filter_external_input_args(&argv);
+    if !initial_urls.is_empty() {
+        let app_handle = app.handle();
+        if services::deep_link::is_silent_arg_launch(&argv) {
+            services::deep_link::route_silent_external_inputs(
+                app_handle,
+                initial_urls,
+                "cold-start",
+            );
+        } else {
+            services::deep_link::route_external_inputs(app_handle, initial_urls, "cold-start");
+        }
+    }
+
     // ── GeoIP: load bundled DB-IP Country Lite for peer country flags ─
     let geoip_state = commands::geoip::init_geoip(&app.handle().clone());
     app.manage(geoip_state);
@@ -645,7 +661,11 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             let urls = services::deep_link::filter_external_input_args(&argv);
             if !urls.is_empty() {
-                services::deep_link::route_external_inputs(app, urls, "single-instance");
+                if services::deep_link::is_silent_arg_launch(&argv) {
+                    services::deep_link::route_silent_external_inputs(app, urls, "single-instance");
+                } else {
+                    services::deep_link::route_external_inputs(app, urls, "single-instance");
+                }
                 return;
             }
 
