@@ -77,8 +77,16 @@ pub async fn resolve_filename(
     // 3b. Level 2 — Redirect target URL path extension
     let final_basename = extract_basename(resp.url().as_str());
     if has_extension(&final_basename) {
-        if let Some(ext) = final_basename.rsplit('.').next() {
-            let resolved = format!("{basename}.{ext}");
+        if let Some((stem, ext)) = final_basename.rsplit_once('.') {
+            // The redirect target lands on the real filename (fwlink-style
+            // short links), so that name is authoritative — prefer it as-is.
+            // Fall back to "original basename + extension" only when the
+            // target stem is weak (pure digits or placeholder words).
+            let resolved = if is_trustworthy_extensionless_basename(stem) {
+                final_basename.to_string()
+            } else {
+                format!("{basename}.{ext}")
+            };
             log::debug!("resolve_filename: resolved via redirect URL → {resolved}");
             return Ok(Some(resolved));
         }
@@ -1090,6 +1098,71 @@ mod tests {
         .unwrap();
 
         assert_eq!(resolved, Some("HCo_0zsbkAEov7s.jpg".to_string()));
+    }
+
+    #[tokio::test]
+    async fn resolve_filename_uses_full_redirect_target_filename_when_stem_is_trustworthy() {
+        use axum::{routing::get, routing::head, Router};
+        use std::net::SocketAddr;
+        use tokio::net::TcpListener;
+
+        async fn handle_redirect() -> axum::response::Redirect {
+            axum::response::Redirect::to("/files/MicrosoftEdgeEnterpriseX64.msi")
+        }
+
+        async fn handle_file() -> axum::http::StatusCode {
+            axum::http::StatusCode::OK
+        }
+
+        let app = Router::new()
+            .route("/fwlink", get(handle_redirect))
+            .route("/files/MicrosoftEdgeEnterpriseX64.msi", head(handle_file));
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr: SocketAddr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        let resolved = resolve_filename(
+            format!("http://{addr}/fwlink?LinkID=2093437"),
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(resolved, Some("MicrosoftEdgeEnterpriseX64.msi".to_string()));
+    }
+
+    #[tokio::test]
+    async fn resolve_filename_keeps_original_basename_for_hash_redirect_target() {
+        use axum::{routing::get, routing::head, Router};
+        use std::net::SocketAddr;
+        use tokio::net::TcpListener;
+
+        async fn handle_redirect() -> axum::response::Redirect {
+            axum::response::Redirect::to("/files/12345.zip")
+        }
+
+        async fn handle_file() -> axum::http::StatusCode {
+            axum::http::StatusCode::OK
+        }
+
+        let app = Router::new()
+            .route("/fwlink", get(handle_redirect))
+            .route("/files/12345.zip", head(handle_file));
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr: SocketAddr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        let resolved = resolve_filename(format!("http://{addr}/fwlink"), None, None, None)
+            .await
+            .unwrap();
+
+        assert_eq!(resolved, Some("fwlink.zip".to_string()));
     }
 
     #[tokio::test]
