@@ -88,9 +88,9 @@ describe('Task notifications', () => {
       taskName: 'first.zip',
       count: 1,
     })
-    expect(invokeMock).toHaveBeenCalledWith('send_task_start_notification', {
-      taskNames: ['first.zip', 'second.zip'],
-    })
+    // Rust notifies on aria2.onDownloadStart, which also covers tasks added
+    // outside the app. Invoking from here as well would notify twice.
+    expect(invokeMock).not.toHaveBeenCalled()
   })
 
   it('uses the single-task start message', () => {
