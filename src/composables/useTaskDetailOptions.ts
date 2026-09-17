@@ -5,18 +5,8 @@
  * for UA, referer, cookie, authorization, and proxy,
  * and applies changes via `changeTaskOption`.
  *
- * ## aria2 source code verification
- *
- * All target options are confirmed mutable via `changeOption` in
- * `OptionHandlerFactory.cc` — each has `setChangeOptionForReserved(true)`:
- * - `all-proxy` — HttpProxyOptionHandler, accepts HTTP proxy URLs
- * - `no-proxy` — bypass list
- * - `user-agent` (L1223) — DefaultOptionHandler
- * - `referer` (L1185) — DefaultOptionHandler
- * - `header` (L1094) — CumulativeOptionHandler, accepts array input
- *
- * For **active** tasks, these go through the `pendingOption` path
- * (RpcMethodImpl.cc L1120-1131): pause → apply → restart.
+ * Native request options use the engine's pending-option restart path.
+ * Media options are only editable while paused to preserve recording continuity.
  *
  * Pure dependency-injection design — no direct store/API imports — fully testable.
  */
@@ -204,6 +194,7 @@ export function useTaskDetailOptions(config: UseTaskDetailOptionsConfig) {
 
   const canModify = computed(() => {
     if (!task.value || !isEngineReady()) return false
+    if (task.value.media && task.value.status !== 'paused') return false
     return MODIFIABLE_STATUSES.has(task.value.status)
   })
 

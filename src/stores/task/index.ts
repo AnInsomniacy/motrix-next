@@ -1,10 +1,13 @@
 /** @fileoverview Pinia store for download task management: list, add, pause, resume, remove. */
 import { defineStore } from 'pinia'
-import { reactive, ref, watch } from 'vue'
+import { canSelectMedia } from '@shared/utils/media'
+import { isPendingMagnetSelectionTask } from '@/composables/useMagnetFlow'
+import { useTaskSelectionStore, type SelectionRequest } from '@/stores/taskSelection'
+import { computed, reactive, ref, watch } from 'vue'
 import { EMPTY_STRING } from '@shared/constants'
 import { checkTaskIsEd2kSearch } from '@shared/utils'
 import { logger } from '@shared/logger'
-import type { Aria2Task, Aria2File, Aria2Peer, Aria2EngineOptions, TaskApi } from '@shared/types'
+import type { Aria2Task, Aria2File, Aria2Peer, Aria2EngineOptions, AddUriParams, TaskApi } from '@shared/types'
 
 import { mergeHistoryIntoTasks, isMetadataTask } from '@/composables/useTaskLifecycle'
 import { buildMagnetOptions } from '@/composables/useMagnetFlow'
@@ -28,7 +31,6 @@ import {
 import { DEFAULT_TASK_SORT } from '@/composables/useTaskSort'
 import { useHistoryStore } from '@/stores/history'
 import { useDatabaseStore } from '@/stores/database'
-import { useHttpAuthStore } from '@/stores/httpAuth'
 import { usePreferenceStore } from '@/stores/preference'
 
 import { resubmitTask, type TaskResubmissionMode } from './resubmit'
@@ -58,6 +60,7 @@ export const useTaskStore = defineStore('task', () => {
   const preferenceStore = usePreferenceStore()
   const currentList = ref<TaskScope>('all')
   const taskDetailVisible = ref(false)
+  const taskDetailClosing = ref(false)
   const currentTaskGid = ref(EMPTY_STRING)
   const enabledFetchPeers = ref(false)
   const currentTaskItem = ref<Aria2Task | null>(null)
@@ -67,6 +70,7 @@ export const useTaskStore = defineStore('task', () => {
   const removingGids = ref<string[]>([])
   const resubmittingGids = ref<string[]>([])
   const taskCounts = reactive<TaskCounts>({ all: 0, progress: 0, failed: 0, completed: 0 })
+  const isCurrentListEmpty = computed(() => taskList.value.length === 0)
   const taskPagination = reactive({
     all: { page: 1, total: 0, loaded: false },
     progress: { page: 1, total: 0, loaded: false },
@@ -107,12 +111,9 @@ export const useTaskStore = defineStore('task', () => {
       hideTaskDetail,
       fetchList,
       setTaskRemoving,
-      requestMagnetSelection: (gid) => {
-        void import('@/stores/app').then(({ useAppStore }) => useAppStore().requestMagnetSelection(gid))
-      },
-      clearMagnetSelections: (gids) => {
-        return import('@/stores/app').then(({ useAppStore }) => useAppStore().clearMagnetSelections(gids))
-      },
+      requestMediaSelection: (task) => useTaskSelectionStore().request({ kind: 'media', gid: task.gid }),
+      requestMagnetSelection: (gid) => useTaskSelectionStore().request({ kind: 'bt', gid }),
+      clearSelections: (gids) => useTaskSelectionStore().forget(gids),
     })
     Object.assign(taskOps, ops)
   }
@@ -205,6 +206,22 @@ export const useTaskStore = defineStore('task', () => {
       // before removing its engine task.
       const historyRecords = useDatabaseStore().isReady ? await useHistoryStore().getRecords() : []
       if (requestId !== listRequestId || currentTaskTab() !== scope) return
+      const waiting: SelectionRequest[] = []
+      const available: SelectionRequest[] = []
+      for (const task of engineTasks) {
+        if (isPendingMagnetSelectionTask(task)) {
+          waiting.push({ kind: 'bt', gid: task.gid })
+          available.push({ kind: 'bt', gid: task.gid })
+        } else if (canSelectMedia(task)) {
+          available.push({ kind: 'media', gid: task.gid })
+          if (task.media?.state === 'awaiting-selection') waiting.push({ kind: 'media', gid: task.gid })
+        }
+      }
+      const selection = useTaskSelectionStore()
+      selection.reconcile(waiting, available)
+      selection.forget(
+        engineTasks.filter((task) => ['complete', 'removed'].includes(task.status)).map((task) => task.gid),
+      )
       const removing = new Set(removingGids.value)
       const tasks = mergeHistoryIntoTasks(
         engineTasks.filter((task) => task.status !== 'removed'),
@@ -343,6 +360,7 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   function hideTaskDetail() {
+    if (taskDetailVisible.value) taskDetailClosing.value = true
     taskDetailVisible.value = false
   }
 
@@ -357,30 +375,9 @@ export const useTaskStore = defineStore('task', () => {
     }
   }
 
-  async function addUri(data: {
-    uris: string[]
-    outs: string[]
-    options: Aria2EngineOptions
-    fileCategory?: {
-      enabled: boolean
-      categories: import('@shared/types').FileCategory[]
-      contexts?: Record<string, import('@shared/types').ExternalDownloadContext>
-    }
-  }) {
-    const gids: string[] = []
-    const httpAuthStore = useHttpAuthStore()
-
-    for (let index = 0; index < data.uris.length; index++) {
-      const uri = data.uris[index]
-      const options = await applySavedHttpAuth(uri, data.options, httpAuthStore)
-      const added = await api.addUri({
-        uris: [uri],
-        outs: [data.outs[index] ?? ''],
-        options,
-        fileCategory: data.fileCategory,
-      })
-      gids.push(...added)
-    }
+  async function addUri(data: AddUriParams) {
+    const gids = await api.addUri(data)
+    gids.forEach((gid) => useTaskSelectionStore().register(gid, true))
 
     const now = new Date().toISOString()
     const historyStore = useHistoryStore()
@@ -392,35 +389,14 @@ export const useTaskStore = defineStore('task', () => {
   }
 
   async function addUriAtomic(data: { uris: string[]; options: Aria2EngineOptions }) {
-    const httpAuthStore = useHttpAuthStore()
-    const options = await applySavedHttpAuth(data.uris[0] ?? '', data.options, httpAuthStore)
-    const gid = await api.addUriAtomic({ uris: data.uris, options })
+    const gid = await api.addUriAtomic(data)
+    useTaskSelectionStore().register(gid, true)
     const now = new Date().toISOString()
     registerAddedAt(gid, now)
     const historyStore = useHistoryStore()
     historyStore.recordTaskBirth(gid, now).catch((e) => logger.debug('taskBirth.write', e))
     await fetchList()
     return gid
-  }
-
-  async function applySavedHttpAuth(
-    uri: string,
-    options: Aria2EngineOptions,
-    httpAuthStore: ReturnType<typeof useHttpAuthStore>,
-  ): Promise<Aria2EngineOptions> {
-    if (options['http-user'] || options.httpUser) return options
-
-    const credential = await httpAuthStore.findByUrl(uri)
-    if (!credential) return options
-
-    if (credential.id) {
-      httpAuthStore.markUsed(credential.id).catch((e) => logger.debug('httpAuth.markUsed', e))
-    }
-    return {
-      ...options,
-      'http-user': credential.username,
-      'http-passwd': credential.password,
-    }
   }
 
   /**
@@ -432,6 +408,7 @@ export const useTaskStore = defineStore('task', () => {
    */
   async function addMagnetUri(data: {
     uri: string
+    requestId?: string
     options: Aria2EngineOptions
     fileCategory?: { enabled: boolean; categories: import('@shared/types').FileCategory[] }
   }): Promise<string> {
@@ -447,6 +424,7 @@ export const useTaskStore = defineStore('task', () => {
       uris: [data.uri],
       outs: [],
       options,
+      ...(data.requestId ? { contexts: { [data.uri]: { requestId: data.requestId } } } : {}),
     })
     const gid = gids[0]
 
@@ -457,8 +435,7 @@ export const useTaskStore = defineStore('task', () => {
     historyStore.recordTaskBirth(gid, now).catch((e) => logger.debug('taskBirth.write', e))
 
     if (policy !== 'download-all' || classifyFiles) {
-      const { useAppStore } = await import('@/stores/app')
-      useAppStore().queueMagnetSelection(gid, policy === 'prompt')
+      useTaskSelectionStore().register(gid, policy === 'prompt')
     }
 
     await fetchList()
@@ -475,7 +452,7 @@ export const useTaskStore = defineStore('task', () => {
     return api.getFiles({ gid })
   }
 
-  async function addTorrent(data: { torrent: string; options: Aria2EngineOptions }) {
+  async function addTorrent(data: { torrent: string; options: Aria2EngineOptions; requestId?: string }) {
     const gid = await api.addTorrent(data)
     const now = new Date().toISOString()
     registerAddedAt(gid, now)
@@ -505,11 +482,15 @@ export const useTaskStore = defineStore('task', () => {
     const policy = preferenceStore.config.magnetFileSelectionPolicy
     resubmittingGids.value = [...resubmittingGids.value, task.gid]
     listRequestId += 1
-    const operation = resubmitTask(task, mode, api, historyStore, policy, async (gid) => {
-      const { useAppStore } = await import('@/stores/app')
-      useAppStore().queueMagnetSelection(gid, policy === 'prompt')
-    })
+    const operation = (
+      task.media && mode === 'retry'
+        ? api.retryMedia(task.gid).then((gid) => [gid])
+        : resubmitTask(task, mode, api, historyStore, policy, async (gid) => {
+            useTaskSelectionStore().register(gid, policy === 'prompt')
+          })
+    )
       .then(async (gids) => {
+        if (task.media) gids.forEach((gid) => useTaskSelectionStore().register(gid, true))
         const replacement = gids[0]
         if (!replacement) return
         cardKeys.set(replacement, taskCardKey(task.gid))
@@ -545,7 +526,9 @@ export const useTaskStore = defineStore('task', () => {
     taskCardKey,
     currentList,
     taskCounts,
+    isCurrentListEmpty,
     taskDetailVisible,
+    taskDetailClosing,
     currentTaskGid,
     enabledFetchPeers,
     currentTaskItem,

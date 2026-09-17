@@ -1,10 +1,10 @@
 <script setup lang="ts">
-/** @fileoverview Two-line compact task row with the same actions as the full card. */
+/** @fileoverview Two-line task row with stable progress and right-aligned metadata. */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TASK_STATUS } from '@shared/constants'
-import { NIcon, NProgress } from 'naive-ui'
-import MTooltip from '@/components/common/MTooltip.vue'
+import { NEllipsis, NIcon, NProgress } from 'naive-ui'
+import MTooltip, { TOOLTIP_DEFAULTS } from '@/components/common/MTooltip.vue'
 import { ArrowDownOutline, ArrowUpOutline, AlertCircleOutline, RadioOutline, TimeOutline } from '@vicons/ionicons5'
 import { useTaskCardModel } from '@/composables/useTaskCardModel'
 import { useTaskFileMissing } from '@/composables/useTaskFileMissing'
@@ -21,6 +21,7 @@ const emit = defineEmits<{
   retry: [task: Aria2Task]
   redownload: [task: Aria2Task]
   'finish-sharing': [task: Aria2Task]
+  'finish-media': [task: Aria2Task]
   delete: [task: Aria2Task]
   'delete-record': [task: Aria2Task]
   'copy-link': [task: Aria2Task]
@@ -38,6 +39,7 @@ const {
   statusBadge,
   taskStatus,
   isActive,
+  indeterminate,
   percent,
   completedSize,
   totalSize,
@@ -113,6 +115,7 @@ const compactStatus = computed<{ label: string; tone: string; icon: Component } 
           @retry="emit('retry', task)"
           @redownload="emit('redownload', task)"
           @finish-sharing="emit('finish-sharing', task)"
+          @finish-media="emit('finish-media', task)"
           @delete="emit('delete', task)"
           @delete-record="emit('delete-record', task)"
           @copy-link="emit('copy-link', task)"
@@ -124,6 +127,7 @@ const compactStatus = computed<{ label: string; tone: string; icon: Component } 
       </div>
       <div class="compact-progress-row">
         <NProgress
+          v-if="!indeterminate"
           class="compact-progress"
           type="line"
           :percentage="percent"
@@ -134,24 +138,30 @@ const compactStatus = computed<{ label: string; tone: string; icon: Component } 
           :show-indicator="false"
           :processing="isActive"
         />
+        <span v-if="!indeterminate" class="compact-percent">{{ indeterminate ? '—' : `${percent}%` }}</span>
         <div class="compact-meta">
-          <span>{{ percent }}%</span>
-          <span v-if="hasSizeInfo">{{ completedSize }} / {{ totalSize }}</span>
-          <TaskTextTransition v-show="compactStatus" :value="fileMissing ? 'file-missing' : (statusBadge?.key ?? '')">
-            <span v-if="compactStatus" class="compact-status" :class="{ error: compactStatus.tone === 'error' }">
-              <NIcon :size="12"><component :is="compactStatus.icon" /></NIcon>
-              {{ compactStatus.label }}
+          <NEllipsis :tooltip="TOOLTIP_DEFAULTS">
+            <TaskTextTransition
+              v-show="compactStatus"
+              class="compact-meta-item"
+              :value="fileMissing ? 'file-missing' : (statusBadge?.key ?? '')"
+            >
+              <span v-if="compactStatus" class="compact-status" :class="{ error: compactStatus.tone === 'error' }">
+                <NIcon :size="12"><component :is="compactStatus.icon" /></NIcon>
+                {{ compactStatus.label }}
+              </span>
+            </TaskTextTransition>
+            <span v-if="hasSizeInfo" class="compact-meta-item">{{ completedSize }} / {{ totalSize }}</span>
+            <span v-if="isActive && hasSizeInfo" class="compact-speed compact-meta-item">
+              <NIcon :size="10"><ArrowDownOutline /></NIcon>
+              {{ downloadSpeed }}/s
             </span>
-          </TaskTextTransition>
-          <span class="compact-speed">
-            <NIcon :size="10"><ArrowDownOutline /></NIcon>
-            {{ downloadSpeed }}/s
-          </span>
-          <span v-if="transferSummary.showUploadMetrics" class="compact-speed">
-            <NIcon :size="10"><ArrowUpOutline /></NIcon>
-            {{ uploadSpeed }}/s
-          </span>
-          <span v-if="remaining > 0">{{ remainingText }}</span>
+            <span v-if="transferSummary.showUploadMetrics" class="compact-speed compact-meta-item">
+              <NIcon :size="10"><ArrowUpOutline /></NIcon>
+              {{ uploadSpeed }}/s
+            </span>
+            <span v-if="remaining > 0" class="compact-meta-item">{{ remainingText }}</span>
+          </NEllipsis>
         </div>
       </div>
     </div>
@@ -221,12 +231,17 @@ const compactStatus = computed<{ label: string; tone: string; icon: Component } 
 }
 .compact-progress-row {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(0, auto);
+  /* Live metadata must never determine the progress rail's width. */
+  grid-template-columns: minmax(0, 1fr) 6ch minmax(0, 2fr);
   align-items: center;
   column-gap: 10px;
   height: 16px;
   margin-top: 4px;
-  overflow: hidden;
+  color: var(--m3-on-surface-variant);
+  font-size: 12px;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .compact-progress :deep(.n-progress-graph-line-fill) {
   transition:
@@ -235,15 +250,7 @@ const compactStatus = computed<{ label: string; tone: string; icon: Component } 
 }
 .compact-meta {
   min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  overflow: hidden;
-  color: var(--m3-on-surface-variant);
-  font-size: 12px;
-  line-height: 14px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  text-align: end;
 }
 .compact-name > .task-text-transition {
   display: grid;
@@ -254,9 +261,11 @@ const compactStatus = computed<{ label: string; tone: string; icon: Component } 
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.compact-meta > span {
-  flex: 0 0 auto;
-  min-width: 0;
+.compact-percent {
+  text-align: start;
+}
+.compact-meta-item:not(:last-child) {
+  margin-inline-end: 8px;
 }
 .compact-status,
 .compact-speed {

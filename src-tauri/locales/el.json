@@ -11,5 +11,7 @@
   "notification.download-start-title": "Η λήψη ξεκίνησε",
   "notification.ed2k-complete-body": "Κοινή χρήση: %{task_name}",
   "notification.ed2k-complete-title": "Η ED2K λήψη ολοκληρώθηκε",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "Αναμονή επιλογής περιεχομένου",
+  "notification.selection-body": "%{task_name}"
 }

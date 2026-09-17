@@ -655,83 +655,44 @@ describe('submitManualUris', () => {
       outs: ['file_1.zip'],
       options: { ...baseOptions, referer: 'https://a.example/', header: ['Cookie: a=1'] },
       fileCategory: undefined,
+      contexts: {
+        [firstUrl]: { url: firstUrl, referer: 'https://a.example/', cookie: 'a=1' },
+        [secondUrl]: { url: secondUrl, referer: 'https://b.example/', cookie: 'b=2' },
+      },
     })
     expect(mockTaskStore.addUri).toHaveBeenNthCalledWith(2, {
       uris: [secondUrl],
       outs: ['file_2.zip'],
       options: { ...baseOptions, referer: 'https://b.example/', header: ['Cookie: b=2'] },
       fileCategory: undefined,
+      contexts: {
+        [firstUrl]: { url: firstUrl, referer: 'https://a.example/', cookie: 'a=1' },
+        [secondUrl]: { url: secondUrl, referer: 'https://b.example/', cookie: 'b=2' },
+      },
     })
   })
 
-  it('does not invoke HEAD for percent-encoded URIs with extension — aria2 handles decode natively', async () => {
+  it('preserves percent-encoded download URLs without synthesizing an output name', async () => {
     await submitManualUris({ ...baseForm, uris: 'http://example.com/AAA%20BBB.mp3' }, mockTaskStore)
 
     const call = (mockTaskStore.addUri as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    // .mp3 has an extension → hasExtension returns true → no HEAD request
     expect(call.outs).toEqual([''])
   })
 
-  it('invokes resolve_filename for extensionless URL paths', async () => {
-    // This URL has no extension in the path — resolve_filename is invoked
-    const { invoke } = await import('@tauri-apps/api/core')
-    ;(invoke as ReturnType<typeof vi.fn>).mockResolvedValueOnce('215.zip')
-
-    await submitManualUris({ ...baseForm, uris: 'https://datashop.cboe.com/download/sample/215' }, mockTaskStore)
-
-    expect(invoke).toHaveBeenCalledWith('resolve_filename', {
-      url: 'https://datashop.cboe.com/download/sample/215',
-      proxy: null,
-    })
-    const call = (mockTaskStore.addUri as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(call.outs).toEqual(['215.zip'])
-  })
-
-  it('passes referer and cookie to resolve_filename for authenticated extensionless URLs', async () => {
-    const { invoke } = await import('@tauri-apps/api/core')
-    ;(invoke as ReturnType<typeof vi.fn>).mockResolvedValueOnce('Итоги_2026.docx')
-
-    const result = await submitManualUris(
-      {
-        ...baseForm,
-        uris: 'https://mail-attachment.googleusercontent.com/attachment/u/0/',
-        referer: 'https://mail.google.com/mail/u/0/#inbox',
-        cookie: 'COMPASS=gmail=abc',
-      },
-      mockTaskStore,
-    )
-
-    expect(invoke).toHaveBeenCalledWith('resolve_filename', {
-      url: 'https://mail-attachment.googleusercontent.com/attachment/u/0/',
-      proxy: null,
-      referer: 'https://mail.google.com/mail/u/0/#inbox',
-      cookie: 'COMPASS=gmail=abc',
-    })
-    const call = (mockTaskStore.addUri as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(call.outs).toEqual(['Итоги_2026.docx'])
-    expect(result.submittedTaskNames).toEqual(['Итоги_2026.docx'])
-  })
-
-  it('sanitizes referer and cookie before passing them to resolve_filename', async () => {
-    const { invoke } = await import('@tauri-apps/api/core')
-    ;(invoke as ReturnType<typeof vi.fn>).mockResolvedValueOnce('safe.zip')
-
+  it('passes extensionless URLs and decoded name hints to the engine without a probe', async () => {
+    const url = 'https://example.com/download'
     await submitManualUris(
       {
         ...baseForm,
-        uris: 'https://example.com/download',
-        referer: 'https://example.com/\r\nInjected: bad',
-        cookie: 'session=abc\nX-Evil: 1',
+        uris: url,
+        uriRequestContexts: { [url]: { filename: 'report%20.pdf', filenameSource: 'browser' } },
       },
       mockTaskStore,
     )
-
-    expect(invoke).toHaveBeenCalledWith('resolve_filename', {
-      url: 'https://example.com/download',
-      proxy: null,
-      referer: 'https://example.com/Injected: bad',
-      cookie: 'session=abcX-Evil: 1',
-    })
+    const call = (mockTaskStore.addUri as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(call.outs).toEqual([''])
+    expect(call.options['filename-hint']).toBe('report%20.pdf')
+    expect(call.options['filename-hint-source']).toBe('browser')
   })
 
   it('does not include magnet URIs in regular addUri call (they use separate addMagnetUri path)', async () => {
@@ -743,16 +704,7 @@ describe('submitManualUris', () => {
     const call = (mockTaskStore.addUri as ReturnType<typeof vi.fn>).mock.calls[0][0]
     // Only the regular URI should be in the addUri call
     expect(call.uris).toEqual(['http://example.com/file%20name.zip'])
-    expect(call.outs).toEqual(['']) // .zip has extension → empty string (no HEAD)
-  })
-
-  it('does not invoke resolve_filename when user has specified out', async () => {
-    const { invoke } = await import('@tauri-apps/api/core')
-
-    await submitManualUris({ ...baseForm, uris: 'http://example.com/AAA%20BBB.mp3', out: 'custom.mp3' }, mockTaskStore)
-
-    // User provided explicit out → buildOuts handles naming, resolve_filename not called
-    expect(invoke).not.toHaveBeenCalledWith('resolve_filename', expect.anything())
+    expect(call.outs).toEqual(['']) // The engine resolves the output name.
   })
 
   it('returns structured magnet failures without throwing away successful submissions', async () => {

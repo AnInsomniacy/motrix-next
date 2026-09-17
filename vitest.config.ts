@@ -15,7 +15,7 @@ export default mergeConfig(
       },
       environment: 'happy-dom',
       testTimeout: 10000,
-      execArgv: ['--localstorage-file=' + join(tmpdir(), `motrix-next-vitest-localstorage-${process.pid}`)],
+      execArgv: ['--localstorage-file=' + join(tmpdir(), `rayburst-vitest-localstorage-${process.pid}`)],
       setupFiles: ['src/__tests__/setup.ts'],
       include: ['src/**/*.{test,spec}.ts'],
       coverage: {

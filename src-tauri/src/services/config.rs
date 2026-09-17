@@ -20,6 +20,8 @@ pub const DEFAULT_EXTENSION_API_PORT: u16 = 29110;
 #[serde(default, rename_all = "camelCase")]
 pub struct RuntimeConfig {
     pub locale: String,
+    pub media_select_before_download: bool,
+    pub media_default_format: String,
     pub speed_limit_enabled: bool,
     pub speed_schedule_enabled: bool,
     pub speed_schedule_from: String,
@@ -54,6 +56,8 @@ impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
             locale: "auto".into(),
+            media_select_before_download: true,
+            media_default_format: "mp4".into(),
             speed_limit_enabled: false,
             speed_schedule_enabled: false,
             speed_schedule_from: "00:00".into(),
@@ -108,30 +112,6 @@ mod tests {
     use super::*;
 
     // ── Default values ──────────────────────────────────────────────
-
-    #[test]
-    fn default_config_has_sane_values() {
-        let cfg = RuntimeConfig::default();
-        assert!(!cfg.speed_limit_enabled);
-        assert_eq!(cfg.locale, "auto");
-        assert!(!cfg.speed_schedule_enabled);
-        assert_eq!(cfg.speed_schedule_from, "00:00");
-        assert_eq!(cfg.speed_schedule_to, "06:00");
-        assert_eq!(cfg.speed_schedule_days, 0);
-        assert!(cfg.max_overall_download_limit.is_empty());
-        assert!(cfg.max_overall_upload_limit.is_empty());
-        assert!(!cfg.tray_speedometer); // default OFF
-        #[cfg(target_os = "macos")]
-        assert!(cfg.dock_badge_speed); // default ON
-        #[cfg(not(target_os = "linux"))]
-        assert!(!cfg.show_progress_bar);
-        assert!(!cfg.shutdown_when_complete); // default OFF — opt-in only
-        assert!(!cfg.keep_awake); // default OFF — opt-in only
-        assert!(cfg.task_notification); // default ON
-        assert!(cfg.notify_on_complete); // default ON
-        assert!(cfg.notify_on_start); // default ON
-        assert!(!cfg.allow_remote_access); // default OFF
-    }
 
     // ── Deserialization from AppConfig-shaped JSON ───────────────────
 

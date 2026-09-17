@@ -155,7 +155,7 @@ fn expected_engine_path() -> Result<PathBuf, String> {
     } else {
         directory
     };
-    Ok(sidecar_directory.join("motrix-next-engine.exe"))
+    Ok(sidecar_directory.join("aria2-next.exe"))
 }
 
 fn process_path(handle: HANDLE) -> Result<PathBuf, String> {
@@ -263,13 +263,13 @@ mod tests {
 
     #[test]
     fn path_matching_is_case_insensitive_but_requires_the_full_path() {
-        let expected = Path::new(r"C:\Program Files\MotrixNext\motrix-next-engine.exe");
+        let expected = Path::new(r"C:\Program Files\Rayburst\aria2-next.exe");
         assert!(paths_match(
-            Path::new(r"c:\program files\motrixnext\MOTRIX-NEXT-ENGINE.EXE"),
+            Path::new(r"c:\program files\rayburst\ARIA2-NEXT.EXE"),
             expected
         ));
         assert!(!paths_match(
-            Path::new(r"C:\Other\motrix-next-engine.exe"),
+            Path::new(r"C:\Other\aria2-next.exe"),
             expected
         ));
     }

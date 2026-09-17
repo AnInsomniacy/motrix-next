@@ -3,9 +3,9 @@
 import { computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTaskStore } from '@/stores/task'
+import { useTaskSelectionStore } from '@/stores/taskSelection'
 import { useAppStore } from '@/stores/app'
 import { usePreferenceStore } from '@/stores/preference'
-import { useTheme } from '@/composables/useTheme'
 
 import { isEngineReady } from '@/api/aria2'
 import { useTaskActions } from '@/composables/useTaskActions'
@@ -16,8 +16,7 @@ import { useAppMessage } from '@/composables/useAppMessage'
 import TaskList from '@/components/task/TaskList.vue'
 import TaskActions from '@/components/task/TaskActions.vue'
 import TaskDetail from '@/components/task/TaskDetail.vue'
-import watermarkDark from '@/assets/logo-bolt-dark.png'
-import watermarkLight from '@/assets/logo-bolt-light.png'
+import TaskEmptyBrand from '@/components/task/TaskEmptyBrand.vue'
 
 const props = withDefaults(defineProps<{ status?: string }>(), { status: 'all' })
 
@@ -25,11 +24,9 @@ const { t } = useI18n()
 const taskStore = useTaskStore()
 const appStore = useAppStore()
 const preferenceStore = usePreferenceStore()
+const showEmptyBrand = computed(() => preferenceStore.config.showLogoWhenEmpty && taskStore.isCurrentListEmpty)
 const dialog = useDialog()
 const message = useAppMessage()
-const { isDark } = useTheme()
-const watermarkSrc = computed(() => (isDark.value ? watermarkLight : watermarkDark))
-const showTaskListWatermark = computed(() => preferenceStore.config.taskListWatermark)
 
 const {
   handlePauseTask,
@@ -37,6 +34,7 @@ const {
   handleRetryTask,
   handleRedownloadTask,
   handleFinishSharing,
+  handleFinishMedia,
   handleDeleteTask,
   handleDeleteRecord,
   handleCopyLink,
@@ -50,7 +48,7 @@ const {
   t,
   dialog,
   message,
-  requestMagnetSelection: appStore.requestMagnetSelection,
+  requestMagnetSelection: (gid) => useTaskSelectionStore().request({ kind: 'bt', gid }),
 })
 
 const subnavs = computed(() => [
@@ -116,8 +114,6 @@ onBeforeUnmount(() => {
   changeRequestId += 1
   stopPolling()
 })
-// Task action handlers are now provided by useTaskActions composable above.
-// Magnet file selection is handled at app-level in MainLayout.vue.
 </script>
 
 <template>
@@ -127,12 +123,7 @@ onBeforeUnmount(() => {
       <TaskActions />
     </header>
     <div class="panel-body">
-      <!-- Brand watermark stays outside the scroll container so task cards scroll above it. -->
-      <Transition name="watermark-fade">
-        <div v-if="showTaskListWatermark" class="watermark" @dragstart.prevent @selectstart.prevent>
-          <img :src="watermarkSrc" alt="Motrix Next" class="watermark-brand" draggable="false" />
-        </div>
-      </Transition>
+      <TaskEmptyBrand :show="showEmptyBrand" />
       <div class="panel-content">
         <TaskList
           @pause="handlePauseTask"
@@ -140,6 +131,7 @@ onBeforeUnmount(() => {
           @retry="handleRetryTask"
           @redownload="handleRedownloadTask"
           @finish-sharing="handleFinishSharing"
+          @finish-media="handleFinishMedia"
           @delete="handleDeleteTask"
           @delete-record="handleDeleteRecord"
           @copy-link="handleCopyLink"
@@ -183,11 +175,6 @@ onBeforeUnmount(() => {
   line-height: 24px;
   align-self: flex-start;
 }
-/*
- * .panel-body creates the positioning context for the watermark.
- * The watermark is absolutely positioned here (outside the scroll flow),
- * while .panel-content scrolls independently on top.
- */
 .panel-body {
   position: relative;
   flex: 1;
@@ -202,34 +189,5 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  /* z-index lifts scrollable content above the watermark layer */
-  position: relative;
-  z-index: 1;
-}
-/* ── Permanent watermark — pinned to scroll container viewport ────── */
-.watermark {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  user-select: none;
-  z-index: 0;
-}
-.watermark-brand {
-  max-width: 480px;
-  width: 80%;
-  opacity: 0.35;
-  user-select: none;
-  -webkit-user-drag: none;
-}
-.watermark-fade-enter-active,
-.watermark-fade-leave-active {
-  transition: opacity 0.28s cubic-bezier(0.2, 0, 0, 1);
-}
-.watermark-fade-enter-from,
-.watermark-fade-leave-to {
-  opacity: 0;
 }
 </style>

@@ -1,30 +1,41 @@
 import { computed, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '@shared/logger'
+import { getErrorMessage } from '@shared/utils/errorMessage'
 
-export type ProtocolKey = 'magnet' | 'ed2k' | 'thunder' | 'motrixnext'
+export type ProtocolKey = 'magnet' | 'ed2k' | 'thunder' | 'rayburst'
 type ProtocolResult =
   | { kind: 'success' | 'unchanged' | 'manual' | 'cancelled' | 'query-failed' | 'ignored' }
   | { kind: 'failed'; reason: string }
 
-const protocolKeys: ProtocolKey[] = ['magnet', 'ed2k', 'thunder', 'motrixnext']
+const protocolKeys: ProtocolKey[] = ['magnet', 'ed2k', 'thunder', 'rayburst']
 
 function errorReason(error: unknown): string {
-  if (error instanceof Error) return error.message
   if (typeof error === 'object' && error !== null && 'Protocol' in error) return String(error.Protocol)
-  return String(error)
+  return getErrorMessage(error)
 }
 
 export function useProtocolHandlers() {
-  const status = ref<Record<ProtocolKey, boolean>>({ magnet: false, ed2k: false, thunder: false, motrixnext: false })
+  // Undefined is loading; null is a failed query, never an unchecked association.
+  const status = ref<Record<ProtocolKey, boolean | null | undefined>>({
+    magnet: undefined,
+    ed2k: undefined,
+    thunder: undefined,
+    rayburst: undefined,
+  })
   const pending = ref<ProtocolKey | null>(null)
   const refreshing = ref(false)
   const busy = computed(() => refreshing.value || pending.value !== null)
 
   async function refreshProtocol(protocol: ProtocolKey): Promise<boolean> {
-    const enabled = await invoke<boolean>('is_default_protocol_client', { protocol })
-    status.value[protocol] = enabled
-    return enabled
+    try {
+      const enabled = await invoke<boolean>('is_default_protocol_client', { protocol })
+      status.value[protocol] = enabled
+      return enabled
+    } catch (error) {
+      status.value[protocol] = null
+      throw error
+    }
   }
 
   async function refreshAll(): Promise<void> {
@@ -36,7 +47,7 @@ export function useProtocolHandlers() {
           try {
             await refreshProtocol(protocol)
           } catch (error) {
-            logger.debug('Protocol.refresh', { protocol, reason: errorReason(error) })
+            logger.warn('Protocol.refresh', 'association query failed', { protocol, reason: errorReason(error) })
           }
         }),
       )

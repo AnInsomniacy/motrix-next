@@ -41,47 +41,9 @@ pub(crate) fn clear_engine_runtime_state(app: &tauri::AppHandle) -> Result<(), S
     Ok(())
 }
 
-/// Determines whether a process command name is a supported Aria2 Next process.
-///
-/// Used by `cleanup_port` (Unix) to verify that only supported engine processes are
-/// killed when reclaiming the RPC port — never arbitrary processes that
-/// happen to occupy the same port.
-///
-/// Matches only the current `motrix-next-engine` sidecar process.
-///
-#[cfg(unix)]
-fn is_supported_engine_process(comm: &str) -> bool {
-    comm.contains("motrix-next-engine")
-}
-
 #[cfg(any(windows, test))]
 pub(super) fn decode_windows_tcp_port(raw_port: u32) -> u16 {
     u16::from_be(raw_port as u16)
-}
-
-#[cfg(unix)]
-fn process_identity(pid: &str) -> Option<String> {
-    let args_output = std::process::Command::new("ps")
-        .args(["-p", pid, "-o", "args="])
-        .stderr(std::process::Stdio::null())
-        .output()
-        .ok()?;
-    let args = String::from_utf8_lossy(&args_output.stdout)
-        .trim()
-        .to_string();
-    if !args.is_empty() {
-        return Some(args);
-    }
-
-    let comm_output = std::process::Command::new("ps")
-        .args(["-p", pid, "-o", "comm="])
-        .stderr(std::process::Stdio::null())
-        .output()
-        .ok()?;
-    let comm = String::from_utf8_lossy(&comm_output.stdout)
-        .trim()
-        .to_string();
-    (!comm.is_empty()).then_some(comm)
 }
 
 /// Kill only supported engine processes occupying the given port, so a new engine can bind to it.
@@ -95,53 +57,10 @@ pub(crate) fn cleanup_port(port: &str) {
     };
 
     #[cfg(unix)]
-    {
-        // Direct command invocation — no shell interpolation.
-        // The port value is validated as numeric-only above.
-        let output = std::process::Command::new("lsof")
-            .args(["-ti", &format!(":{}", port)])
-            .stderr(std::process::Stdio::null())
-            .output();
-
-        if let Ok(out) = output {
-            let pids = String::from_utf8_lossy(&out.stdout);
-            let pids = pids.trim();
-            if !pids.is_empty() {
-                let mut killed_any = false;
-                for pid in pids.lines() {
-                    let pid = pid.trim();
-                    if pid.is_empty() {
-                        continue;
-                    }
-                    if let Some(identity) = process_identity(pid) {
-                        if is_supported_engine_process(&identity) {
-                            log::debug!(
-                                "killing leftover engine process on port {}: PID {}",
-                                port,
-                                pid
-                            );
-                            let _ = std::process::Command::new("kill")
-                                .args(["-9", pid])
-                                .stderr(std::process::Stdio::null())
-                                .status();
-                            killed_any = true;
-                        } else {
-                            log::debug!(
-                                "port {} occupied by non-engine process '{}' (PID {}), skipping",
-                                port,
-                                identity,
-                                pid
-                            );
-                        }
-                    }
-                }
-                // Brief wait for OS to release the port — only needed when we killed something
-                if killed_any {
-                    std::thread::sleep(std::time::Duration::from_millis(300));
-                }
-            }
-        }
-    }
+    log::debug!(
+        "engine: leaving occupied port {} to native conflict recovery",
+        port
+    );
 
     #[cfg(windows)]
     {
@@ -185,33 +104,6 @@ mod tests {
         }
         assert!(temp.path().join("history.db").exists());
         assert!(temp.path().join("config.json").exists());
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn is_supported_engine_process_matches_motrix_next_engine() {
-        assert!(is_supported_engine_process("motrix-next-engine"));
-        assert!(is_supported_engine_process(
-            "/Applications/MotrixNext.app/Contents/Resources/motrix-next-engine"
-        ));
-        assert!(is_supported_engine_process(
-            "/usr/bin/motrix-next-engine --conf-path=/home/user/.local/share/com.motrix.next/engine/aria2.conf"
-        ));
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn is_supported_engine_process_does_not_trust_truncated_comm_names() {
-        assert!(!is_supported_engine_process("motrix-next-eng"));
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn is_supported_engine_process_rejects_other_processes() {
-        assert!(!is_supported_engine_process("nginx"));
-        assert!(!is_supported_engine_process("node"));
-        assert!(!is_supported_engine_process("python3"));
-        assert!(!is_supported_engine_process(""));
     }
 
     // ── Port validation tests (code review fix) ──────────────────

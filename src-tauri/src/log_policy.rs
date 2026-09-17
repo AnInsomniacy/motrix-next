@@ -8,18 +8,18 @@ use serde::{Deserialize, Serialize};
 pub(crate) const LOG_SCHEMA_VERSION: u32 = 1;
 pub(crate) const MAX_LOG_FILE_SIZE: u64 = 10 * 1024 * 1024;
 pub(crate) const MAX_LOG_FILES: usize = 3;
-pub(crate) const MOTRIX_LOG_FILE: &str = "motrix-next.log";
+pub(crate) const RAYBURST_LOG_FILE: &str = "rayburst.log";
 pub(crate) const ARIA2_LOG_FILE: &str = "aria2-next.log";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LogSource {
-    Motrix,
+    Rayburst,
     Aria2,
 }
 
 pub(crate) fn managed_log_source(name: &str) -> Option<LogSource> {
-    if name == MOTRIX_LOG_FILE || (name.starts_with("motrix-next_") && name.ends_with(".log")) {
-        return Some(LogSource::Motrix);
+    if name == RAYBURST_LOG_FILE || (name.starts_with("rayburst_") && name.ends_with(".log")) {
+        return Some(LogSource::Rayburst);
     }
     if name == ARIA2_LOG_FILE
         || name
@@ -35,7 +35,7 @@ pub(crate) fn managed_log_source(name: &str) -> Option<LogSource> {
 }
 
 pub(crate) fn is_managed_active_log_file(name: &str) -> bool {
-    matches!(name, MOTRIX_LOG_FILE | ARIA2_LOG_FILE)
+    matches!(name, RAYBURST_LOG_FILE | ARIA2_LOG_FILE)
 }
 
 pub(crate) fn run_id() -> &'static str {
@@ -86,7 +86,7 @@ impl LogLevelControl {
 
     pub(crate) fn set(&self, value: &str) -> Result<log::LevelFilter, String> {
         let level =
-            parse_level(value).ok_or_else(|| format!("Invalid Motrix Next log level: {value}"))?;
+            parse_level(value).ok_or_else(|| format!("Invalid Rayburst log level: {value}"))?;
         self.0.store(encode_level(level), Ordering::Release);
         Ok(level)
     }
@@ -160,10 +160,10 @@ fn level_style(level: &str) -> anstyle::Style {
 
 #[cfg(debug_assertions)]
 fn compact_target(target: &str) -> &str {
-    if target == "motrix_next_lib" {
+    if target == "rayburst_lib" {
         "app"
     } else {
-        target.strip_prefix("motrix_next_lib::").unwrap_or(target)
+        target.strip_prefix("rayburst_lib::").unwrap_or(target)
     }
 }
 
@@ -282,7 +282,7 @@ pub(crate) fn format_record(
     {
         "webview"
     } else {
-        "motrix"
+        "rayburst"
     };
     let target = fields
         .0
@@ -302,7 +302,7 @@ pub(crate) fn format_record(
     .unwrap_or_else(|error| {
         serde_json::json!({
             "level": "ERROR",
-            "source": "motrix",
+            "source": "rayburst",
             "target": "logger",
             "message": format!("serialization failed: {error}"),
         })
@@ -317,12 +317,12 @@ mod tests {
     #[test]
     fn managed_log_source_accepts_current_and_rotated_files() {
         assert_eq!(
-            managed_log_source("motrix-next.log"),
-            Some(LogSource::Motrix)
+            managed_log_source("rayburst.log"),
+            Some(LogSource::Rayburst)
         );
         assert_eq!(
-            managed_log_source("motrix-next_2026-08-27_12-00-00.log"),
-            Some(LogSource::Motrix)
+            managed_log_source("rayburst_2026-08-27_12-00-00.log"),
+            Some(LogSource::Rayburst)
         );
         assert_eq!(
             managed_log_source("aria2-next.2.log"),

@@ -168,6 +168,39 @@ pub struct Aria2Ed2kInfo {
     pub peer_credit_count: Option<String>,
 }
 
+/// Native media counters use milliseconds, bytes, and decimal strings.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Aria2Media {
+    pub state: String,
+    pub protocol: String,
+    pub live: String,
+    pub duration: String,
+    pub completed_duration: String,
+    pub downloaded_length: String,
+    pub length_known: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub progress: Option<String>,
+    pub error: String,
+    pub tracks: Vec<Aria2MediaTrack>,
+    #[serde(default)]
+    pub error_code: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Aria2MediaTrack {
+    pub id: String,
+    pub r#type: String,
+    pub language: String,
+    pub codec: String,
+    pub width: String,
+    pub height: String,
+    pub bandwidth: String,
+    #[serde(default, rename = "frameRate")]
+    pub frame_rate: String,
+    pub selected: String,
+}
+
 /// Complete aria2 task object returned by tellStatus, tellActive,
 /// tellWaiting, or tellStopped.
 ///
@@ -175,6 +208,8 @@ pub struct Aria2Ed2kInfo {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Aria2Task {
+    #[serde(default)]
+    pub selection_managed: bool,
     pub gid: String,
     pub status: String,
     pub total_length: String,
@@ -190,6 +225,8 @@ pub struct Aria2Task {
     pub bittorrent: Option<Aria2BtInfo>,
     #[serde(default)]
     pub ed2k: Option<Aria2Ed2kInfo>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub media: Option<Aria2Media>,
     #[serde(default)]
     pub info_hash: Option<String>,
     #[serde(default)]
@@ -696,13 +733,13 @@ mod tests {
     fn jsonrpc_request_serializes_correctly() {
         let req = JsonRpcRequest {
             jsonrpc: "2.0",
-            id: "motrix".to_string(),
+            id: "rayburst".to_string(),
             method: "aria2.getGlobalStat".to_string(),
             params: vec![serde_json::Value::String("token:secret123".to_string())],
         };
         let json = serde_json::to_value(&req).expect("serialize");
         assert_eq!(json["jsonrpc"], "2.0");
-        assert_eq!(json["id"], "motrix");
+        assert_eq!(json["id"], "rayburst");
         assert_eq!(json["method"], "aria2.getGlobalStat");
         assert_eq!(json["params"][0], "token:secret123");
     }
@@ -712,7 +749,7 @@ mod tests {
     #[test]
     fn jsonrpc_response_with_result() {
         let json = serde_json::json!({
-            "id": "motrix",
+            "id": "rayburst",
             "jsonrpc": "2.0",
             "result": "OK"
         });
@@ -724,7 +761,7 @@ mod tests {
     #[test]
     fn jsonrpc_response_with_error() {
         let json = serde_json::json!({
-            "id": "motrix",
+            "id": "rayburst",
             "jsonrpc": "2.0",
             "error": { "code": -32600, "message": "Invalid Request" }
         });
@@ -733,5 +770,23 @@ mod tests {
         let err = resp.error.unwrap();
         assert_eq!(err.code, -32600);
         assert_eq!(err.message, "Invalid Request");
+    }
+    #[test]
+    fn media_survives_task_serialization_without_fabricating_live_progress() {
+        let task = Aria2Task {
+            media: Some(Aria2Media {
+                live: "true".into(),
+                state: "recording".into(),
+                completed_duration: "12000".into(),
+                downloaded_length: "1024".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let value = serde_json::to_value(&task).unwrap();
+        assert_eq!(value["media"]["completedDuration"], "12000");
+        assert!(value["media"].get("progress").is_none());
+        let restored: Aria2Task = serde_json::from_value(value).unwrap();
+        assert_eq!(restored.media.unwrap().live, "true");
     }
 }

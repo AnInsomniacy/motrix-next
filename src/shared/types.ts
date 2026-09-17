@@ -210,7 +210,44 @@ export interface Aria2BtPeerAddResult {
  * Complete aria2 task object returned by tellStatus, tellActive, tellWaiting, or tellStopped.
  * All numeric values are represented as strings per the aria2 JSON-RPC protocol.
  */
+export type MediaState =
+  | 'waiting'
+  | 'probing'
+  | 'awaiting-selection'
+  | 'downloading'
+  | 'recording'
+  | 'finalizing'
+  | 'paused'
+  | 'complete'
+  | 'error'
+  | 'removed'
+export interface Aria2MediaTrack {
+  id: string
+  type: 'video' | 'audio' | 'subtitle' | 'muxed'
+  language: string
+  codec: string
+  width: string
+  height: string
+  bandwidth: string
+  frameRate?: string
+  selected: 'true' | 'false'
+}
+export interface Aria2Media {
+  state: MediaState
+  protocol: '' | 'hls' | 'dash'
+  live: 'true' | 'false'
+  duration: string
+  completedDuration: string
+  downloadedLength: string
+  lengthKnown: 'true' | 'false'
+  progress?: string
+  error: string
+  errorCode?: string
+  tracks: Aria2MediaTrack[]
+}
+
 export interface Aria2Task {
+  selectionManaged?: boolean
   gid: string
   status: TaskStatus
   totalLength: string
@@ -223,6 +260,8 @@ export interface Aria2Task {
   files: Aria2File[]
   bittorrent?: Aria2BtInfo
   ed2k?: Aria2Ed2kInfo
+  media?: Aria2Media
+  mediaOptions?: Record<string, string>
   infoHash?: string
   numSeeders?: string
   seeder?: string
@@ -365,18 +404,12 @@ export interface UserAgentRule {
 
 /** Application user preferences with full type coverage. */
 export interface AppConfig {
-  /** Schema version for config migration. Absent in pre-migration configs (treated as 0). */
-  configVersion: number
-  /** Last known DB schema version for upgrade toast detection.
-   *  Stored in config.json so that existing users (who already have config data)
-   *  can be distinguished from fresh installs (who have empty config). */
-  dbSchemaVersion: number
   theme: 'auto' | 'light' | 'dark'
   colorScheme: string
   customColorScheme: string
   taskCardMode: 'full' | 'compact'
+  showLogoWhenEmpty: boolean
   reduceMotion: boolean
-  taskListWatermark: boolean
   sidebarTaskCounts: boolean
   taskPageSize: number
   locale: string
@@ -437,6 +470,8 @@ export interface AppConfig {
   keepSharing: boolean
   keepWindowState: boolean
 
+  mediaSelectBeforeDownload: boolean
+  mediaDefaultFormat: 'mp4' | 'mkv'
   newTaskShowDownloading: boolean
   noConfirmBeforeDeleteTask: boolean
   fileDeletionMode: FileDeletionMode
@@ -557,6 +592,9 @@ export interface BrowserRequestHeader {
 }
 
 export interface ExternalDownloadContext {
+  requestId?: string
+  filename?: string
+  filenameSource?: 'browser' | 'suggested'
   url?: string
   finalUrl?: string
   referer?: string
@@ -597,6 +635,7 @@ export interface HttpAuthInput {
 
 /** Parameters for adding a URI-based download task. */
 export interface AddUriParams {
+  contexts?: Record<string, ExternalDownloadContext>
   uris: string[]
   outs: string[]
   options: Aria2EngineOptions
@@ -606,6 +645,7 @@ export interface AddUriParams {
 
 /** Parameters for adding a torrent-based download task. */
 export interface AddTorrentParams {
+  requestId?: string
   torrent: string
   options: Aria2EngineOptions
 }
@@ -702,6 +742,8 @@ export interface HistoryFileSnapshot {
  * - parseHistoryMeta()  — read path
  * - extractHistoryFilePaths() — stale cleanup */
 export interface HistoryMeta {
+  media?: Aria2Media
+  mediaOptions?: Record<string, string>
   completedLength?: string
   errorCode?: string
   errorMessage?: string
@@ -772,6 +814,7 @@ export interface ResumeEligibleResult {
 
 /** Aria2 JSON-RPC client API surface consumed by the task store. */
 export interface TaskApi {
+  retryMedia: (gid: string) => Promise<string>
   fetchTaskList: (params: { type: string; limit?: number }) => Promise<Aria2Task[]>
   fetchTaskItem: (params: { gid: string }) => Promise<Aria2Task>
   fetchTaskItemWithPeers: (params: { gid: string }) => Promise<Aria2Task & { peers: Aria2Peer[] }>

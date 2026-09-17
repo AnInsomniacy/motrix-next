@@ -15,7 +15,7 @@
 import type { VNodeChild } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import type { Aria2Task } from '@shared/types'
-import { getTaskDisplayName } from '@shared/utils'
+import { getTaskName } from '@shared/utils'
 import type { TaskSharingKind } from '@shared/utils/task'
 import { logger } from '@shared/logger'
 import { summarizeExternalInput } from '@shared/utils/externalInputDiagnostics'
@@ -40,7 +40,7 @@ export interface NotifyDeps {
 export function handleTaskComplete(task: Aria2Task, deps: NotifyDeps): void {
   if (isMetadataTask(task)) return
 
-  const taskName = getTaskDisplayName(task)
+  const taskName = getTaskName(task)
   const body = deps.t('task.download-complete-message', { taskName })
 
   const toastContent = renderCompletionToast({
@@ -61,7 +61,7 @@ export function handleTaskComplete(task: Aria2Task, deps: NotifyDeps): void {
  * for "Open File" and "Show in Folder".
  */
 export function handleP2pDownloadComplete(task: Aria2Task, kind: TaskSharingKind, deps: NotifyDeps): void {
-  const taskName = getTaskDisplayName(task)
+  const taskName = getTaskName(task)
   const bodyKey = kind === 'bt' ? 'task.bt-download-complete-message' : 'task.ed2k-download-complete-message'
   const body = deps.t(bodyKey, { taskName })
 
@@ -84,7 +84,7 @@ export function handleP2pDownloadComplete(task: Aria2Task, kind: TaskSharingKind
  * Always sends in-app toast. Native OS notification is sent by Rust monitor.
  */
 export function handleTaskError(task: Aria2Task, reason: string, deps: Pick<NotifyDeps, 'messageError' | 't'>): void {
-  const taskName = getTaskDisplayName(task, { defaultName: 'Unknown' })
+  const taskName = getTaskName(task, { defaultName: 'Unknown' })
   const body = deps.t('task.download-fail-message', { taskName, reason })
   deps.messageError(body)
   logger.warn('TaskNotify.error', 'download_error_toast_shown', { gid: task.gid, reason })

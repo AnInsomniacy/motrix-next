@@ -89,6 +89,18 @@ describe('DownloadConfirmationView', () => {
     expect(wrapper.getComponent({ name: 'AddTaskStub' }).props('showMask')).toBe(false)
   })
 
+  it('waits for asynchronous request routing before showing the confirmation window', async () => {
+    let completeRouting: (() => void) | undefined
+    handleExternalInputsMock.mockImplementationOnce(() => new Promise<void>((resolve) => (completeRouting = resolve)))
+    mount(DownloadConfirmationView)
+    await flushPromises()
+
+    expect(showMock).not.toHaveBeenCalled()
+    completeRouting?.()
+    await flushPromises()
+    expect(showMock).toHaveBeenCalledOnce()
+  })
+
   it('closes the dedicated window when the confirmation form is dismissed', async () => {
     const wrapper = mount(DownloadConfirmationView)
     await flushPromises()

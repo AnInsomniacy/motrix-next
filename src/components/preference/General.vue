@@ -273,7 +273,7 @@ onMounted(async () => {
             <template #trigger>
               <button
                 class="sysinfo-ver-badge"
-                @click="copyVersionToClipboard(`Motrix Next v${sysAppVersion}`, 'Motrix Next')"
+                @click="copyVersionToClipboard(`Rayburst v${sysAppVersion}`, 'Rayburst')"
               >
                 <span class="sysinfo-ver-value">v{{ sysAppVersion || '\u2014' }}</span>
                 <svg class="sysinfo-ver-copy" width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -421,14 +421,14 @@ onMounted(async () => {
             </NRadioButton>
           </NRadioGroup>
         </NFormItem>
+        <NFormItem :label="t('preferences.show-logo-when-empty')">
+          <NSwitch v-model:value="form.showLogoWhenEmpty" />
+        </NFormItem>
         <NFormItem :label="t('preferences.reduce-motion')">
           <NSwitch v-model:value="form.reduceMotion" />
         </NFormItem>
         <NFormItem :label="t('preferences.sidebar-task-counts')">
           <NSwitch v-model:value="form.sidebarTaskCounts" />
-        </NFormItem>
-        <NFormItem :label="t('preferences.task-list-watermark')">
-          <NSwitch v-model:value="form.taskListWatermark" />
         </NFormItem>
         <NFormItem v-if="isMac" :label="t('preferences.dock-badge-speed')">
           <NSwitch v-model:value="form.dockBadgeSpeed" />

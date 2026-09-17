@@ -1,4 +1,4 @@
-/** @fileoverview Centralized AppConfig hydration, migration, and repair. */
+/** @fileoverview Current AppConfig defaults and validation. */
 import {
   DEFAULT_APP_CONFIG,
   FILE_ALLOCATION_OPTIONS,
@@ -15,7 +15,6 @@ import {
   isNumericValueValid,
 } from '@shared/configConstraints'
 import { getAllowedColorSchemeIds, normalizeCustomColorScheme } from '@shared/utils/colorSchemeConfig'
-import { runMigrations, type MigrationResult } from '@shared/utils/configMigration'
 import { normalizeProxyMode } from '@shared/utils/proxy'
 import type { AppConfig, ClipboardConfig, PortConflictRecoveryConfig, ProxyConfig } from '@shared/types'
 import { normalizeFileCategory } from '@shared/utils/fileCategory'
@@ -38,7 +37,6 @@ import {
 
 export interface HydratedAppConfig {
   config: AppConfig
-  migration: MigrationResult
   repairs: string[]
   shouldPersist: boolean
 }
@@ -214,6 +212,11 @@ function normalizeScalarValues(config: Record<string, unknown>, repairs: string[
       repairs.push(key)
     }
   }
+  repairEnum(config, 'mediaDefaultFormat', ['mp4', 'mkv'] as const, DEFAULT_APP_CONFIG.mediaDefaultFormat, repairs)
+  if (typeof config.mediaSelectBeforeDownload !== 'boolean') {
+    config.mediaSelectBeforeDownload = DEFAULT_APP_CONFIG.mediaSelectBeforeDownload
+    repairs.push('mediaSelectBeforeDownload')
+  }
   repairEnum(config, 'theme', ['auto', 'light', 'dark'] as const, DEFAULT_APP_CONFIG.theme, repairs)
   repairEnum(config, 'taskCardMode', ['full', 'compact'] as const, DEFAULT_APP_CONFIG.taskCardMode, repairs)
   repairEnum(config, 'colorScheme', getAllowedColorSchemeIds(), DEFAULT_APP_CONFIG.colorScheme, repairs)
@@ -336,26 +339,23 @@ function normalizeFileCategories(config: AppConfig, repairs: string[]): void {
 /**
  * Converts a partial persisted config into a complete, runtime-safe AppConfig.
  *
- * Migrations handle semantic schema changes. Hydration handles default
- * materialization and defensive repair for malformed persisted values.
+ * Only current preference keys are accepted. Unknown keys are discarded.
  */
 export function hydrateAppConfig(saved?: Partial<AppConfig> | null): HydratedAppConfig {
   const defaults = createDefaultAppConfig()
-  const input = saved && isRecord(saved) ? (clonePlain(saved) as Partial<AppConfig>) : null
-  const migration = input
-    ? runMigrations(input)
-    : { migrated: false, targetVersion: DEFAULT_APP_CONFIG.configVersion, errors: [] }
-  const merged = { ...defaults, ...(input ?? {}) } as AppConfig
+  const raw = saved && isRecord(saved) ? clonePlain(saved) : null
   const repairs: string[] = []
+  const input = raw
+    ? (Object.fromEntries(
+        Object.entries(raw).filter(([key]) => {
+          const known = Object.prototype.hasOwnProperty.call(defaults, key)
+          if (!known) repairs.push(key)
+          return known
+        }),
+      ) as Partial<AppConfig>)
+    : null
+  const merged = { ...defaults, ...(input ?? {}) } as AppConfig
   const record = merged as Record<string, unknown>
-
-  delete record.autoSelectAllMagnetFilesFromExtension
-  delete record.autoSyncTracker
-  delete record.protocols
-  delete record.split
-  delete record.maxConnectionPerServer
-  delete record.engineMaxConnectionPerServer
-  delete record.engineBinPath
 
   merged.proxy = normalizeProxy(input?.proxy ?? merged.proxy, repairs)
   merged.clipboard = normalizeClipboard(input?.clipboard ?? merged.clipboard)
@@ -373,8 +373,7 @@ export function hydrateAppConfig(saved?: Partial<AppConfig> | null): HydratedApp
 
   return {
     config: merged,
-    migration,
     repairs: dedupe(repairs),
-    shouldPersist: migration.migrated || repairs.length > 0,
+    shouldPersist: repairs.length > 0,
   }
 }

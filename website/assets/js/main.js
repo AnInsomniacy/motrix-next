@@ -1,5 +1,5 @@
 /**
- * @fileoverview Motrix Next website behavior.
+ * @fileoverview Rayburst website behavior.
  *
  * Sections: scroll reveal, hero stats (GitHub API + count-up), pickers
  * (language / theme with View Transition reveal), download resolution
@@ -21,6 +21,7 @@ const revealObserver = new IntersectionObserver(
   { threshold: 0.08, rootMargin: '0px 0px -40px 0px' },
 )
 document.querySelectorAll('.reveal').forEach((el) => revealObserver.observe(el))
+document.documentElement.classList.add('js')
 
 /* ═══ Bento spotlight — cursor-following highlight ═══════════════════ */
 document.querySelectorAll('.bcard').forEach((card) => {
@@ -99,29 +100,36 @@ langDropdown.addEventListener('click', (e) => {
 
 /* ═══ Theme picker (View Transition circular reveal) ════════════════ */
 ;(function initTheme() {
-  const THEME_KEY = 'motrix-theme'
+  const THEME_KEY = 'rayburst-website-theme'
   const meta = document.querySelector('meta[name="theme-color"]')
   const toggle = document.getElementById('theme-toggle')
   const dropdown = document.getElementById('theme-dropdown')
   const label = document.getElementById('theme-toggle-label')
   const systemHint = document.getElementById('theme-system-hint')
-  const colors = { dark: '#08080a', light: '#f1ede5' }
+  const colors = { dark: '#1d1b1e', light: '#f2ecf1' }
   const i18nKeys = { system: 'theme.system', light: 'theme.light', dark: 'theme.dark' }
 
-  const getSystemTheme = () =>
-    matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+  const getSystemTheme = () => (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
 
   const getStored = () => {
-    const v = localStorage.getItem(THEME_KEY)
-    return v === 'light' || v === 'dark' ? v : 'system'
+    try {
+      const v = localStorage.getItem(THEME_KEY)
+      return v === 'light' || v === 'dark' ? v : 'system'
+    } catch {
+      return 'system'
+    }
   }
 
   function applyTheme(choice) {
     const effective = choice === 'system' ? getSystemTheme() : choice
     document.documentElement.dataset.theme = effective
     if (meta) meta.content = colors[effective]
-    if (choice === 'system') localStorage.removeItem(THEME_KEY)
-    else localStorage.setItem(THEME_KEY, choice)
+    try {
+      if (choice === 'system') localStorage.removeItem(THEME_KEY)
+      else localStorage.setItem(THEME_KEY, choice)
+    } catch {
+      // Apply the theme even when storage is unavailable.
+    }
 
     label.textContent = i18n.t(i18nKeys[choice])
     const sysLabel = i18n.t(i18nKeys[getSystemTheme()])
@@ -151,7 +159,7 @@ langDropdown.addEventListener('click', (e) => {
       dropdown.classList.remove('open')
       if (opt.classList.contains('active')) return
 
-      if (!document.startViewTransition) {
+      if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) {
         applyTheme(choice)
         return
       }
@@ -171,26 +179,24 @@ langDropdown.addEventListener('click', (e) => {
   })
 
   matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
-    if (!localStorage.getItem(THEME_KEY)) applyTheme('system')
+    if (getStored() === 'system') applyTheme('system')
   })
 })()
 
 /* ═══ Lightbox ══════════════════════════════════════════════════════ */
-function openLightbox(src) {
-  document.getElementById('lightbox-img').src = src
-  document.getElementById('lightbox').classList.add('open')
-  document.body.style.overflow = 'hidden'
+function openLightbox(source) {
+  const image = document.getElementById('lightbox-img')
+  image.src = source.src
+  image.alt = source.alt
+  document.getElementById('lightbox').showModal()
 }
 
 function closeLightbox() {
-  document.getElementById('lightbox').classList.remove('open')
-  document.body.style.overflow = ''
+  document.getElementById('lightbox').close()
 }
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    closeLightbox()
-    closeDlModal()
     document.getElementById('theme-dropdown').classList.remove('open')
     document.getElementById('lang-dropdown').classList.remove('open')
   }
@@ -198,23 +204,63 @@ document.addEventListener('keydown', (e) => {
 
 /* ═══ Download section ══════════════════════════════════════════════ */
 const ICONS = {
-  download:
-    '<svg class="ic" width="14" height="14"><use href="#i-download"/></svg>',
-  external:
-    '<svg class="ic" width="13" height="13"><use href="#i-external"/></svg>',
+  download: '<svg class="ic" width="14" height="14"><use href="#i-download"/></svg>',
+  external: '<svg class="ic" width="13" height="13"><use href="#i-external"/></svg>',
 }
 
 const PLATFORMS = [
-  { key: 'dmg-arm', os: 'macOS', arch: 'Apple Silicon', fmt: '.dmg', match: (n) => n.includes('aarch64') && n.endsWith('.dmg') },
+  {
+    key: 'dmg-arm',
+    os: 'macOS',
+    arch: 'Apple Silicon',
+    fmt: '.dmg',
+    match: (n) => n.includes('aarch64') && n.endsWith('.dmg'),
+  },
   { key: 'dmg-x64', os: 'macOS', arch: 'Intel', fmt: '.dmg', match: (n) => n.includes('x64') && n.endsWith('.dmg') },
-  { key: 'exe-x64', os: 'Windows', arch: 'x64', fmt: '.exe', match: (n) => n.includes('x64') && n.endsWith('-setup.exe') },
-  { key: 'exe-arm', os: 'Windows', arch: 'ARM64', fmt: '.exe', match: (n) => /(?:aarch64|arm64)/.test(n) && n.endsWith('-setup.exe') },
-  { key: 'appimage-x64', os: 'Linux', arch: 'x64', fmt: '.AppImage', match: (n) => n.includes('amd64') && n.endsWith('.AppImage') },
+  {
+    key: 'exe-x64',
+    os: 'Windows',
+    arch: 'x64',
+    fmt: '.exe',
+    match: (n) => n.includes('x64') && n.endsWith('-setup.exe'),
+  },
+  {
+    key: 'exe-arm',
+    os: 'Windows',
+    arch: 'ARM64',
+    fmt: '.exe',
+    match: (n) => /(?:aarch64|arm64)/.test(n) && n.endsWith('-setup.exe'),
+  },
+  {
+    key: 'appimage-x64',
+    os: 'Linux',
+    arch: 'x64',
+    fmt: '.AppImage',
+    match: (n) => n.includes('amd64') && n.endsWith('.AppImage'),
+  },
   { key: 'deb-x64', os: 'Linux', arch: 'x64', fmt: '.deb', match: (n) => n.includes('amd64') && n.endsWith('.deb') },
   { key: 'rpm-x64', os: 'Linux', arch: 'x64', fmt: '.rpm', match: (n) => n.includes('x86_64') && n.endsWith('.rpm') },
-  { key: 'appimage-arm', os: 'Linux', arch: 'ARM64', fmt: '.AppImage', match: (n) => n.includes('aarch64') && n.endsWith('.AppImage') },
-  { key: 'deb-arm', os: 'Linux', arch: 'ARM64', fmt: '.deb', match: (n) => /(?:aarch64|arm64)/.test(n) && n.endsWith('.deb') },
-  { key: 'rpm-arm', os: 'Linux', arch: 'ARM64', fmt: '.rpm', match: (n) => n.includes('aarch64') && n.endsWith('.rpm') },
+  {
+    key: 'appimage-arm',
+    os: 'Linux',
+    arch: 'ARM64',
+    fmt: '.AppImage',
+    match: (n) => n.includes('aarch64') && n.endsWith('.AppImage'),
+  },
+  {
+    key: 'deb-arm',
+    os: 'Linux',
+    arch: 'ARM64',
+    fmt: '.deb',
+    match: (n) => /(?:aarch64|arm64)/.test(n) && n.endsWith('.deb'),
+  },
+  {
+    key: 'rpm-arm',
+    os: 'Linux',
+    arch: 'ARM64',
+    fmt: '.rpm',
+    match: (n) => n.includes('aarch64') && n.endsWith('.rpm'),
+  },
 ]
 
 const ARCH_OPTIONS = {
@@ -282,19 +328,16 @@ function openDlModal(os, resolvedUrls, releaseUrl) {
   document.getElementById('dl-modal-help').innerHTML =
     i18n.t('dl.modal.notSure') + ' ' + (helpKey ? i18n.t(helpKey) : '')
 
-  dlModal.classList.add('open')
-  document.body.style.overflow = 'hidden'
+  dlModal.showModal()
 }
 
 function closeDlModal() {
-  dlModal.classList.remove('open')
-  document.body.style.overflow = ''
+  dlModal.close()
 }
 
 /* ═══ Boot ══════════════════════════════════════════════════════════ */
 ;(async () => {
-  await initI18n()
-  document.body.classList.add('ready')
+  await i18n.ready
 
   const os = detectOS()
   const detected = document.getElementById('dl-detected')
@@ -320,12 +363,12 @@ function closeDlModal() {
   let resolvedUrls = {}
   let releaseUrl = 'https://github.com/AnInsomniacy/motrix-next/releases'
   let apiFailed = false
+  const verEl = document.getElementById('stat-version')
 
-  /* Hero stats — stars, total downloads, latest stable version */
+  /* Repository stars and download counts */
   ;(async () => {
     const starsEl = document.getElementById('stat-stars')
     const dlEl = document.getElementById('stat-downloads')
-    const verEl = document.getElementById('stat-version')
 
     const fail = (el) => {
       el.classList.remove('loading')
@@ -358,26 +401,28 @@ function closeDlModal() {
         }
         dlEl.classList.remove('loading')
         countUp(dlEl, total, compactNumber)
-
-        const stable = releases.find((r) => !r.prerelease)
-        verEl.classList.remove('loading')
-        verEl.textContent = stable ? stable.tag_name : '—'
       } else {
         fail(dlEl)
-        fail(verEl)
       }
     } catch {
       clearTimeout(timeoutId)
       fail(starsEl)
       fail(dlEl)
-      fail(verEl)
     }
   })()
 
   /* Latest release assets → primary button + all-platforms grid */
   try {
-    const res = await fetch('https://api.github.com/repos/AnInsomniacy/motrix-next/releases/latest')
+    const res = await fetch('https://api.github.com/repos/AnInsomniacy/motrix-next/releases/latest', {
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) throw new Error(`Release request failed: ${res.status}`)
     const data = await res.json()
+    if (data.draft || data.prerelease || !Array.isArray(data.assets)) {
+      throw new Error('Expected a published stable release')
+    }
+    verEl.classList.remove('loading')
+    verEl.textContent = data.tag_name
     const assets = data.assets || []
     releaseUrl = data.html_url || releaseUrl
 
@@ -433,6 +478,8 @@ function closeDlModal() {
       grid.appendChild(row)
     }
   } catch {
+    verEl.classList.remove('loading')
+    verEl.textContent = '—'
     apiFailed = true
     primary.href = releaseUrl
     primaryText.textContent = i18n.t('dl.primary.fallback')

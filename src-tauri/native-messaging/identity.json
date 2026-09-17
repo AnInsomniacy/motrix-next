@@ -1,0 +1,10 @@
+{
+  "chromiumPublicKey": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArilolLixnpupXeLA2BlVywCFS2WigHtK3uITfdCIrsPMA8VABPjUUqa5QeGra5kANSv5nJX29Oy9sx8nasKMdP3S0slSAahraxDPRq2QPShq6uDNJxISkjPBDy9zbIBcE4o+Ojl/VSQm4xsQt0EERqTj6nrvWflveBvRtV4EacoDKPuPy872JGaLQycAVfEJDzz+aet1fnE+41A03grpJ9DXQ5HcjMCyuftUINJ+4w8CKbvYY2uQrJpQrloj47rZhYAn30GJnHOIMNDCMHzJ7t+oMbwHpSgOItWKLsyx9M+59wSfRIEy4Wyl5tISjzBsF9QDbh7FHgMh+IuWsdN8QQIDAQAB",
+  "chromiumId": "boebhodahhhchhcaoepghhlhddbgdmci",
+  "firefoxId": "rayburst-connect@aninsomniacy.dev",
+  "stores": {
+    "chromeId": null,
+    "edgeId": null,
+    "firefoxSlug": null
+  }
+}

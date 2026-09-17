@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Aria2Task } from '@shared/types'
 import {
   buildBtHealthSummary,
+  buildMediaDetailRows,
   buildEd2kDetailSummary,
   buildTaskDetailKind,
   buildTaskTransferSummary,
@@ -247,5 +248,47 @@ describe('buildTaskTransferSummary', () => {
     expect(uri.showUploadMetrics).toBe(false)
     expect(uri.showSeeders).toBe(false)
     expect(uri.ratio).toBe(0)
+  })
+})
+
+describe('media overview integration', () => {
+  const media = {
+    state: 'downloading' as const,
+    protocol: 'hls' as const,
+    live: 'false' as const,
+    duration: '60000',
+    completedDuration: '10000',
+    downloadedLength: '1024',
+    lengthKnown: 'false' as const,
+    error: '',
+    tracks: [
+      {
+        id: '0:0',
+        type: 'video' as const,
+        language: '',
+        codec: 'avc1',
+        width: '640',
+        height: '360',
+        bandwidth: '1000000',
+        selected: 'true' as const,
+      },
+    ],
+  }
+  it('does not repeat status, protocol or zero-value diagnostics before selection', () => {
+    expect(buildMediaDetailRows(makeTask({ media: { ...media, state: 'awaiting-selection' } }), 'en-US')).toEqual([])
+  })
+  it('adds only media-specific rows to the existing overview', () => {
+    const rows = buildMediaDetailRows(makeTask({ media }), 'en-US')
+    expect(rows.map((row) => row.key)).toEqual(['video', 'duration', 'speed', 'received'])
+    expect(rows.find((row) => row.key === 'duration')?.value).toBe('00:00:10 / 00:01:00')
+    expect(rows.find((row) => row.key === 'video')?.value).toContain('640×360')
+  })
+  it('shows recorded duration without a fake total for paused live media', () => {
+    const rows = buildMediaDetailRows(
+      makeTask({ status: 'paused', media: { ...media, state: 'paused', live: 'true' } }),
+      'en-US',
+    )
+    expect(rows.find((row) => row.key === 'duration')?.value).toBe('00:00:10')
+    expect(rows.some((row) => row.key === 'speed')).toBe(false)
   })
 })

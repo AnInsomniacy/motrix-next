@@ -1,5 +1,5 @@
 [package]
-name = "motrix-next-browser-launcher"
+name = "rayburst-browser-launcher"
 version = "0.1.0"
 edition = "2021"
 publish = false
@@ -12,3 +12,7 @@ thiserror = "2"
 
 [lints.clippy]
 unwrap_used = "deny"
+
+[[bin]]
+name = "rayburst-browser-manifests"
+path = "src/manifests.rs"

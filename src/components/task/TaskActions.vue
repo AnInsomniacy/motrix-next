@@ -5,10 +5,11 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useTaskStore } from '@/stores/task'
 
-import { isEngineReady } from '@/api/aria2'
+import { batchFinishMedia, saveSession, isEngineReady } from '@/api/aria2'
 import { TASK_STATUS } from '@shared/constants'
 import type { Aria2Task } from '@shared/types'
 import type { I18nKey } from '@shared/i18nTypes'
+import { canFinishMedia } from '@shared/utils/media'
 import { getTaskSharingState } from '@shared/utils/task'
 import { deleteTaskFiles } from '@/composables/useFileDelete'
 
@@ -327,6 +328,25 @@ function finishAllSharing() {
   })
 }
 
+const recordingGids = computed(() => taskStore.taskList.filter(canFinishMedia).map((task) => task.gid))
+const finishingMedia = ref(false)
+async function finishRecordings() {
+  if (finishingMedia.value) return
+  finishingMedia.value = true
+  try {
+    const result = await batchFinishMedia(recordingGids.value)
+    if (result.failed.length) message.error(result.failed.map((item) => item.message).join('; '))
+    if (result.succeeded.length) message.info(t('media.finalizing'))
+    await saveSession()
+    await taskStore.fetchList()
+  } catch (error) {
+    logger.warn('TaskActions.finishMedia', getErrorMessage(error))
+    message.error(getErrorMessage(error))
+  } finally {
+    finishingMedia.value = false
+  }
+}
+
 function purgeRecord() {
   const deleteFiles = ref(false)
   const d = dialog.error({
@@ -446,6 +466,13 @@ function purgeRecord() {
       </template>
       {{ t('task.refresh-list') || 'Refresh' }}
     </MTooltip>
+    <NButton
+      v-if="showActiveActions && recordingGids.length"
+      size="small"
+      :loading="finishingMedia"
+      @click="finishRecordings"
+      >{{ t('media.finish') }} ({{ recordingGids.length }})</NButton
+    >
     <MTooltip v-if="showActiveActions">
       <template #trigger>
         <NButton

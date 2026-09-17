@@ -16,6 +16,7 @@ import {
   TrashOutline,
   RadioOutline,
   TimeOutline,
+  ListOutline,
 } from '@vicons/ionicons5'
 import { useTaskCardModel } from '@/composables/useTaskCardModel'
 import { useTaskFileMissing } from '@/composables/useTaskFileMissing'
@@ -31,6 +32,7 @@ const emit = defineEmits<{
   retry: [task: Aria2Task]
   redownload: [task: Aria2Task]
   'finish-sharing': [task: Aria2Task]
+  'finish-media': [task: Aria2Task]
   delete: [task: Aria2Task]
   'delete-record': [task: Aria2Task]
   'copy-link': [task: Aria2Task]
@@ -49,6 +51,7 @@ const {
   statusBadge,
   taskStatus,
   isActive,
+  indeterminate,
   percent,
   completedSize,
   totalSize,
@@ -100,6 +103,13 @@ const statusBadgeIcon = computed(() => {
       return TrashOutline
     case TASK_STATUS.WAITING:
       return TimeOutline
+    case 'awaiting-selection':
+    case 'bt-file-selection':
+      return ListOutline
+    case 'probing':
+    case 'recording':
+    case 'downloading':
+    case 'finalizing':
     case 'bt-metadata-fetching':
       return RadioOutline
     default:
@@ -139,6 +149,7 @@ const { fileMissing } = useTaskFileMissing(taskRef)
           @retry="emit('retry', task)"
           @redownload="emit('redownload', task)"
           @finish-sharing="emit('finish-sharing', task)"
+          @finish-media="emit('finish-media', task)"
           @delete="emit('delete', task)"
           @delete-record="emit('delete-record', task)"
           @copy-link="emit('copy-link', task)"
@@ -166,6 +177,7 @@ const { fileMissing } = useTaskFileMissing(taskRef)
       </div>
       <div class="task-progress">
         <NProgress
+          v-if="!indeterminate"
           type="line"
           :percentage="percent"
           :color="progressColor"
@@ -177,7 +189,7 @@ const { fileMissing } = useTaskFileMissing(taskRef)
         />
         <div class="task-progress-info">
           <div class="progress-left" :class="{ 'info-hidden': !hasSizeInfo }">
-            <span>{{ percent }}% · {{ completedSize }} / {{ totalSize }}</span>
+            <span>{{ indeterminate ? '' : `${percent}% · ` }}{{ completedSize }} / {{ totalSize }}</span>
           </div>
           <div class="progress-right" :class="{ 'info-hidden': !isActive }">
             <span class="speed-text" :class="{ 'info-hidden': remaining <= 0 }">

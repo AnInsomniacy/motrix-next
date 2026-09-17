@@ -1,4 +1,4 @@
-# Motrix Next Contributing Guide
+# Rayburst Contributing Guide
 
 Maintained by [@AnInsomniacy](https://github.com/AnInsomniacy). PRs and issues are welcome!
 
@@ -70,7 +70,7 @@ Pre-commit hooks (husky + lint-staged) auto-run `eslint --fix` and `prettier --w
 
 First you need to determine the English abbreviation of a language as **locale**, such as `en-US`. This locale value should strictly refer to the [Chromium Source Code](https://source.chromium.org/chromium/chromium/src/+/main:ui/base/l10n/l10n_util.cc).
 
-The internationalization of Motrix Next uses [vue-i18n](https://vue-i18n.intlify.dev/).
+The internationalization of Rayburst uses [vue-i18n](https://vue-i18n.intlify.dev/).
 
 Desktop translations live in `src/shared/locales/<locale>/messages.json`. Each file contains the same nested namespaces, with `en-US` as the canonical schema and fallback. Locale metadata is registered once in `src/shared/locales/catalog.json`.
 

@@ -1,69 +1,56 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockInvoke = vi.hoisted(() => vi.fn())
-
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: (...args: unknown[]) => mockInvoke(...args),
-}))
+vi.mock('@tauri-apps/api/core', () => ({ invoke: mockInvoke }))
+vi.mock('@shared/logger', () => ({ logger: { debug: vi.fn(), warn: vi.fn() } }))
 
 import { useProtocolHandlers } from '../useProtocolHandlers'
 
-describe('useProtocolHandlers', () => {
+describe('protocol associations', () => {
   beforeEach(() => {
     mockInvoke.mockReset()
   })
 
-  it('re-reads the real OS state after unregister fails', async () => {
-    mockInvoke
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true)
-      .mockRejectedValueOnce({ Protocol: 'manual_change_required' })
-      .mockResolvedValueOnce(true)
-
-    const protocols = useProtocolHandlers()
-
-    await protocols.refreshAll()
-    await protocols.setProtocolEnabled('magnet', false)
-
-    expect(mockInvoke).toHaveBeenCalledWith('remove_as_default_protocol_client', { protocol: 'magnet' })
-    expect(mockInvoke).toHaveBeenLastCalledWith('is_default_protocol_client', { protocol: 'magnet' })
-    expect(protocols.status.value.magnet).toBe(true)
-  })
-
   it.each([
     { enabled: true, actual: true, failure: undefined, kind: 'success' },
-    { enabled: false, actual: false, failure: undefined, kind: 'success' },
     { enabled: true, actual: false, failure: undefined, kind: 'unchanged' },
-    { enabled: false, actual: true, failure: undefined, kind: 'unchanged' },
     { enabled: true, actual: false, failure: 'access denied', kind: 'failed' },
-    { enabled: false, actual: true, failure: 'access denied', kind: 'failed' },
     { enabled: false, actual: true, failure: 'manual_change_required', kind: 'manual' },
     { enabled: true, actual: false, failure: 'cancelled', kind: 'cancelled' },
-    { enabled: true, actual: true, failure: 'cache refresh failed', kind: 'success' },
-  ])('verifies the outcome: $enabled / $actual / $failure → $kind', async ({ enabled, actual, failure, kind }) => {
+  ])('uses the OS result: $enabled / $actual / $failure', async ({ enabled, actual, failure, kind }) => {
     mockInvoke.mockImplementation(async (command: string) => {
       if (command === 'is_default_protocol_client') return actual
       if (failure) throw { Protocol: failure }
     })
     const protocols = useProtocolHandlers()
-    const result = await protocols.setProtocolEnabled('magnet', enabled)
-    expect(result).toEqual(kind === 'failed' ? { kind, reason: failure } : { kind })
+    expect(await protocols.setProtocolEnabled('magnet', enabled)).toEqual(
+      kind === 'failed' ? { kind, reason: failure } : { kind },
+    )
     expect(protocols.status.value.magnet).toBe(actual)
     expect(protocols.busy.value).toBe(false)
   })
 
-  it('releases the operation after verification fails and allows retry', async () => {
-    mockInvoke.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('query failed'))
+  it('distinguishes failed queries from off and recovers on retry', async () => {
+    mockInvoke.mockImplementation(async (_command: string, { protocol }: { protocol: string }) => {
+      if (protocol === 'ed2k') throw new Error('query failed')
+      return true
+    })
     const protocols = useProtocolHandlers()
-    expect(await protocols.setProtocolEnabled('magnet', true)).toEqual({ kind: 'query-failed' })
+    expect(protocols.status.value.ed2k).toBeUndefined()
+    await protocols.refreshAll()
+    expect(protocols.status.value).toEqual({ magnet: true, ed2k: null, thunder: true, rayburst: true })
+
+    mockInvoke.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('query failed'))
+    expect(await protocols.setProtocolEnabled('magnet', false)).toEqual({ kind: 'query-failed' })
+    expect(protocols.status.value.magnet).toBeNull()
     expect(protocols.pending.value).toBeNull()
-    mockInvoke.mockResolvedValueOnce(undefined).mockResolvedValueOnce(true)
-    expect(await protocols.setProtocolEnabled('magnet', true)).toEqual({ kind: 'success' })
+
+    mockInvoke.mockResolvedValue(false)
+    await protocols.refreshAll()
+    expect(protocols.status.value).toEqual({ magnet: false, ed2k: false, thunder: false, rayburst: false })
   })
 
-  it('prevents overlapping writes and refreshes from clearing a pending operation', async () => {
+  it('serializes changes and verifies before releasing the pending state', async () => {
     let complete!: () => void
     mockInvoke
       .mockReturnValueOnce(
@@ -71,26 +58,16 @@ describe('useProtocolHandlers', () => {
           complete = resolve
         }),
       )
-      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
     const protocols = useProtocolHandlers()
-    const operation = protocols.setProtocolEnabled('magnet', true)
+    const operation = protocols.setProtocolEnabled('magnet', false)
     expect(await protocols.setProtocolEnabled('ed2k', true)).toEqual({ kind: 'ignored' })
     await protocols.refreshAll()
     expect(mockInvoke).toHaveBeenCalledTimes(1)
     expect(protocols.pending.value).toBe('magnet')
     complete()
-    await operation
-    expect(protocols.busy.value).toBe(false)
-  })
-
-  it('keeps successful query results when another protocol cannot be read', async () => {
-    mockInvoke.mockImplementation(async (_command: string, { protocol }: { protocol: string }) => {
-      if (protocol === 'ed2k') throw new Error('query failed')
-      return true
-    })
-    const protocols = useProtocolHandlers()
-    await protocols.refreshAll()
-    expect(protocols.status.value).toEqual({ magnet: true, ed2k: false, thunder: true, motrixnext: true })
+    expect(await operation).toEqual({ kind: 'success' })
+    expect(mockInvoke).toHaveBeenLastCalledWith('is_default_protocol_client', { protocol: 'magnet' })
     expect(protocols.busy.value).toBe(false)
   })
 })

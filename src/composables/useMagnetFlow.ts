@@ -31,8 +31,6 @@ export function buildMagnetOptions(
   }
 }
 
-export type MagnetSelectionSubmission = 'confirm' | null
-
 /** Convert raw Aria2File array into UI-friendly selection items. */
 export function parseFilesForSelection(files: Aria2File[]): BtFileSelectionItem[] {
   return files
@@ -56,12 +54,4 @@ export function buildSelectFileOption(indices: number[]): string {
 
 export function isPendingMagnetSelectionTask(task: Aria2Task): boolean {
   return Boolean(task.bittorrent && task.bittorrent.fileSelectionState === 'awaiting')
-}
-
-export function findPendingMagnetSelectionTask(tasks: Aria2Task[], gid: string): Aria2Task | undefined {
-  return tasks.find((task) => isPendingMagnetSelectionTask(task) && task.gid === gid)
-}
-
-export interface MagnetSelectionResolution {
-  gid: string
 }

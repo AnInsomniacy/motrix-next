@@ -59,7 +59,7 @@ AI model:
 ## Checklist
 
 - [ ] I kept this PR template complete and understand incomplete PRs may be closed without review
-- [ ] I have read [CONTRIBUTING.md](https://github.com/AnInsomniacy/motrix-next/blob/main/docs/CONTRIBUTING.md)
+- [ ] I have read [CONTRIBUTING.md](https://github.com/AnInsomniacy/rayburst/blob/main/docs/CONTRIBUTING.md)
 - [ ] This PR is focused, under the documented size limits, and uses Conventional Commits
 - [ ] Tests were added or updated for risky logic changes, or this PR explains why tests are not needed
 

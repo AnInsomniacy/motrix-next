@@ -1,5 +1,5 @@
-use crate::aria2::client::Aria2Client;
 use crate::commands::bt_blocklist;
+use crate::services::tasks::TaskService;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::watch;
@@ -26,7 +26,7 @@ impl BtPeerBlocklistServiceState {
 
 pub fn spawn_bt_peer_blocklist_service(
     app: tauri::AppHandle,
-    aria2: Arc<Aria2Client>,
+    aria2: Arc<TaskService>,
 ) -> BtPeerBlocklistHandle {
     let (stop_tx, mut stop_rx) = watch::channel(false);
 

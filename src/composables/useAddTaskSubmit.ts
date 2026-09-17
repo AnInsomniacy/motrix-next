@@ -7,11 +7,11 @@
  * - Manual URI submission with multi-URI rename
  * - Error classification (engine-not-ready, duplicate, generic)
  */
+import { mediaEngineOptions, type MediaOptions } from '@shared/utils/media'
 import type { useTaskStore } from '@/stores/task'
 import { isEngineReady } from '@/api/aria2'
-import { parseAria2Input, extractDecodedFilename, hasExtension, sanitizeAria2OutHint } from '@shared/utils/batchHelpers'
+import { parseAria2Input, extractDecodedFilename } from '@shared/utils/batchHelpers'
 import { buildOuts } from '@shared/utils/rename'
-import { invoke } from '@tauri-apps/api/core'
 import { logger } from '@shared/logger'
 import type {
   Aria2EngineOptions,
@@ -37,6 +37,7 @@ import { resolveDownloadDir, resolveFileSetCategory } from '@shared/utils/fileCa
 export { getDownloadProxy } from '@shared/utils/proxy'
 
 export interface AddTaskForm {
+  media?: MediaOptions
   uris: string
   out: string
   dir: string
@@ -129,6 +130,10 @@ export function buildEngineOptions(form: AddTaskForm, context?: ExternalDownload
     'stream-max-connections': String(form.streamMaxConnections),
   }
   if (form.out) options.out = form.out
+  if (context?.filename) {
+    options['filename-hint'] = context.filename
+    options['filename-hint-source'] = context.filenameSource ?? 'suggested'
+  }
   if (headers.userAgent) options['user-agent'] = headers.userAgent
   if (headers.referer) options.referer = headers.referer
 
@@ -155,6 +160,7 @@ export function buildEngineOptions(form: AddTaskForm, context?: ExternalDownload
       form.customProxyPassword,
     ),
   )
+  if (form.media) Object.assign(options, mediaEngineOptions(form.media))
   return options
 }
 
@@ -221,7 +227,11 @@ export async function submitBatchItems(
     try {
       if (item.kind === 'torrent') {
         const opts = buildTorrentTaskOptions(item, options, fileCategory)
-        const gid = await taskStore.addTorrent({ torrent: item.payload, options: opts })
+        const gid = await taskStore.addTorrent({
+          torrent: item.payload,
+          options: opts,
+          requestId: item.browserContext?.requestId,
+        })
         taskStore.registerTorrentSource(gid, item.source)
       }
       item.status = 'submitted'
@@ -247,7 +257,6 @@ export async function submitManualUris(
   form: AddTaskForm,
   taskStore: ReturnType<typeof useTaskStore>,
   fileCategory?: FileCategoryPolicy,
-  downloadProxy?: string,
 ): Promise<ManualUriSubmitResult> {
   if (!form.uris.trim()) return { submittedTaskNames: [], magnetGids: [], magnetFailures: [] }
   const parsedInput = parseAria2Input(form.uris)
@@ -318,43 +327,14 @@ export async function submitManualUris(
         continue
       }
 
-      const outs = await Promise.all(
-        entry.uris.map(async (uri) => {
-          const globalOut = globalOuts[globalOutIndex++]
-          if (globalOut) return globalOut
-          const out = getScalarOption(entryOptions, 'out')
-          if (out) return out
-          const pathFilename = extractDecodedFilename(uri)
-          if (!pathFilename || hasExtension(pathFilename)) return ''
-          try {
-            const uriContext = form.uriRequestContexts?.[uri]
-            const sanitizedHeaders = sanitizeHttpHeaderOptions({
-              referer: uriContext?.referer ?? form.referer,
-              cookie: uriContext?.cookie ?? form.cookie,
-            })
-            const args: {
-              url: string
-              proxy: string | null
-              referer?: string
-              cookie?: string
-            } = {
-              url: uri,
-              proxy: downloadProxy ?? null,
-            }
-            if (sanitizedHeaders.referer) args.referer = sanitizedHeaders.referer
-            if (sanitizedHeaders.cookie) args.cookie = sanitizedHeaders.cookie
-            return (await invoke<string | null>('resolve_filename', args)) ?? ''
-          } catch {
-            return ''
-          }
-        }),
-      )
+      const outs = entry.uris.map(() => globalOuts[globalOutIndex++] || getScalarOption(entryOptions, 'out'))
 
       await taskStore.addUri({
         uris: entry.uris,
         outs,
         options: entryOptions,
         fileCategory: fileCategoryWithContexts,
+        contexts: form.uriRequestContexts,
       })
       const out = getScalarOption(entryOptions, 'out')
       submittedTaskNames.push(...entry.uris.map((uri, index) => resolveSubmittedTaskName(uri, out || outs[index])))
@@ -369,7 +349,12 @@ export async function submitManualUris(
   }
   for (const uri of magnetUris) {
     try {
-      const gid = await taskStore.addMagnetUri({ uri, options: baseOptions, fileCategory })
+      const gid = await taskStore.addMagnetUri({
+        uri,
+        options: baseOptions,
+        fileCategory,
+        requestId: form.uriRequestContexts?.[uri]?.requestId,
+      })
       result.magnetGids.push(gid)
     } catch (e) {
       logger.error('submitManualUris.magnet', e)
@@ -384,6 +369,6 @@ export async function submitManualUris(
 }
 
 function resolveSubmittedTaskName(uri: string, outHint?: string): string {
-  const out = outHint ? sanitizeAria2OutHint(outHint) : ''
+  const out = outHint ?? ''
   return out || extractDecodedFilename(uri) || uri
 }

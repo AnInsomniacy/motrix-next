@@ -17,6 +17,7 @@ const emit = defineEmits<{
   retry: [task: Aria2Task]
   redownload: [task: Aria2Task]
   'finish-sharing': [task: Aria2Task]
+  'finish-media': [task: Aria2Task]
   delete: [task: Aria2Task]
   'delete-record': [task: Aria2Task]
   'copy-link': [task: Aria2Task]
@@ -265,6 +266,7 @@ function handleCardBeforeLeave(element: Element) {
             @retry="emit('retry', item)"
             @redownload="emit('redownload', item)"
             @finish-sharing="emit('finish-sharing', item)"
+            @finish-media="emit('finish-media', item)"
             @delete="emit('delete', item)"
             @delete-record="emit('delete-record', item)"
             @copy-link="emit('copy-link', item)"

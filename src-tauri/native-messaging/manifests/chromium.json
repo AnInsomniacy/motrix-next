@@ -1,10 +1,9 @@
 {
-  "name": "com.motrix.next.browser",
-  "description": "Activate Motrix Next",
-  "path": "..\\..\\motrix-next-browser-launcher.exe",
+  "name": "dev.aninsomniacy.rayburst.browser",
+  "description": "Activate Rayburst",
+  "path": "..\\..\\rayburst-browser-launcher.exe",
   "type": "stdio",
   "allowed_origins": [
-    "chrome-extension://ofeajdebdjajhkmcmamagokecnbephhl/",
-    "chrome-extension://loojjolhejmakcdlbidigoniobfanjlb/"
+    "chrome-extension://boebhodahhhchhcaoepghhlhddbgdmci/"
   ]
 }

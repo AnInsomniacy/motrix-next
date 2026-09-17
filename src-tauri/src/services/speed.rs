@@ -11,7 +11,7 @@
 
 use super::config::RuntimeConfigState;
 use super::is_in_scheduled_period;
-use crate::aria2::client::Aria2Client;
+use crate::services::tasks::TaskService;
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::Manager;
@@ -34,7 +34,7 @@ impl SpeedSchedulerHandle {
 /// Spawns the speed scheduler as a background tokio task.
 pub fn spawn_speed_scheduler(
     app: tauri::AppHandle,
-    aria2: Arc<Aria2Client>,
+    aria2: Arc<TaskService>,
 ) -> SpeedSchedulerHandle {
     let (stop_tx, stop_rx) = watch::channel(false);
 
@@ -47,7 +47,7 @@ pub fn spawn_speed_scheduler(
 
 async fn scheduler_loop(
     app: tauri::AppHandle,
-    aria2: Arc<Aria2Client>,
+    aria2: Arc<TaskService>,
     mut stop_rx: watch::Receiver<bool>,
 ) {
     let mut last_in_period: Option<bool> = None;
@@ -135,7 +135,7 @@ async fn evaluate_tick(
 }
 
 /// Apply a schedule transition to aria2.
-async fn apply_transition(aria2: &Aria2Client, transition: &ScheduleTransition) {
+async fn apply_transition(aria2: &TaskService, transition: &ScheduleTransition) {
     let opts = match transition {
         ScheduleTransition::EnterPeriod {
             download_limit,

@@ -8,7 +8,7 @@
 //! - `aria2_events` — native WebSocket lifecycle event source
 //!
 //! The `on_engine_ready()` function orchestrates post-start initialization:
-//! 1. Updates `Aria2Client` credentials to match the just-started engine
+//! 1. Updates `TaskService` credentials to match the just-started engine
 //! 2. Refreshes `RuntimeConfig` from the store
 //! 3. Syncs global options to aria2 via `changeGlobalOption`
 //! 4. Stops old background services and spawns fresh ones
@@ -20,6 +20,7 @@ pub mod deep_link;
 pub mod external_input;
 pub mod frontend_action;
 pub mod http_api;
+pub mod media;
 pub mod monitor;
 pub mod notification;
 pub mod port_guard;
@@ -27,9 +28,9 @@ pub mod power;
 pub mod speed;
 pub mod stat;
 
-use crate::aria2::client::Aria2State;
 use crate::engine::{non_hot_reloadable_keys, supported_engine_keys};
 use crate::error::AppError;
+use crate::services::tasks::TaskServiceState;
 use config::RuntimeConfigState;
 use port_guard::DEFAULT_RPC_PORT;
 use tauri::Manager;
@@ -75,16 +76,16 @@ fn read_system_options(
 /// RPC connections.
 ///
 /// Steps:
-/// 1. Update `Aria2Client` credentials from config store
+/// 1. Update `TaskService` credentials from config store
 /// 2. Refresh `RuntimeConfigState` from preferences
 /// 3. Read `system.json` and push hot-reloadable options to aria2
 /// 4. Apply speed limit overrides based on schedule state
 /// 5. Stop existing background services (handles restart gracefully)
 /// 6. Spawn fresh background services (stat, speed scheduler, task monitor)
 pub async fn on_engine_ready(app: &tauri::AppHandle) -> Result<(), AppError> {
-    // 1. Update Aria2Client credentials
+    // 1. Update TaskService credentials
     let (port, secret) = read_engine_credentials(app)?;
-    if let Some(aria2) = app.try_state::<Aria2State>() {
+    if let Some(aria2) = app.try_state::<TaskServiceState>() {
         aria2.0.update_credentials(port, secret).await;
     }
 
@@ -96,6 +97,10 @@ pub async fn on_engine_ready(app: &tauri::AppHandle) -> Result<(), AppError> {
         if let Some(prefs) = store.get("preferences") {
             let _ = rc_state.refresh_from_json(&prefs).await;
         }
+    }
+
+    if let Err(code) = media::service(app).await {
+        log::warn!("media: initialization unavailable code={code}");
     }
 
     // 3. Sync global options
@@ -136,7 +141,7 @@ pub async fn on_engine_ready(app: &tauri::AppHandle) -> Result<(), AppError> {
 
     // Push to aria2
     if !opts.is_empty() {
-        if let Some(aria2) = app.try_state::<Aria2State>() {
+        if let Some(aria2) = app.try_state::<TaskServiceState>() {
             let count = opts.len();
             aria2.0.change_global_option(opts).await?;
             log::info!("runtime_services: synced {count} global options to aria2");
@@ -145,7 +150,7 @@ pub async fn on_engine_ready(app: &tauri::AppHandle) -> Result<(), AppError> {
         log::info!("runtime_services: no global options to sync");
     }
 
-    if let Some(aria2) = app.try_state::<Aria2State>() {
+    if let Some(aria2) = app.try_state::<TaskServiceState>() {
         match aria2.0.get_bt_session_status().await {
             Ok(status) => log::info!(
                 "runtime_services: bt_session listen_port={} endpoints={} mapped_tcp={} mapped_udp={} dht_nodes={} dht_state_healthy={}",
@@ -178,10 +183,10 @@ async fn spawn_background_services(app: &tauri::AppHandle) {
     use speed::{self, SpeedSchedulerState};
     use stat::{self, StatServiceState};
 
-    let aria2_arc = match app.try_state::<Aria2State>() {
+    let aria2_arc = match app.try_state::<TaskServiceState>() {
         Some(s) => s.0.clone(),
         None => {
-            log::warn!("runtime_services: Aria2State not available, skipping service spawn");
+            log::warn!("runtime_services: TaskServiceState not available, skipping service spawn");
             return;
         }
     };
@@ -248,7 +253,7 @@ async fn spawn_background_services(app: &tauri::AppHandle) {
         *ts.0.lock().await = Some(monitor_handle);
     }
 
-    if let Some(aria2) = app.try_state::<Aria2State>() {
+    if let Some(aria2) = app.try_state::<TaskServiceState>() {
         let event_handle = aria2_events::spawn_aria2_event_listener(app.clone(), aria2.0.clone());
         if let Some(es) = app.try_state::<aria2_events::Aria2EventState>() {
             *es.0.lock().await = Some(event_handle);
@@ -559,3 +564,7 @@ mod tests {
         assert!(!keys.contains("bt-max-peers"));
     }
 }
+
+pub mod downloads;
+
+pub mod tasks;

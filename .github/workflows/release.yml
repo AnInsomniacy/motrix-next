@@ -74,23 +74,29 @@ jobs:
 
       - run: pnpm install
 
+      - name: Configure Rayburst update signing
+        shell: bash
+        env:
+          RAYBURST_UPDATER_PUBLIC_KEY: ${{ vars.RAYBURST_UPDATER_PUBLIC_KEY }}
+        run: node scripts/configure-release.mjs
+
       - uses: tauri-apps/tauri-action@v0
         id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.RAYBURST_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.RAYBURST_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.event.release.tag_name || '' }}
           releaseId: ${{ github.event_name == 'release' && github.event.release.id || '' }}
           includeUpdaterJson: false
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} --config src-tauri/tauri.release.local.json
 
       - name: Upload build artifacts (manual trigger only)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v7
         with:
-          name: motrix-next-${{ matrix.label }}
+          name: rayburst-${{ matrix.label }}
           path: "${{ join(fromJSON(steps.tauri.outputs.artifactPaths), '\n') }}"
           retention-days: 7
 
@@ -111,7 +117,7 @@ jobs:
   update-homebrew:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' && !github.event.release.prerelease
+    if: github.event_name == 'release' && !github.event.release.prerelease && vars.RAYBURST_HOMEBREW_ENABLED == 'true'
 
     steps:
       - name: Download macOS artifacts and compute checksums
@@ -123,11 +129,11 @@ jobs:
 
           gh release download "$TAG" \
             -R "${{ github.repository }}" \
-            -p "MotrixNext_aarch64.app.tar.gz" \
-            -p "MotrixNext_x64.app.tar.gz"
+            -p "Rayburst_aarch64.app.tar.gz" \
+            -p "Rayburst_x64.app.tar.gz"
 
-          ARM_SHA=$(shasum -a 256 MotrixNext_aarch64.app.tar.gz | cut -d ' ' -f1)
-          INTEL_SHA=$(shasum -a 256 MotrixNext_x64.app.tar.gz | cut -d ' ' -f1)
+          ARM_SHA=$(shasum -a 256 Rayburst_aarch64.app.tar.gz | cut -d ' ' -f1)
+          INTEL_SHA=$(shasum -a 256 Rayburst_x64.app.tar.gz | cut -d ' ' -f1)
 
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "ARM_SHA=$ARM_SHA" >> "$GITHUB_ENV"
@@ -137,25 +143,25 @@ jobs:
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
-          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/AnInsomniacy/homebrew-motrix-next.git"
-          cd homebrew-motrix-next
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/AnInsomniacy/homebrew-rayburst.git"
+          cd homebrew-rayburst
 
           # Generate the entire cask file from a template instead of using
           # fragile sed replacements. Shell expands $VERSION, $ARM_SHA, and
           # $INTEL_SHA; Ruby interpolations (#{version}, #{arch}) pass through
           # literally because #{ is not shell syntax.
-          cat > Casks/motrix-next.rb << CASK_EOF
-          cask "motrix-next" do
+          cat > Casks/rayburst.rb << CASK_EOF
+          cask "rayburst" do
             arch arm: "aarch64", intel: "x64"
 
             version "$VERSION"
             sha256 arm:   "$ARM_SHA",
                    intel: "$INTEL_SHA"
 
-            url "https://github.com/AnInsomniacy/motrix-next/releases/download/v#{version}/MotrixNext_#{arch}.app.tar.gz"
-            name "Motrix Next"
+            url "https://github.com/AnInsomniacy/rayburst/releases/download/v#{version}/Rayburst_#{arch}.app.tar.gz"
+            name "Rayburst"
             desc "Full-featured download manager built with Tauri"
-            homepage "https://github.com/AnInsomniacy/motrix-next"
+            homepage "https://github.com/AnInsomniacy/rayburst"
 
             livecheck do
               url :url
@@ -164,20 +170,20 @@ jobs:
 
             auto_updates true
 
-            app "MotrixNext.app"
+            app "Rayburst.app"
 
             zap trash: [
-              "~/Library/Application Support/com.motrix.next",
-              "~/Library/Caches/com.motrix.next",
-              "~/Library/Logs/com.motrix.next",
-              "~/Library/WebKit/com.motrix.next",
+              "~/Library/Application Support/dev.aninsomniacy.rayburst",
+              "~/Library/Caches/dev.aninsomniacy.rayburst",
+              "~/Library/Logs/dev.aninsomniacy.rayburst",
+              "~/Library/WebKit/dev.aninsomniacy.rayburst",
             ]
           end
           CASK_EOF
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Casks/motrix-next.rb
+          git add Casks/rayburst.rb
           git diff --cached --quiet && echo "No changes to commit" && exit 0
-          git commit -m "motrix-next $VERSION"
+          git commit -m "rayburst $VERSION"
           git push

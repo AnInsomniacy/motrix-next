@@ -132,7 +132,7 @@ pub async fn export_diagnostic_logs(app: AppHandle, save_path: String) -> Result
     };
     log::logger().flush();
     if let (Some(state), Some(level)) = (
-        app.try_state::<crate::aria2::client::Aria2State>(),
+        app.try_state::<crate::services::tasks::TaskServiceState>(),
         raw_config
             .as_ref()
             .and_then(|value| value.get("preferences"))
@@ -163,27 +163,29 @@ mod export_tests {
     #[test]
     fn clear_managed_log_files_truncates_active_logs_and_removes_rotations() {
         let dir = tempfile::tempdir().expect("tempdir");
-        let motrix = dir.path().join("motrix-next.log");
+        let rayburst = dir.path().join("rayburst.log");
         let aria2 = dir.path().join("aria2-next.log");
         let rotated = dir.path().join("aria2-next.1.log");
-        let motrix_rotated = dir.path().join("motrix-next_2026-08-27_12-00-00.log");
+        let rayburst_rotated = dir.path().join("rayburst_2026-08-27_12-00-00.log");
         let other = dir.path().join("other.log");
 
-        std::fs::write(&motrix, "motrix log").expect("motrix log");
+        std::fs::write(&rayburst, "rayburst log").expect("rayburst log");
         std::fs::write(&aria2, "aria2 log").expect("aria2 log");
         std::fs::write(&rotated, "rotated log").expect("rotated log");
-        std::fs::write(&motrix_rotated, "rotated log").expect("motrix rotated log");
+        std::fs::write(&rayburst_rotated, "rotated log").expect("rayburst rotated log");
         std::fs::write(&other, "other log").expect("other log");
 
         clear_managed_log_files_in_dir(dir.path()).expect("clear logs");
 
         assert_eq!(
-            std::fs::metadata(&motrix).expect("motrix metadata").len(),
+            std::fs::metadata(&rayburst)
+                .expect("rayburst metadata")
+                .len(),
             0
         );
         assert_eq!(std::fs::metadata(&aria2).expect("aria2 metadata").len(), 0);
         assert!(!rotated.exists());
-        assert!(!motrix_rotated.exists());
+        assert!(!rayburst_rotated.exists());
         assert_eq!(
             std::fs::read_to_string(&other).expect("other content"),
             "other log"
@@ -337,11 +339,11 @@ fn reveal_in_explorer(path: &str) -> Result<(), AppError> {
     // `\\?\UNC\server\share\file` → `\\server\share\file`
     // This is the fix for GitHub issue #3304.
     let path_str = canonical.to_string_lossy();
-    let fixed: PathBuf = if path_str.starts_with(r"\\?\UNC\") {
-        PathBuf::from(format!(r"\\{}", &path_str[r"\\?\UNC\".len()..]))
-    } else if path_str.starts_with(r"\\?\") {
+    let fixed: PathBuf = if let Some(suffix) = path_str.strip_prefix(r"\\?\UNC\") {
+        PathBuf::from(format!(r"\\{suffix}"))
+    } else if let Some(suffix) = path_str.strip_prefix(r"\\?\") {
         // Shouldn't happen (dunce handles this), but defensive
-        PathBuf::from(&path_str[r"\\?\".len()..])
+        PathBuf::from(suffix)
     } else {
         canonical.clone()
     };
@@ -604,7 +606,7 @@ mod tests {
     #[test]
     fn check_path_exists_handles_path_with_spaces() {
         // Create a temp file with spaces in the path
-        let dir = std::env::temp_dir().join("motrix test spaces");
+        let dir = std::env::temp_dir().join("rayburst test spaces");
         let _ = std::fs::create_dir_all(&dir);
         let file = dir.join("test file.txt");
         let _ = std::fs::write(&file, "test");
@@ -643,13 +645,27 @@ mod tests {
     #[test]
     fn normalize_path_preserves_simple_unix_path() {
         let result = normalize_path("/home/user/downloads/file.txt");
-        assert_eq!(result, "/home/user/downloads/file.txt");
+        assert_eq!(
+            result,
+            if cfg!(windows) {
+                r"\home\user\downloads\file.txt"
+            } else {
+                "/home/user/downloads/file.txt"
+            }
+        );
     }
 
     #[test]
     fn normalize_path_preserves_path_with_spaces() {
         let result = normalize_path("/home/user/my downloads/file name.txt");
-        assert_eq!(result, "/home/user/my downloads/file name.txt");
+        assert_eq!(
+            result,
+            if cfg!(windows) {
+                r"\home\user\my downloads\file name.txt"
+            } else {
+                "/home/user/my downloads/file name.txt"
+            }
+        );
     }
 
     #[test]
@@ -662,8 +678,8 @@ mod tests {
     #[test]
     fn normalize_path_fixes_mixed_separators_windows() {
         // aria2 returns `Z:\\` + JS joins with `/` → `Z:\\/file.exe`
-        let result = normalize_path("Z:\\/MotrixNext_setup.exe");
-        assert_eq!(result, "Z:\\MotrixNext_setup.exe");
+        let result = normalize_path("Z:\\/Rayburst_setup.exe");
+        assert_eq!(result, "Z:\\Rayburst_setup.exe");
     }
 
     #[cfg(target_os = "windows")]
@@ -692,7 +708,14 @@ mod tests {
     fn normalize_path_handles_forward_slash_only() {
         // Pure forward-slash paths (cross-platform compatible)
         let result = normalize_path("/var/log/app.log");
-        assert_eq!(result, "/var/log/app.log");
+        assert_eq!(
+            result,
+            if cfg!(windows) {
+                r"\var\log\app.log"
+            } else {
+                "/var/log/app.log"
+            }
+        );
     }
 
     // ── delete_path ─────────────────────────────────────────────────

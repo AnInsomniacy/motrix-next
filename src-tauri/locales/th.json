@@ -11,5 +11,7 @@
   "notification.download-start-title": "เริ่มดาวน์โหลดแล้ว",
   "notification.ed2k-complete-body": "กำลังแชร์: %{task_name}",
   "notification.ed2k-complete-title": "ดาวน์โหลด ED2K เสร็จสิ้น",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "รอเลือกเนื้อหา",
+  "notification.selection-body": "%{task_name}"
 }

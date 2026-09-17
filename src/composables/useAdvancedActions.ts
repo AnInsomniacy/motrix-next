@@ -276,7 +276,7 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
   async function handleExportLogs() {
     try {
       const resolvedDir = await resolveUserVisibleDownloadDir({ configuredDir: preferenceStore.config.dir })
-      const defaultPath = await join(resolvedDir.path, 'motrix-next-logs.zip')
+      const defaultPath = await join(resolvedDir.path, 'rayburst-logs.zip')
       logger.info('Advanced.exportLogs', `defaultDir source=${resolvedDir.source} fallback=${resolvedDir.usedFallback}`)
       const savePath = await saveDialog({
         title: t('preferences.export-diagnostic-logs'),
@@ -308,7 +308,7 @@ export function useAdvancedActions(deps: AdvancedActionsDeps) {
     try {
       const resolvedDir = await resolveUserVisibleDownloadDir({ configuredDir: preferenceStore.config.dir })
       const date = new Date().toISOString().slice(0, 10)
-      const defaultPath = await join(resolvedDir.path, `motrix-next-settings-backup-${date}.json`)
+      const defaultPath = await join(resolvedDir.path, `rayburst-settings-backup-${date}.json`)
       const savePath = await saveDialog({
         title: t('preferences.export-settings'),
         defaultPath,

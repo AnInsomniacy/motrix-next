@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn filters_supported_external_inputs_from_argv() {
         let args = vec![
-            "/Applications/MotrixNext.app".to_string(),
+            "/Applications/Rayburst.app".to_string(),
             "--flag".to_string(),
             "file:///Users/example/ubuntu.torrent".to_string(),
             "magnet:?xt=urn:btih:abc".to_string(),
@@ -267,15 +267,15 @@ mod tests {
     #[test]
     fn detects_autostart_args_for_empty_single_instance_launches() {
         assert!(is_autostart_arg_launch(&[
-            "MotrixNext.exe".to_string(),
+            "Rayburst.exe".to_string(),
             "--autostart".to_string(),
         ]));
         assert!(is_autostart_arg_launch(&[
-            "MotrixNext.exe".to_string(),
+            "Rayburst.exe".to_string(),
             "--autostart=true".to_string(),
         ]));
         assert!(!is_autostart_arg_launch(&[
-            "MotrixNext.exe".to_string(),
+            "Rayburst.exe".to_string(),
             "--flag".to_string(),
         ]));
     }
@@ -360,7 +360,7 @@ mod tests {
             let mut inner = state.0.lock().expect("pending deep-link state poisoned");
             append_unique_pending(
                 &mut inner.queue,
-                &["motrixnext://new?url=https%3A%2F%2Fexample.com%2Ffile.zip".to_string()],
+                &["https://example.com/file.zip".to_string()],
             );
             inner.silent = true;
         }
@@ -369,7 +369,7 @@ mod tests {
 
         assert_eq!(
             payload.urls,
-            vec!["motrixnext://new?url=https%3A%2F%2Fexample.com%2Ffile.zip".to_string()]
+            vec!["https://example.com/file.zip".to_string()]
         );
         assert!(payload.silent);
         assert!(!take_pending_deep_links(&state).silent);

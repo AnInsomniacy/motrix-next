@@ -3,13 +3,13 @@ use std::path::{Path, PathBuf};
 use serde_json::Value;
 use tauri::Manager;
 
-use crate::aria2::client::Aria2State;
 use crate::engine::supervisor::EngineSupervisor;
 use crate::error::AppError;
 use crate::log_policy::{managed_log_source, LogSource};
+use crate::services::tasks::TaskServiceState;
 
 pub(crate) struct DiagnosticLogs {
-    pub motrix: Vec<u8>,
+    pub rayburst: Vec<u8>,
     pub aria2: Vec<u8>,
 }
 
@@ -52,12 +52,12 @@ pub(crate) fn collect_logs(log_dir: &Path) -> Result<DiagnosticLogs, AppError> {
     });
 
     let mut logs = DiagnosticLogs {
-        motrix: Vec::new(),
+        rayburst: Vec::new(),
         aria2: Vec::new(),
     };
     for (path, source) in files {
         match source {
-            LogSource::Motrix => append_file(&mut logs.motrix, &path)?,
+            LogSource::Rayburst => append_file(&mut logs.rayburst, &path)?,
             LogSource::Aria2 => append_file(&mut logs.aria2, &path)?,
         }
     }
@@ -138,7 +138,7 @@ pub(crate) async fn runtime_snapshot(app: &tauri::AppHandle, raw_config: Option<
         .try_state::<EngineSupervisor>()
         .map(|state| state.snapshot());
     let (engine_version, global_stat, bt_session) =
-        if let Some(state) = app.try_state::<Aria2State>() {
+        if let Some(state) = app.try_state::<TaskServiceState>() {
             let version =
                 tokio::time::timeout(std::time::Duration::from_secs(2), state.0.get_version())
                     .await
@@ -162,6 +162,10 @@ pub(crate) async fn runtime_snapshot(app: &tauri::AppHandle, raw_config: Option<
         };
     let preferences = raw_config.and_then(|value| value.get("preferences"));
     let native_messaging = crate::native_messaging::diagnostic_snapshot(app).await;
+    #[cfg(target_os = "linux")]
+    let protocol_handlers = crate::commands::protocol::protocol_diagnostics(app).await;
+    #[cfg(not(target_os = "linux"))]
+    let protocol_handlers = Value::Null;
     serde_json::json!({
         "schema_version": crate::log_policy::LOG_SCHEMA_VERSION,
         "exported_at": chrono::Local::now().to_rfc3339(),
@@ -193,6 +197,7 @@ pub(crate) async fn runtime_snapshot(app: &tauri::AppHandle, raw_config: Option<
         },
         "configuration": raw_config.map(sanitize_config_snapshot),
         "native_messaging": native_messaging,
+        "protocol_handlers": protocol_handlers,
     })
 }
 
@@ -213,7 +218,7 @@ pub(crate) fn write_archive(
 
     for (name, content) in [
         ("diagnostics.json", diagnostics.as_slice()),
-        ("logs/motrix-next.log", logs.motrix.as_slice()),
+        ("logs/rayburst.log", logs.rayburst.as_slice()),
         ("logs/aria2-next.log", logs.aria2.as_slice()),
     ] {
         archive
@@ -238,7 +243,7 @@ mod tests {
     #[test]
     fn exports_three_file_diagnostic_bundle() {
         let directory = tempfile::tempdir().expect("tempdir");
-        std::fs::write(directory.path().join("motrix-next.log"), "app\n").expect("app log");
+        std::fs::write(directory.path().join("rayburst.log"), "app\n").expect("app log");
         std::fs::write(directory.path().join("aria2-next.log"), "engine\n").expect("engine log");
         let logs = collect_logs(directory.path()).expect("logs");
         let diagnostics = serde_json::json!({
@@ -252,7 +257,7 @@ mod tests {
         let file = std::fs::File::open(output).expect("archive file");
         let mut archive = zip::ZipArchive::new(file).expect("valid zip");
         assert_eq!(archive.len(), 3);
-        assert!(archive.by_name("logs/motrix-next.log").is_ok());
+        assert!(archive.by_name("logs/rayburst.log").is_ok());
         assert!(archive.by_name("logs/aria2-next.log").is_ok());
         let mut snapshot = String::new();
         archive

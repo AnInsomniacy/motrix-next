@@ -258,7 +258,7 @@ describe('useAppEvents', () => {
     invokeMock.mockImplementation(async (command: string) => {
       if (command === 'take_pending_deep_links') {
         return {
-          urls: ['motrixnext://new?url=https%3A%2F%2Fexample.com%2Ffile.zip'],
+          urls: ['https://example.com/file.zip?token=secret-token'],
           silent: true,
         }
       }
@@ -272,13 +272,11 @@ describe('useAppEvents', () => {
     expect(windowApiMock.unminimize).not.toHaveBeenCalled()
     expect(windowApiMock.show).not.toHaveBeenCalled()
     expect(windowApiMock.setFocus).not.toHaveBeenCalled()
-    expect(appStore.handleDeepLinkUrls).toHaveBeenCalledWith([
-      'motrixnext://new?url=https%3A%2F%2Fexample.com%2Ffile.zip',
-    ])
+    expect(appStore.handleDeepLinkUrls).toHaveBeenCalledWith(['https://example.com/file.zip?token=secret-token'])
   })
 
   it('routes silent live deep-link events without showing or focusing the window', async () => {
-    const deepLink = 'motrixnext://new?url=https%3A%2F%2Fexample.com%2Ffile.zip'
+    const deepLink = 'https://example.com/file.zip?token=secret-token'
     const { deps, appStore } = createDeps()
     const { setupListeners } = mountComposable(deps)
 
@@ -404,8 +402,7 @@ describe('useAppEvents', () => {
 
   it('continues routing external input when focusing the restored window fails', async () => {
     windowApiMock.setFocus.mockRejectedValueOnce(new Error('focus blocked by OS'))
-    const deepLink =
-      'motrixnext://new?url=https%3A%2F%2Fexample.com%2Ffile.zip&cookie=session%3Dsecret-token&filename=file.zip'
+    const deepLink = 'https://example.com/file.zip?token=secret-token'
     const { deps, appStore } = createDeps()
     const { setupListeners } = mountComposable(deps)
 
@@ -423,7 +420,7 @@ describe('useAppEvents', () => {
   })
 
   it('logs the external input handling result returned by the app store', async () => {
-    const deepLink = 'motrixnext:/new?url=https%3A%2F%2Fexample.com%2Ffile.zip'
+    const deepLink = 'https://example.com/file.zip?token=secret-token'
     const { deps, appStore } = createDeps()
     appStore.handleDeepLinkUrls.mockReturnValueOnce({ received: 1, queued: 1, autoSubmitted: 0, ignored: 0 })
     const { setupListeners } = mountComposable(deps)

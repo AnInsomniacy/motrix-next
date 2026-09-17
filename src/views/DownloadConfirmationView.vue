@@ -13,9 +13,9 @@ const appStore = useAppStore()
 const confirmationWindow = getCurrentWindow()
 let unlistenExternalInput: UnlistenFn | undefined
 
-function routeExternalInputs(payload: PendingExternalInputsPayload): boolean {
+async function routeExternalInputs(payload: PendingExternalInputsPayload): Promise<boolean> {
   if (payload.inputs.length === 0) return false
-  appStore.handleExternalInputs(payload.inputs)
+  await appStore.handleExternalInputs(payload.inputs)
   return true
 }
 
@@ -32,13 +32,13 @@ async function closeConfirmationWindow(): Promise<void> {
 
 onMounted(async () => {
   try {
-    unlistenExternalInput = await listen<PendingExternalInputsPayload>('external-input-open', (event) => {
-      if (!routeExternalInputs(event.payload)) return
+    unlistenExternalInput = await listen<PendingExternalInputsPayload>('external-input-open', async (event) => {
+      if (!(await routeExternalInputs(event.payload))) return
       void showConfirmationWindow()
     })
 
     const pending = await invoke<PendingExternalInputsPayload>('take_pending_external_inputs')
-    if (!routeExternalInputs(pending)) {
+    if (!(await routeExternalInputs(pending))) {
       await closeConfirmationWindow()
       return
     }

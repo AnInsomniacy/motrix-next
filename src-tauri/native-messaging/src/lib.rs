@@ -3,12 +3,43 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-pub const HOST_NAME: &str = "com.motrix.next.browser";
-pub const LAUNCHER_FILE_STEM: &str = "motrix-next-browser-launcher";
-pub const ACTIVATION_URL: &str = "motrixnext://";
-pub const CHROME_ORIGIN: &str = "chrome-extension://ofeajdebdjajhkmcmamagokecnbephhl/";
-pub const EDGE_ORIGIN: &str = "chrome-extension://loojjolhejmakcdlbidigoniobfanjlb/";
-pub const FIREFOX_EXTENSION_ID: &str = "motrix-next-extension@aninsomniacy.dev";
+pub const HOST_NAME: &str = "dev.aninsomniacy.rayburst.browser";
+pub const LAUNCHER_FILE_STEM: &str = "rayburst-browser-launcher";
+pub const ACTIVATION_URL: &str = "rayburst://";
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BrowserIdentity {
+    chromium_id: String,
+    firefox_id: String,
+    stores: StoreIdentity,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StoreIdentity {
+    chrome_id: Option<String>,
+    edge_id: Option<String>,
+}
+
+fn browser_identity() -> &'static BrowserIdentity {
+    static IDENTITY: std::sync::OnceLock<BrowserIdentity> = std::sync::OnceLock::new();
+    IDENTITY.get_or_init(|| {
+        serde_json::from_str(include_str!("../identity.json")).expect("valid browser identity")
+    })
+}
+
+fn chromium_origins() -> Vec<String> {
+    let identity = browser_identity();
+    let mut ids = vec![identity.chromium_id.as_str()];
+    ids.extend(identity.stores.chrome_id.as_deref());
+    ids.extend(identity.stores.edge_id.as_deref());
+    ids.sort_unstable();
+    ids.dedup();
+    ids.into_iter()
+        .map(|id| format!("chrome-extension://{id}/"))
+        .collect()
+}
+
 pub const MAX_MESSAGE_SIZE: usize = 4 * 1024;
 
 #[derive(Debug, thiserror::Error)]
@@ -21,7 +52,7 @@ pub enum HostError {
     InvalidSize,
     #[error("request is invalid")]
     InvalidRequest,
-    #[error("failed to activate Motrix Next")]
+    #[error("failed to activate Rayburst")]
     ActivationFailed,
     #[error("failed to write response")]
     ResponseFailed,
@@ -69,7 +100,7 @@ struct ChromiumManifest<'a> {
     description: &'static str,
     path: &'a str,
     r#type: &'static str,
-    allowed_origins: [&'static str; 2],
+    allowed_origins: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -84,20 +115,20 @@ struct FirefoxManifest<'a> {
 pub fn chromium_manifest_json(path: &Path) -> Result<Vec<u8>, serde_json::Error> {
     serde_json::to_vec_pretty(&ChromiumManifest {
         name: HOST_NAME,
-        description: "Activate Motrix Next",
+        description: "Activate Rayburst",
         path: &path.to_string_lossy(),
         r#type: "stdio",
-        allowed_origins: [CHROME_ORIGIN, EDGE_ORIGIN],
+        allowed_origins: chromium_origins(),
     })
 }
 
 pub fn firefox_manifest_json(path: &Path) -> Result<Vec<u8>, serde_json::Error> {
     serde_json::to_vec_pretty(&FirefoxManifest {
         name: HOST_NAME,
-        description: "Activate Motrix Next",
+        description: "Activate Rayburst",
         path: &path.to_string_lossy(),
         r#type: "stdio",
-        allowed_extensions: [FIREFOX_EXTENSION_ID],
+        allowed_extensions: [browser_identity().firefox_id.as_str()],
     })
 }
 
@@ -139,8 +170,9 @@ fn validate_browser_caller(args: &[String]) -> Result<(), HostError> {
             Ok(())
         }
         [manifest_path, extension_id]
-            if extension_id == FIREFOX_EXTENSION_ID
-                && manifest_file_name(manifest_path) == format!("{HOST_NAME}.json") =>
+            if extension_id == &browser_identity().firefox_id
+                && (manifest_file_name(manifest_path) == format!("{HOST_NAME}.json")
+                    || (cfg!(windows) && manifest_file_name(manifest_path) == "firefox.json")) =>
         {
             Ok(())
         }
@@ -149,7 +181,7 @@ fn validate_browser_caller(args: &[String]) -> Result<(), HostError> {
 }
 
 fn is_allowed_chromium_origin(origin: &str) -> bool {
-    matches!(origin, CHROME_ORIGIN | EDGE_ORIGIN)
+    chromium_origins().iter().any(|allowed| allowed == origin)
 }
 
 fn valid_parent_window_arg(value: &str) -> bool {
@@ -226,7 +258,7 @@ mod tests {
         let activated = Cell::new(false);
 
         run_session(
-            &[CHROME_ORIGIN.to_string()],
+            &[chromium_origins()[0].clone()],
             &mut input,
             &mut output,
             || {
@@ -241,11 +273,11 @@ mod tests {
     }
 
     #[test]
-    fn accepts_edge_and_firefox_callers() {
+    fn accepts_chromium_and_firefox_callers() {
         let firefox_manifest = format!("/tmp/{HOST_NAME}.json");
         for args in [
-            vec![EDGE_ORIGIN.to_string()],
-            vec![firefox_manifest, FIREFOX_EXTENSION_ID.to_string()],
+            vec![chromium_origins()[0].clone()],
+            vec![firefox_manifest, browser_identity().firefox_id.clone()],
         ] {
             let mut input = Cursor::new(request_frame(json!({ "action": "activate" })));
             let mut output = Vec::new();
@@ -278,7 +310,7 @@ mod tests {
             let mut input = Cursor::new(request_frame(request));
             let mut output = Vec::new();
             let error = run_session(
-                &[CHROME_ORIGIN.to_string()],
+                &[chromium_origins()[0].clone()],
                 &mut input,
                 &mut output,
                 || Ok(()),
@@ -304,7 +336,7 @@ mod tests {
             let mut input = Cursor::new(frame);
             let mut output = Vec::new();
             assert!(run_session(
-                &[CHROME_ORIGIN.to_string()],
+                &[chromium_origins()[0].clone()],
                 &mut input,
                 &mut output,
                 || Ok(())
@@ -318,7 +350,7 @@ mod tests {
         let mut input = Cursor::new(request_frame(json!({ "action": "activate" })));
         let mut output = Vec::new();
         let error = run_session(
-            &[CHROME_ORIGIN.to_string()],
+            &[chromium_origins()[0].clone()],
             &mut input,
             &mut output,
             || Err("open failed".to_string()),
@@ -329,7 +361,7 @@ mod tests {
     }
 
     #[test]
-    fn manifests_contain_only_formal_extension_ids() {
+    fn manifests_contain_only_configured_extension_ids() {
         let chromium: Value = serde_json::from_slice(
             &chromium_manifest_json(Path::new("/app/launcher")).expect("Chromium manifest"),
         )
@@ -339,11 +371,11 @@ mod tests {
         )
         .expect("valid Firefox JSON");
 
+        assert_eq!(chromium["allowed_origins"], json!(chromium_origins()));
         assert_eq!(
-            chromium["allowed_origins"],
-            json!([CHROME_ORIGIN, EDGE_ORIGIN])
+            firefox["allowed_extensions"],
+            json!([browser_identity().firefox_id])
         );
-        assert_eq!(firefox["allowed_extensions"], json!([FIREFOX_EXTENSION_ID]));
         assert!(chromium.get("allowed_extensions").is_none());
         assert!(firefox.get("allowed_origins").is_none());
     }

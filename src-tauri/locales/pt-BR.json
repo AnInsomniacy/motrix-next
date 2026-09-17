@@ -11,5 +11,7 @@
   "notification.download-start-title": "Download iniciado",
   "notification.ed2k-complete-body": "Compartilhando: %{task_name}",
   "notification.ed2k-complete-title": "Download ED2K concluído",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "Aguardando seleção de conteúdo",
+  "notification.selection-body": "%{task_name}"
 }

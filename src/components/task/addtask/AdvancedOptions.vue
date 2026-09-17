@@ -2,7 +2,17 @@
 /** @fileoverview Advanced task options panel (UA, auth, referer, cookie, proxy checkbox). */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NFormItem, NInput, NInputGroup, NCheckbox, NCollapseTransition, NButton, NSwitch, NIcon } from 'naive-ui'
+import {
+  NFormItem,
+  NSelect,
+  NInput,
+  NInputGroup,
+  NCheckbox,
+  NCollapseTransition,
+  NButton,
+  NSwitch,
+  NIcon,
+} from 'naive-ui'
 import { hasUnsafeHeaderChars, sanitizeHeaderValue } from '@shared/utils/headerSanitize'
 import { useSystemProxyDetect } from '@/composables/useSystemProxyDetect'
 import { useAppMessage } from '@/composables/useAppMessage'
@@ -14,6 +24,7 @@ import type { UserAgentProfile, UserAgentRule } from '@shared/types'
 const { t } = useI18n()
 
 const props = defineProps<{
+  mediaMode?: 'auto' | 'file' | 'hls' | 'dash'
   show: boolean
   userAgent: string
   authorization: string
@@ -37,6 +48,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  'update:mediaMode': [value: 'auto' | 'file' | 'hls' | 'dash']
   'update:show': [value: boolean]
   'update:userAgent': [value: string]
   'update:authorization': [value: string]
@@ -83,6 +95,18 @@ const { detecting: detectingProxy, detect: detectProxy } = useSystemProxyDetect(
     </NCheckbox>
   </NFormItem>
   <NCollapseTransition :show="show">
+    <NFormItem v-if="mediaMode !== undefined" :label="t('media.mode')">
+      <NSelect
+        :value="mediaMode"
+        :options="[
+          { value: 'auto', label: t('media.auto') },
+          { value: 'file', label: t('media.original') },
+          { value: 'hls', label: 'HLS' },
+          { value: 'dash', label: 'DASH' },
+        ]"
+        @update:value="(value) => $emit('update:mediaMode', value)"
+      />
+    </NFormItem>
     <div>
       <NFormItem :label="t('task.task-user-agent') + ':'">
         <div class="ua-field-wrapper">

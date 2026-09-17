@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** @fileoverview Detailed task view with file list, peers, and BT info. */
-import { ref, computed, watch, defineComponent } from 'vue'
+import { ref, computed, watch, defineComponent, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { I18nKey } from '@shared/i18nTypes'
 import { logger } from '@shared/logger'
@@ -10,7 +10,7 @@ import {
   checkTaskIsSharing,
   getTaskSharingState,
   getTaskSharingTime,
-  getTaskDisplayName,
+  getTaskName,
   bytesToSize,
   localeDateTimeFormat,
   isBtMetadataTask,
@@ -42,6 +42,7 @@ import {
 import { useTaskDetailOptions } from '@/composables/useTaskDetailOptions'
 import {
   buildBtHealthSummary,
+  buildMediaDetailRows,
   buildEd2kDetailSummary,
   buildTaskDetailKind,
   buildTaskTransferSummary,
@@ -57,6 +58,8 @@ import { getAddedAt } from '@/composables/useTaskOrder'
 import type { Aria2Task, Aria2File, UserAgentProfile } from '@shared/types'
 import UserAgentPopover from '@/components/common/UserAgentPopover.vue'
 import { renderDetailCopyableText } from './detail/TaskDetailShared'
+import { mediaStateLabel, canSelectMedia } from '@shared/utils/media'
+import { useTaskSelectionStore } from '@/stores/taskSelection'
 import TaskDetailActivity from './detail/TaskDetailActivity.vue'
 import TaskDetailFiles from './detail/TaskDetailFiles.vue'
 import TaskDetailPeers from './detail/TaskDetailPeers.vue'
@@ -76,6 +79,10 @@ const emit = defineEmits<{ close: [] }>()
 const { t, locale } = useI18n()
 const preferenceStore = usePreferenceStore()
 const taskStore = useTaskStore()
+onBeforeUnmount(() => {
+  taskStore.taskDetailClosing = false
+  taskStore.taskDetailVisible = false
+})
 const historyStore = useHistoryStore()
 const message = useAppMessage()
 const taskRef = computed(() => props.task)
@@ -204,9 +211,10 @@ const isTerminal = computed(() => ['complete', 'error', 'removed'].includes(prop
 const visibleTabs = computed(() =>
   allTabs.filter(
     (tab) =>
+      !(props.task?.media && (tab.key === 'activity' || (tab.key === 'files' && !isTerminal.value))) &&
       (!tab.btOnly || isBT.value) &&
       (!tab.protocolOnly || isBT.value || isED2K.value) &&
-      (!tab.uriOnly || isURI.value) &&
+      (!tab.uriOnly || isURI.value || (tab.key === 'options' && Boolean(props.task?.media))) &&
       (!tab.liveOnly || !isTerminal.value),
   ),
 )
@@ -227,6 +235,12 @@ const uriSummary = computed(() => buildUriDetailSummary(props.task))
 const btHealth = computed(() => buildBtHealthSummary(props.task))
 const ed2kSummary = computed(() => buildEd2kDetailSummary(props.task))
 const transferSummary = computed(() => buildTaskTransferSummary(props.task))
+const mediaRows = computed(() => buildMediaDetailRows(props.task, locale.value))
+function editMedia() {
+  if (!props.task || !canSelectMedia(props.task)) return
+  taskStore.hideTaskDetail()
+  useTaskSelectionStore().request({ kind: 'media', gid: props.task.gid })
+}
 
 const prevTaskGid = ref('')
 watch(
@@ -270,12 +284,13 @@ const taskStatusKey = computed(() =>
               : props.task?.status,
 )
 const taskStatus = computed(() => {
+  if (props.task?.media) return t(mediaStateLabel[props.task.media.state])
   const key = taskStatusKey.value
   const labelKey = getTaskDetailStatusLabelKey(key)
   const translated = t(labelKey)
   return translated !== labelKey ? translated : key
 })
-const taskFullName = computed(() => (props.task ? getTaskDisplayName(props.task, { defaultName: 'Unknown' }) : ''))
+const taskFullName = computed(() => (props.task ? getTaskName(props.task, { defaultName: 'Unknown' }) : ''))
 // ── Task date display ────────────────────────────────────────────────
 const taskAddedAt = computed(() => {
   if (!props.task) return ''
@@ -310,7 +325,9 @@ const btInfo = computed(() => {
   if (!isBT.value || !props.task) return null
   return props.task.bittorrent ?? null
 })
-const taskErrorMessage = computed(() => props.task?.errorMessage || btInfo.value?.error?.message || '')
+const taskErrorMessage = computed(
+  () => props.task?.media?.error || props.task?.errorMessage || btInfo.value?.error?.message || '',
+)
 const taskErrorCode = computed(() => props.task?.errorCode || btInfo.value?.error?.code || '')
 const sharingDuration = computed(() =>
   formatSharingDuration(props.task ? getTaskSharingTime(props.task) : 0, {
@@ -383,6 +400,7 @@ function handleClose() {
     placement="right"
     :trap-focus="false"
     :block-scroll="false"
+    @after-leave="taskStore.taskDetailClosing = false"
     @update:show="
       (v: boolean) => {
         if (!v) handleClose()
@@ -413,9 +431,6 @@ function handleClose() {
                 size="small"
                 :label-style="{ width: '1px', whiteSpace: 'nowrap' }"
               >
-                <NDescriptionsItem :label="t('task.task-gid') || 'GID'">
-                  <CopyableValue :value="task.gid" :label="copyLabel(t('task.task-gid'), 'GID')" />
-                </NDescriptionsItem>
                 <NDescriptionsItem :label="t('task.task-name') || 'Name'">
                   <CopyableValue :value="taskFullName" :label="copyLabel(t('task.task-name'), 'Name')" />
                 </NDescriptionsItem>
@@ -423,10 +438,27 @@ function handleClose() {
                   <CopyableValue :value="task.dir" :label="copyLabel(t('task.task-dir'), 'Directory')" />
                 </NDescriptionsItem>
                 <NDescriptionsItem :label="t('task.task-status') || 'Status'">
-                  <NTag :type="statusTagType" size="small">{{ taskStatus }}</NTag>
+                  <div class="detail-status-value">
+                    <NTag :type="statusTagType" size="small">{{ taskStatus }}</NTag>
+                    <NButton v-if="canSelectMedia(task)" text type="primary" size="small" @click="editMedia">{{
+                      t('media.select-tracks')
+                    }}</NButton>
+                  </div>
                 </NDescriptionsItem>
                 <NDescriptionsItem :label="t('task.task-type') || 'Type'">
-                  {{ t(`task.task-type-${detailKind}`) }}
+                  {{
+                    task.media
+                      ? [
+                          task.media.protocol.toUpperCase() || t('media.auto'),
+                          task.media.live === 'true' ? t('media.live') : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')
+                      : t(`task.task-type-${detailKind}`)
+                  }}
+                </NDescriptionsItem>
+                <NDescriptionsItem v-for="row in mediaRows" :key="row.key" :label="t(row.label)">
+                  <span class="technical-text-wrap">{{ row.value }}</span>
                 </NDescriptionsItem>
                 <NDescriptionsItem v-if="taskErrorMessage" :label="t('task.task-error-info') || 'Error'">
                   {{ taskErrorCode && taskErrorCode !== '0' ? `${taskErrorCode} ` : '' }}{{ taskErrorMessage }}
@@ -436,6 +468,9 @@ function handleClose() {
                 </NDescriptionsItem>
                 <NDescriptionsItem v-if="taskCompletedAt" :label="t('task.task-completed-at') || 'Completed At'">
                   {{ taskCompletedAt }}
+                </NDescriptionsItem>
+                <NDescriptionsItem :label="t('task.task-gid') || 'GID'">
+                  <CopyableValue :value="task.gid" :label="copyLabel(t('task.task-gid'), 'GID')" />
                 </NDescriptionsItem>
               </NDescriptions>
               <template v-if="isBT && btInfo && hasBtOverviewDetails">
@@ -785,6 +820,13 @@ function handleClose() {
 </template>
 
 <style scoped>
+.detail-status-value {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
 .detail-tabs {
   display: flex;
   gap: 2px;

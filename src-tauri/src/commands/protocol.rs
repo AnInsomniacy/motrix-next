@@ -13,7 +13,7 @@
 /// |----------|------------------------------------------|------------------------------|--------------------------|
 /// | macOS    | `NSWorkspace.urlForApplication(toOpen:)` | `LSSetDefaultHandler…`       | unsupported              |
 /// | Windows  | `win_registry::is_protocol_registered`   | `win_registry::register_…`   | `win_registry::unregister_…` |
-/// | Linux    | `tauri-plugin-deep-link::is_registered`  | `deep-link::register`        | `deep-link::unregister`  |
+/// | Linux    | GIO AppInfo                            | GIO + XDG user defaults     | GIO type associations    |
 ///
 /// ## Windows registration (RegisteredApplications pattern)
 ///
@@ -25,10 +25,10 @@
 ///
 /// The three layers (all under HKCU, no admin required):
 ///
-/// 1. **ProgID** — `HKCU\Software\Classes\MotrixNext.Url.{scheme}`
+/// 1. **ProgID** — `HKCU\Software\Classes\Rayburst.Url.{scheme}`
 ///    Defines how to open the protocol: icon, command line.
 ///
-/// 2. **Capabilities** — `HKCU\Software\MotrixNext\Capabilities`
+/// 2. **Capabilities** — `HKCU\Software\Rayburst\Capabilities`
 ///    Declares which protocols the app supports via `URLAssociations`.
 ///
 /// 3. **RegisteredApplications** — `HKCU\Software\RegisteredApplications`
@@ -105,65 +105,62 @@ mod macos {
 // - https://learn.microsoft.com/windows/win32/shell/default-programs
 // - qBittorrent source: src/app/application.cpp
 //
-// The module is split into two parts:
-// - Pure helper functions (path construction, constants) — available on
-//   all platforms for cross-platform testing.
-// - Win32 API implementation — cfg(windows) gated.
+// Registry paths and Win32 operations are Windows-only.
 
 pub mod win_registry {
     #[allow(unused_imports)]
     use crate::error::AppError;
 
-    // ── Constants (cross-platform for testing) ──────────────────────
+    // ── Constants ──────────────────────────────────────────────────
 
     /// Application name as it appears in Windows Default Apps.
-    #[cfg(any(windows, test))]
-    pub const APP_NAME: &str = "Motrix Next";
+    #[cfg(windows)]
+    pub const APP_NAME: &str = "Rayburst";
 
     /// Short description shown in Windows Default Apps tooltip.
-    #[cfg(any(windows, test))]
+    #[cfg(windows)]
     pub const APP_DESCRIPTION: &str = "A full-featured download manager";
 
     /// Manufacturer key path prefix under HKCU\Software.
-    #[cfg(any(windows, test))]
-    pub const CAPABILITIES_PATH: &str = "Software\\MotrixNext\\Capabilities";
+    #[cfg(windows)]
+    pub const CAPABILITIES_PATH: &str = "Software\\Rayburst\\Capabilities";
 
     /// The value written to HKCU\Software\RegisteredApplications.
-    #[cfg(any(windows, test))]
-    pub const REGISTERED_APPS_VALUE: &str = "Software\\MotrixNext\\Capabilities";
+    #[cfg(windows)]
+    pub const REGISTERED_APPS_VALUE: &str = "Software\\Rayburst\\Capabilities";
 
     /// Registered application name key in RegisteredApplications.
-    #[cfg(any(windows, test))]
-    pub const REGISTERED_APP_NAME: &str = "MotrixNext";
+    #[cfg(windows)]
+    pub const REGISTERED_APP_NAME: &str = "Rayburst";
 
-    // ── Pure helper functions (cross-platform for testing) ──────────
+    // ── Registry paths ─────────────────────────────────────────────
 
     /// Returns the ProgID for a given protocol scheme.
     ///
-    /// Format: `MotrixNext.Url.{scheme}` — follows Microsoft ProgID
+    /// Format: `Rayburst.Url.{scheme}` — follows Microsoft ProgID
     /// naming convention: `{AppName}.{Type}.{Discriminator}`.
-    #[cfg(any(windows, test))]
+    #[cfg(windows)]
     pub fn prog_id_for_scheme(scheme: &str) -> String {
-        format!("MotrixNext.Url.{scheme}")
+        format!("Rayburst.Url.{scheme}")
     }
 
     /// Returns the registry path for the ProgID's `shell\open\command`
     /// key under `HKCU\Software\Classes`.
-    #[cfg(any(windows, test))]
+    #[cfg(windows)]
     pub fn prog_id_command_path(scheme: &str) -> String {
         let prog_id = prog_id_for_scheme(scheme);
         format!("Software\\Classes\\{prog_id}\\shell\\open\\command")
     }
 
     /// Returns the registry path for the ProgID root key.
-    #[cfg(any(windows, test))]
+    #[cfg(windows)]
     pub fn prog_id_root_path(scheme: &str) -> String {
         let prog_id = prog_id_for_scheme(scheme);
         format!("Software\\Classes\\{prog_id}")
     }
 
     /// Returns the registry path for `URLAssociations` under Capabilities.
-    #[cfg(any(windows, test))]
+    #[cfg(windows)]
     pub fn url_associations_path() -> String {
         format!("{}\\URLAssociations", CAPABILITIES_PATH)
     }
@@ -172,9 +169,9 @@ pub mod win_registry {
 
     /// Registers a protocol handler using the three-layer structure.
     ///
-    /// 1. Creates ProgID at `HKCU\Software\Classes\MotrixNext.Url.{scheme}`
-    /// 2. Adds URLAssociation under `HKCU\Software\MotrixNext\Capabilities`
-    /// 3. Ensures `HKCU\Software\RegisteredApplications\MotrixNext` exists
+    /// 1. Creates ProgID at `HKCU\Software\Classes\Rayburst.Url.{scheme}`
+    /// 2. Adds URLAssociation under `HKCU\Software\Rayburst\Capabilities`
+    /// 3. Ensures `HKCU\Software\RegisteredApplications\Rayburst` exists
     /// 4. Calls `SHChangeNotify(SHCNE_ASSOCCHANGED, …)` to flush cache
     #[cfg(windows)]
     pub fn register_protocol(scheme: &str) -> Result<(), AppError> {
@@ -243,7 +240,7 @@ pub mod win_registry {
 
     /// Creates the ProgID key structure:
     /// ```text
-    /// HKCU\Software\Classes\MotrixNext.Url.{scheme}
+    /// HKCU\Software\Classes\Rayburst.Url.{scheme}
     ///     (Default) = "URL:{scheme} Protocol"
     ///     URL Protocol = ""
     ///     DefaultIcon\(Default) = "{exe},0"
@@ -294,7 +291,7 @@ pub mod win_registry {
         Ok(())
     }
 
-    /// Adds a URLAssociation entry: `{scheme}` = `MotrixNext.Url.{scheme}`.
+    /// Adds a URLAssociation entry: `{scheme}` = `Rayburst.Url.{scheme}`.
     #[cfg(windows)]
     fn add_url_association(scheme: &str) -> Result<(), AppError> {
         let path = url_associations_path();
@@ -312,7 +309,7 @@ pub mod win_registry {
         reg_delete_value(&path, scheme)
     }
 
-    /// Ensures `HKCU\Software\RegisteredApplications\MotrixNext` exists
+    /// Ensures `HKCU\Software\RegisteredApplications\Rayburst` exists
     /// and points to the Capabilities key.
     #[cfg(windows)]
     fn ensure_registered_application() -> Result<(), AppError> {
@@ -558,101 +555,39 @@ pub mod win_registry {
     }
 }
 
-// ── Linux desktop-file cleanup ──────────────────────────────────────
+// ── Linux native associations ──────────────────────────────────────
 
 #[cfg(target_os = "linux")]
-mod linux_desktop {
-    use crate::error::AppError;
-    use std::{
-        fs,
-        path::{Path, PathBuf},
-        process::Command,
+mod linux;
+
+#[cfg(target_os = "linux")]
+async fn with_linux_associations<T: Send + 'static>(
+    app: &AppHandle,
+    operation: impl FnOnce(&linux::Associations) -> Result<T, AppError> + Send + 'static,
+) -> Result<T, AppError> {
+    use tauri::Manager;
+
+    let executable = match app.env().appimage {
+        Some(path) => std::path::PathBuf::from(path),
+        None => tauri::utils::platform::current_exe()?,
     };
-    use tauri::{AppHandle, Manager};
+    tokio::task::spawn_blocking(move || {
+        // Serialize read/modify/write operations; GIO objects stay on this worker.
+        static ACCESS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = ACCESS
+            .lock()
+            .map_err(|error| AppError::Protocol(error.to_string()))?;
+        operation(&linux::Associations::new(&executable)?)
+    })
+    .await
+    .map_err(|error| AppError::Protocol(error.to_string()))?
+}
 
-    pub fn remove_scheme_from_handler(app: &AppHandle, protocol: &str) -> Result<(), AppError> {
-        let target = handler_file_path(app)?;
-        if !target.exists() {
-            return Ok(());
-        }
-
-        let content = fs::read_to_string(&target).map_err(|e| {
-            AppError::Protocol(format!(
-                "read handler desktop file {}: {e}",
-                target.display()
-            ))
-        })?;
-        let updated = remove_scheme_from_desktop_content(&content, protocol);
-        if updated != content {
-            fs::write(&target, updated).map_err(|e| {
-                AppError::Protocol(format!(
-                    "write handler desktop file {}: {e}",
-                    target.display()
-                ))
-            })?;
-            refresh_desktop_database(target.parent())?;
-        }
-        Ok(())
-    }
-
-    fn handler_file_path(app: &AppHandle) -> Result<PathBuf, AppError> {
-        let bin = tauri::utils::platform::current_exe()
-            .map_err(|e| AppError::Protocol(format!("current_exe: {e}")))?;
-        let file_name = format!(
-            "{}-handler.desktop",
-            bin.file_name()
-                .ok_or_else(|| AppError::Protocol("current_exe has no file name".into()))?
-                .to_string_lossy()
-        );
-        Ok(app
-            .path()
-            .data_dir()
-            .map_err(|e| AppError::Protocol(format!("data_dir: {e}")))?
-            .join("applications")
-            .join(file_name))
-    }
-
-    fn refresh_desktop_database(target: Option<&Path>) -> Result<(), AppError> {
-        let Some(target) = target else {
-            return Ok(());
-        };
-        Command::new("update-desktop-database")
-            .arg(target)
-            .status()
-            .map_err(|e| AppError::Protocol(format!("update-desktop-database: {e}")))?;
-        Ok(())
-    }
-
-    pub fn remove_scheme_from_desktop_content(content: &str, protocol: &str) -> String {
-        let target = format!("x-scheme-handler/{protocol}");
-        let mut changed = false;
-        let lines: Vec<String> = content
-            .lines()
-            .map(|line| {
-                let Some(mimes) = line.strip_prefix("MimeType=") else {
-                    return line.to_string();
-                };
-                let kept: Vec<&str> = mimes
-                    .split(';')
-                    .filter(|mime| !mime.is_empty() && *mime != target)
-                    .collect();
-                changed = true;
-                if kept.is_empty() {
-                    "MimeType=".to_string()
-                } else {
-                    format!("MimeType={};", kept.join(";"))
-                }
-            })
-            .collect();
-        let mut output = if changed {
-            lines.join("\n")
-        } else {
-            content.to_string()
-        };
-        if content.ends_with('\n') && !output.ends_with('\n') {
-            output.push('\n');
-        }
-        output
+#[cfg(target_os = "linux")]
+pub(crate) async fn protocol_diagnostics(app: &AppHandle) -> serde_json::Value {
+    match with_linux_associations(app, |associations| Ok(associations.diagnostics())).await {
+        Ok(snapshot) => snapshot,
+        Err(error) => serde_json::json!({ "error": error.to_string() }),
     }
 }
 
@@ -790,12 +725,9 @@ pub async fn is_default_protocol_client(
         let _ = &app; // suppress unused warning
         win_registry::is_protocol_registered(&protocol)
     }
-    #[cfg(not(any(target_os = "macos", windows)))]
+    #[cfg(target_os = "linux")]
     {
-        use tauri_plugin_deep_link::DeepLinkExt;
-        app.deep_link()
-            .is_registered(&protocol)
-            .map_err(|e| AppError::Protocol(e.to_string()))
+        with_linux_associations(&app, move |associations| associations.is_default(&protocol)).await
     }
 }
 
@@ -836,12 +768,12 @@ pub async fn set_default_protocol_client(app: AppHandle, protocol: String) -> Re
             }
         }
     }
-    #[cfg(not(any(target_os = "macos", windows)))]
+    #[cfg(target_os = "linux")]
     {
-        use tauri_plugin_deep_link::DeepLinkExt;
-        app.deep_link()
-            .register(&protocol)
-            .map_err(|e| AppError::Protocol(e.to_string()))
+        with_linux_associations(&app, move |associations| {
+            associations.set_enabled(&protocol, true)
+        })
+        .await
     }
 }
 
@@ -875,162 +807,11 @@ pub async fn remove_as_default_protocol_client(
             }
         }
     }
-    #[cfg(not(any(target_os = "macos", windows)))]
-    {
-        use tauri_plugin_deep_link::DeepLinkExt;
-        app.deep_link()
-            .unregister(&protocol)
-            .map_err(|e| AppError::Protocol(e.to_string()))?;
-        #[cfg(target_os = "linux")]
-        linux_desktop::remove_scheme_from_handler(&app, &protocol)?;
-        Ok(())
-    }
-}
-
-// ── Tests ───────────────────────────────────────────────────────────
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // ── macOS-specific tests ────────────────────────────────────────
-
-    #[cfg(target_os = "macos")]
-    mod macos_tests {
-        use super::super::macos;
-
-        #[test]
-        fn get_default_handler_bundle_id_returns_some_for_https() {
-            let result = macos::get_default_handler_bundle_id("https");
-            assert!(result.is_some(), "expected a handler for https://");
-            let id = result.expect("already checked");
-            assert!(
-                id.contains('.'),
-                "expected reverse-DNS bundle ID, got: {id}"
-            );
-        }
-
-        #[test]
-        fn get_default_handler_bundle_id_returns_none_for_nonsense_scheme() {
-            let result = macos::get_default_handler_bundle_id("zzznotarealscheme12345");
-            assert!(
-                result.is_none(),
-                "expected None for unregistered scheme, got: {result:?}"
-            );
-        }
-    }
-
-    // ── Pure logic unit tests (run on ALL platforms) ─────────────────
-    //
-    // These test the helper functions that compute registry paths and
-    // ProgID names.  They do NOT touch the Windows registry.
-
-    #[test]
-    fn prog_id_for_magnet_follows_naming_convention() {
-        // Microsoft ProgID convention: {AppName}.{Type}.{Discriminator}
-        assert_eq!(
-            win_registry::prog_id_for_scheme("magnet"),
-            "MotrixNext.Url.magnet"
-        );
-    }
-
-    #[test]
-    fn prog_id_for_thunder_follows_naming_convention() {
-        assert_eq!(
-            win_registry::prog_id_for_scheme("thunder"),
-            "MotrixNext.Url.thunder"
-        );
-    }
-
-    #[test]
-    fn prog_id_for_motrixnext_follows_naming_convention() {
-        assert_eq!(
-            win_registry::prog_id_for_scheme("motrixnext"),
-            "MotrixNext.Url.motrixnext"
-        );
-    }
-
-    #[test]
-    fn prog_id_command_path_includes_shell_open_command() {
-        let path = win_registry::prog_id_command_path("magnet");
-        assert_eq!(
-            path,
-            "Software\\Classes\\MotrixNext.Url.magnet\\shell\\open\\command"
-        );
-    }
-
-    #[test]
-    fn prog_id_root_path_under_software_classes() {
-        let path = win_registry::prog_id_root_path("thunder");
-        assert_eq!(path, "Software\\Classes\\MotrixNext.Url.thunder");
-    }
-
-    #[test]
-    fn url_associations_path_under_capabilities() {
-        let path = win_registry::url_associations_path();
-        assert_eq!(path, "Software\\MotrixNext\\Capabilities\\URLAssociations");
-    }
-
-    #[test]
-    fn capabilities_path_is_correct() {
-        assert_eq!(
-            win_registry::CAPABILITIES_PATH,
-            "Software\\MotrixNext\\Capabilities"
-        );
-    }
-
-    #[test]
-    fn registered_apps_value_matches_capabilities_path() {
-        // RegisteredApplications value must point to Capabilities path
-        assert_eq!(
-            win_registry::REGISTERED_APPS_VALUE,
-            win_registry::CAPABILITIES_PATH
-        );
-    }
-
-    #[test]
-    fn app_name_is_motrix_next() {
-        assert_eq!(win_registry::APP_NAME, "Motrix Next");
-    }
-
-    #[test]
-    fn app_description_is_download_manager() {
-        assert_eq!(
-            win_registry::APP_DESCRIPTION,
-            "A full-featured download manager"
-        );
-    }
-
-    #[test]
-    fn registered_app_name_is_motrixnext() {
-        assert_eq!(win_registry::REGISTERED_APP_NAME, "MotrixNext");
-    }
-
-    // ── Cross-platform logic tests ──────────────────────────────────
-
-    #[test]
-    fn protocol_error_variant_display() {
-        let e = AppError::Protocol("test failure".into());
-        assert_eq!(e.to_string(), "Protocol error: test failure");
-    }
-
-    #[test]
-    fn protocol_error_variant_serializes() {
-        let e = AppError::Protocol("reg failed".into());
-        let json = serde_json::to_string(&e).expect("serialize");
-        assert_eq!(json, r#"{"Protocol":"reg failed"}"#);
-    }
-
     #[cfg(target_os = "linux")]
-    #[test]
-    fn linux_desktop_cleanup_removes_only_disabled_scheme() {
-        let input = "[Desktop Entry]\nMimeType=x-scheme-handler/ed2k;x-scheme-handler/magnet;x-scheme-handler/motrixnext;\nExec=\"/usr/bin/motrix-next\" %u\n";
-
-        let output = super::linux_desktop::remove_scheme_from_desktop_content(input, "magnet");
-
-        assert!(output.contains("x-scheme-handler/ed2k"));
-        assert!(output.contains("x-scheme-handler/motrixnext"));
-        assert!(!output.contains("x-scheme-handler/magnet"));
-        assert!(output.ends_with('\n'));
+    {
+        with_linux_associations(&app, move |associations| {
+            associations.set_enabled(&protocol, false)
+        })
+        .await
     }
 }

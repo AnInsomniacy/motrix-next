@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 512 512" role="img" aria-labelledby="rayburst-connect-title">
+  <title id="rayburst-connect-title">Rayburst Connect</title>
+  <defs>
+    <linearGradient id="rayburst-connect-incoming-ray" x1="80%" y1="0%" x2="20%" y2="100%">
+      <stop offset="0%" stop-color="#AD79E9" />
+      <stop offset="50%" stop-color="#9659DA" />
+      <stop offset="100%" stop-color="#7C3CC8" />
+    </linearGradient>
+    <linearGradient id="rayburst-connect-lower-ray" x1="100%" y1="10%" x2="0%" y2="85%">
+      <stop offset="0%" stop-color="#AE7AE7" />
+      <stop offset="50%" stop-color="#945AD7" />
+      <stop offset="100%" stop-color="#7C40C4" />
+    </linearGradient>
+    <linearGradient id="rayburst-connect-lightning" x1="80%" y1="0%" x2="20%" y2="100%">
+      <stop offset="0%" stop-color="#8F52DF" />
+      <stop offset="50%" stop-color="#7B3ED1" />
+      <stop offset="100%" stop-color="#682BBC" />
+    </linearGradient>
+    <linearGradient id="rayburst-connect-lightning-highlight" x1="80%" y1="0%" x2="20%" y2="100%">
+      <stop offset="0%" stop-color="#B17CEC" />
+      <stop offset="50%" stop-color="#9B62DF" />
+      <stop offset="100%" stop-color="#864AD1" />
+    </linearGradient>
+  </defs>
+  <g transform="matrix(0.70957830 0 0 0.70957830 -734.34992 -20.18987)">
+    <polygon points="1282.759,145.696 1291.380,253.718 1134.384,499.813 1126.167,286.712" fill="url(#rayburst-connect-incoming-ray)" />
+    <polygon points="1360.657,593.147 1655.375,416.232 1555.713,661.393" fill="url(#rayburst-connect-lower-ray)" />
+    <polygon points="1665.209,90.462 1491.869,371.069 1644.000,370.000 1135.000,688.000 1372.565,418.372 1221.920,440.873 1336.664,253.651" fill="url(#rayburst-connect-lightning)" />
+    <polygon points="1665.209,90.462 1336.664,253.651 1221.920,440.873 1290.464,430.635" fill="url(#rayburst-connect-lightning-highlight)" />
+  </g>
+</svg>

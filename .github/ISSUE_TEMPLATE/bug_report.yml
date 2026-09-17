@@ -1,5 +1,5 @@
 name: 🐛 Bug Report
-description: Report a bug in Motrix Next
+description: Report a bug in Rayburst
 title: '[BUG]: '
 labels: ['bug']
 body:
@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Thanks for taking the time to report this issue!
-        Please check [existing issues](https://github.com/AnInsomniacy/motrix-next/issues) before creating a new one.
+        Please check [existing issues](https://github.com/AnInsomniacy/rayburst/issues) before creating a new one.
         Please reproduce the issue on the latest release or latest beta before filing. Reports from older versions may be closed without further investigation.
         Use GitHub Discussions for questions. Use the extension repository for browser-extension-only issues, and Aria2 Next for engine-only issues.
 
@@ -22,7 +22,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Motrix Next Version
+      label: Rayburst Version
       description: 'The full version shown in the About panel. Reports must be reproduced on the latest release or latest beta.'
       placeholder: '3.4.1'
     validations:
@@ -33,17 +33,17 @@ body:
     attributes:
       label: Issue Source
       description: |
-        Select Motrix Next app only for desktop-app bugs.
+        Select Rayburst app only for desktop-app bugs.
 
         Browser extension issues must be filed in:<br>
-        https://github.com/AnInsomniacy/motrix-next-extension
+        https://github.com/AnInsomniacy/rayburst-connect
 
         Aria2 Next engine issues must be filed in:<br>
         https://github.com/AnInsomniacy/aria2-next
 
         Misfiled issues may be closed here.
       options:
-        - Motrix Next App
+        - Rayburst App
         - Browser Extension
         - RPC / Third-Party Parser
         - Aria2 Next Engine
@@ -62,8 +62,10 @@ body:
         - Windows (ARM64)
         - Linux (x64 / AppImage)
         - Linux (x64 / deb)
+        - Linux (x64 / rpm)
         - Linux (ARM64 / AppImage)
         - Linux (ARM64 / deb)
+        - Linux (ARM64 / rpm)
     validations:
       required: true
 
@@ -118,5 +120,5 @@ body:
           required: true
         - label: I have uploaded the exported diagnostic `.zip` directly, or kept the same ZIP structure after redaction.
           required: true
-        - label: This is a reproducible Motrix Next desktop-app bug. Questions belong in [GitHub Discussions](https://github.com/AnInsomniacy/motrix-next/discussions), browser-extension-only issues belong in [motrix-next-extension](https://github.com/AnInsomniacy/motrix-next-extension), and engine-only issues belong in [aria2-next](https://github.com/AnInsomniacy/aria2-next).
+        - label: This is a reproducible Rayburst desktop-app bug. Questions belong in [GitHub Discussions](https://github.com/AnInsomniacy/rayburst/discussions), browser-extension-only issues belong in [rayburst-connect](https://github.com/AnInsomniacy/rayburst-connect), and engine-only issues belong in [aria2-next](https://github.com/AnInsomniacy/aria2-next).
           required: true

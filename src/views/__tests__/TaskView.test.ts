@@ -1,27 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { reactive } from 'vue'
 
 const changeCurrentListMock = vi.fn()
 const fetchListMock = vi.fn()
 const hideTaskDetailMock = vi.fn()
 const isEngineReadyMock = vi.fn(() => true)
 
-const taskStore = {
+const taskStore = reactive({
+  isCurrentListEmpty: false,
   changeCurrentList: (...args: unknown[]) => changeCurrentListMock(...args),
   fetchList: (...args: unknown[]) => fetchListMock(...args),
   taskDetailVisible: false,
   currentTaskItem: null,
   currentTaskFiles: [],
   hideTaskDetail: () => hideTaskDetailMock(),
-}
+})
 
 const appStore = {
   interval: 1000,
 }
 
-const preferenceStore = {
-  config: {},
-}
+const preferenceStore = reactive({ config: { showLogoWhenEmpty: true } })
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -103,6 +103,8 @@ describe('TaskView', () => {
     vi.useFakeTimers()
     appStore.interval = 1000
     isEngineReadyMock.mockReturnValue(true)
+    taskStore.isCurrentListEmpty = false
+    preferenceStore.config.showLogoWhenEmpty = true
   })
 
   afterEach(() => {
@@ -127,5 +129,29 @@ describe('TaskView', () => {
     await vi.advanceTimersByTimeAsync(1500)
 
     expect(fetchListMock).not.toHaveBeenCalled()
+  })
+
+  it('shows the mark on mount before engine startup finishes', () => {
+    isEngineReadyMock.mockReturnValue(false)
+    taskStore.isCurrentListEmpty = true
+    const wrapper = mount(TaskView)
+    expect(wrapper.find('.empty-brand').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('shows the decorative mark only for an empty list with the preference enabled', async () => {
+    const wrapper = mount(TaskView)
+    expect(wrapper.find('.empty-brand').exists()).toBe(false)
+    taskStore.isCurrentListEmpty = true
+    await flushPromises()
+    expect(wrapper.find('.empty-brand').attributes('aria-hidden')).toBe('true')
+    preferenceStore.config.showLogoWhenEmpty = false
+    await flushPromises()
+    expect(wrapper.find('.empty-brand').exists()).toBe(false)
+    preferenceStore.config.showLogoWhenEmpty = true
+    taskStore.isCurrentListEmpty = false
+    await flushPromises()
+    expect(wrapper.find('.empty-brand').exists()).toBe(false)
+    wrapper.unmount()
   })
 })

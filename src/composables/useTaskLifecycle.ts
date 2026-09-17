@@ -80,6 +80,8 @@ export function historyRecordToTask(record: HistoryRecord): Aria2Task {
   }
 
   const task: Aria2Task = {
+    media: meta.media,
+    mediaOptions: meta.mediaOptions,
     gid: record.gid,
     status: record.status as Aria2Task['status'],
     totalLength,

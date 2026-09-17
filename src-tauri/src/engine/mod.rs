@@ -1,4 +1,4 @@
-//! Engine management for the bundled Motrix Next engine sidecar.
+//! Engine management for the bundled aria2-next sidecar.
 //!
 //! Split into focused sub-modules:
 //! - [`state`] — `EngineState` struct, ANSI stripping, log routing

@@ -11,5 +11,7 @@
   "notification.download-start-title": "下载已开始",
   "notification.ed2k-complete-body": "共享中：%{task_name}",
   "notification.ed2k-complete-title": "ED2K 下载完成",
-  "notification.error-unknown": "未知错误"
+  "notification.error-unknown": "未知错误",
+  "notification.selection-title": "等待选择下载内容",
+  "notification.selection-body": "%{task_name}"
 }

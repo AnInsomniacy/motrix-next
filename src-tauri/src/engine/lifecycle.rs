@@ -10,7 +10,7 @@ use super::{valid_aria2_log_level, DEFAULT_ARIA2_LOG_LEVEL};
 use crate::services::port_guard;
 use tauri_plugin_store::StoreExt;
 
-const ENGINE_SIDECAR_NAME: &str = "motrix-next-engine";
+const ENGINE_SIDECAR_NAME: &str = "aria2-next";
 const DEFAULT_RPC_PORT_STR: &str = "29100";
 const ENGINE_PORT_RELEASE_TIMEOUT_MS: u64 = 2600;
 const ENGINE_PORT_RELEASE_POLL_MS: u64 = 100;

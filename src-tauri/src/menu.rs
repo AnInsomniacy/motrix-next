@@ -12,10 +12,10 @@ pub fn build_menu(app: &AppHandle) -> Result<Menu<tauri::Wry>, tauri::Error> {
     // to open the in-app AboutPanel instead of the bare native panel.
     let app_menu = Submenu::with_items(
         app,
-        "Motrix Next",
+        "Rayburst",
         true,
         &[
-            &MenuItem::with_id(app, "about", "About Motrix Next", true, None::<&str>)?,
+            &MenuItem::with_id(app, "about", "About Rayburst", true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(
                 app,

@@ -215,7 +215,7 @@ type MacProxyDictionary = system_configuration::core_foundation::dictionary::CFD
 fn get_system_proxy_from_dynamic_store() -> Option<SystemProxyInfo> {
     use system_configuration::dynamic_store::SCDynamicStoreBuilder;
 
-    let store = SCDynamicStoreBuilder::new("motrix-next").build()?;
+    let store = SCDynamicStoreBuilder::new("rayburst").build()?;
     let proxies = store.get_proxies()?;
 
     if macos_cf_bool(&proxies, "HTTPEnable") {

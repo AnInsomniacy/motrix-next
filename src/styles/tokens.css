@@ -1,7 +1,7 @@
 /**
  * @fileoverview Design tokens following Material Design 3 tonal surface system.
  *
- * Seed color: #E0A422 (Amber Gold)
+ * Seed color: #946ECE (Rayburst)
  * Runtime values are generated from the selected seed by Material Color Utilities.
  * These values provide the matching first-paint fallback before Vue mounts.
  */
@@ -10,74 +10,74 @@
 :root {
   /* ── M3 Surface Tonal System ───────────────────────────────────── */
   --m3-surface: #fffbff;
-  --m3-surface-dim: #d8d0c8;
-  --m3-surface-container-lowest: #fff8f3;
-  --m3-surface-container-low: #f5ece4;
-  --m3-surface-container: #ece4db;
-  --m3-surface-container-high: #e4dbd3;
-  --m3-surface-container-highest: #dbd3cb;
+  --m3-surface-dim: #d5d0d5;
+  --m3-surface-container-lowest: #fef8fc;
+  --m3-surface-container-low: #f2ecf1;
+  --m3-surface-container: #e9e4e8;
+  --m3-surface-container-high: #e1dbe0;
+  --m3-surface-container-highest: #d8d3d7;
 
   /* ── M3 On-Surface / Text ──────────────────────────────────────── */
-  --m3-on-surface: #1f1b16;
-  --m3-on-surface-variant: #4e4639;
+  --m3-on-surface: #1d1b1e;
+  --m3-on-surface-variant: #4a454e;
 
   /* ── M3 Outline / Borders ──────────────────────────────────────── */
-  --m3-outline: #807667;
-  --m3-outline-variant: #d1c5b4;
+  --m3-outline: #7b757f;
+  --m3-outline-variant: #cbc4cf;
 
-  /* ── M3 Primary (Amber Gold) ───────────────────────────────────── */
-  --m3-primary: #7c5800;
+  /* ── M3 Primary (Rayburst purple) ───────────────────────────────────── */
+  --m3-primary: #704ba8;
   --m3-on-primary: #ffffff;
-  --m3-primary-container: #ffdea8;
-  --m3-on-primary-container: #271900;
+  --m3-primary-container: #ecdcff;
+  --m3-on-primary-container: #280056;
 
   /* ── M3 Info (harmonized extended color) ──────────────────────── */
-  --m3-info: #00658f;
+  --m3-info: #375ba9;
   --m3-on-info: #ffffff;
-  --m3-info-container: #c7e7ff;
-  --m3-on-info-container: #001e2e;
+  --m3-info-container: #d9e2ff;
+  --m3-on-info-container: #001946;
 
   /* ── M3 Error (theme-weighted extended color) ─────────────────── */
-  --m3-error: #a63b00;
+  --m3-error: #bb0947;
   --m3-on-error: #ffffff;
-  --m3-error-container: #ffdbce;
-  --m3-on-error-container: #370e00;
+  --m3-error-container: #ffd9dd;
+  --m3-on-error-container: #400012;
 
   /* ── M3 Success (Extended) ─────────────────────────────────────── */
-  --m3-success: #516600;
+  --m3-success: #0a6d36;
   --m3-on-success: #ffffff;
-  --m3-success-container: #d3ee80;
-  --m3-on-success-container: #161e00;
+  --m3-success-container: #9ef6b0;
+  --m3-on-success-container: #00210b;
 
-  /* ── M3 Tertiary (Green-gray — special operations) ──────────────── */
-  --m3-tertiary: #4d6544;
+  /* ── M3 Tertiary (Purple-gray — special operations) ──────────────── */
+  --m3-tertiary: #7f525b;
   --m3-on-tertiary: #ffffff;
-  --m3-tertiary-container: #cfebc1;
-  --m3-on-tertiary-container: #0b2006;
+  --m3-tertiary-container: #ffd9df;
+  --m3-on-tertiary-container: #321019;
 
   /* ── M3 Warning (harmonized extended color) ───────────────────── */
-  --m3-warning: #7c5800;
+  --m3-warning: #885200;
   --m3-on-warning: #ffffff;
-  --m3-warning-container: #ffdea7;
-  --m3-on-warning-container: #271900;
+  --m3-warning-container: #ffddbb;
+  --m3-on-warning-container: #2b1700;
 
   /* ── M3 Inverse ────────────────────────────────────────────────── */
-  --m3-inverse-surface: #34302a;
-  --m3-on-inverse-surface: #f8efe7;
+  --m3-inverse-surface: #322f33;
+  --m3-on-inverse-surface: #f5eff4;
 
   /* ── M3 Scrollbar ──────────────────────────────────────────────── */
-  --m3-scrollbar-thumb: color-mix(in srgb, var(--m3-on-surface) 24%, transparent);
-  --m3-scrollbar-thumb-inactive: color-mix(in srgb, var(--m3-on-surface) 12%, transparent);
+  --m3-scrollbar-thumb: color-mix(in srgb, #1d1b1e 24%, transparent);
+  --m3-scrollbar-thumb-inactive: color-mix(in srgb, #1d1b1e 12%, transparent);
 
   /* ── M3 Shadow ─────────────────────────────────────────────────── */
   --m3-shadow: rgba(0, 0, 0, 0.15);
 
   /* ── M3 Status Colors (semantic) ────────────────────────────────── */
-  --m3-status-active: #7c5800;
-  --m3-status-waiting: #00658f;
-  --m3-status-paused: #807667;
-  --m3-status-error: #a63b00;
-  --m3-status-success: #516600;
+  --m3-status-active: #704ba8;
+  --m3-status-waiting: #375ba9;
+  --m3-status-paused: #7b757f;
+  --m3-status-error: #bb0947;
+  --m3-status-success: #0a6d36;
 
   /* ── M3 Drop Zone ──────────────────────────────────────────────── */
   --m3-drop-zone-border: var(--m3-outline-variant);
@@ -132,75 +132,75 @@
 /* ── Dark Theme ────────────────────────────────────────────────────── */
 .dark {
   /* ── M3 Surface Tonal System ───────────────────────────────────── */
-  --m3-surface: #1f1b16;
-  --m3-surface-dim: #16130e;
-  --m3-surface-container-lowest: #110e09;
-  --m3-surface-container-low: #1f1b16;
-  --m3-surface-container: #231f1a;
-  --m3-surface-container-high: #2d2924;
-  --m3-surface-container-highest: #38342e;
+  --m3-surface: #1d1b1e;
+  --m3-surface-dim: #141316;
+  --m3-surface-container-lowest: #0f0e11;
+  --m3-surface-container-low: #1d1b1e;
+  --m3-surface-container: #211f22;
+  --m3-surface-container-high: #2b292d;
+  --m3-surface-container-highest: #363438;
 
   /* ── M3 On-Surface / Text ──────────────────────────────────────── */
-  --m3-on-surface: #eae1d9;
-  --m3-on-surface-variant: #d1c5b4;
+  --m3-on-surface: #e7e1e6;
+  --m3-on-surface-variant: #cbc4cf;
 
   /* ── M3 Outline / Borders ──────────────────────────────────────── */
-  --m3-outline: #9a8f80;
-  --m3-outline-variant: #4e4639;
+  --m3-outline: #958e99;
+  --m3-outline-variant: #4a454e;
 
-  /* ── M3 Primary (Amber Gold — lighter in dark) ─────────────────── */
-  --m3-primary: #fbbc3b;
-  --m3-on-primary: #422d00;
-  --m3-primary-container: #5e4200;
-  --m3-on-primary-container: #ffdea8;
+  /* ── M3 Primary (Rayburst purple) ───────────────────────────────────── */
+  --m3-primary: #d6baff;
+  --m3-on-primary: #401676;
+  --m3-primary-container: #57328e;
+  --m3-on-primary-container: #ecdcff;
 
   /* ── M3 Info (harmonized extended color) ──────────────────────── */
-  --m3-info: #86cfff;
-  --m3-on-info: #00344c;
-  --m3-info-container: #004c6d;
-  --m3-on-info-container: #c7e7ff;
+  --m3-info: #b1c5ff;
+  --m3-on-info: #002c70;
+  --m3-info-container: #1a4390;
+  --m3-on-info-container: #d9e2ff;
 
   /* ── M3 Error (theme-weighted extended color) ─────────────────── */
-  --m3-error: #ffb599;
-  --m3-on-error: #5a1c00;
-  --m3-error-container: #7f2b00;
-  --m3-on-error-container: #ffdbce;
+  --m3-error: #ffb2bc;
+  --m3-on-error: #670023;
+  --m3-error-container: #910034;
+  --m3-on-error-container: #ffd9dd;
 
   /* ── M3 Success (Extended — lighter in dark) ────────────────────── */
-  --m3-success: #b7d167;
-  --m3-on-success: #293500;
-  --m3-success-container: #3c4d00;
-  --m3-on-success-container: #d3ee80;
+  --m3-success: #82d996;
+  --m3-on-success: #003918;
+  --m3-success-container: #005226;
+  --m3-on-success-container: #9ef6b0;
 
   /* ── M3 Tertiary (Green-gray — lighter in dark) ─────────────────── */
-  --m3-tertiary: #b3cea6;
-  --m3-on-tertiary: #203619;
-  --m3-tertiary-container: #364d2e;
-  --m3-on-tertiary-container: #cfebc1;
+  --m3-tertiary: #f1b7c2;
+  --m3-on-tertiary: #4b252e;
+  --m3-tertiary-container: #643b44;
+  --m3-on-tertiary-container: #ffd9df;
 
   /* ── M3 Warning ────────────────────────────────────────────────── */
-  --m3-warning: #f7bd48;
-  --m3-on-warning: #412d00;
-  --m3-warning-container: #5e4200;
-  --m3-on-warning-container: #ffdea7;
+  --m3-warning: #ffb869;
+  --m3-on-warning: #482900;
+  --m3-warning-container: #673d00;
+  --m3-on-warning-container: #ffddbb;
 
   /* ── M3 Inverse ────────────────────────────────────────────────── */
-  --m3-inverse-surface: #eae1d9;
-  --m3-on-inverse-surface: #34302a;
+  --m3-inverse-surface: #e7e1e6;
+  --m3-on-inverse-surface: #322f33;
 
   /* ── M3 Scrollbar ──────────────────────────────────────────────── */
-  --m3-scrollbar-thumb: color-mix(in srgb, var(--m3-on-surface) 24%, transparent);
-  --m3-scrollbar-thumb-inactive: color-mix(in srgb, var(--m3-on-surface) 12%, transparent);
+  --m3-scrollbar-thumb: color-mix(in srgb, #e7e1e6 24%, transparent);
+  --m3-scrollbar-thumb-inactive: color-mix(in srgb, #e7e1e6 12%, transparent);
 
   /* ── M3 Shadow ─────────────────────────────────────────────────── */
   --m3-shadow: rgba(0, 0, 0, 0.5);
 
   /* ── M3 Status Colors (semantic — lighter in dark) ──────────────── */
-  --m3-status-active: #fbbc3b;
-  --m3-status-waiting: #86cfff;
-  --m3-status-paused: #9a8f80;
-  --m3-status-error: #ffb599;
-  --m3-status-success: #b7d167;
+  --m3-status-active: #d6baff;
+  --m3-status-waiting: #b1c5ff;
+  --m3-status-paused: #958e99;
+  --m3-status-error: #ffb2bc;
+  --m3-status-success: #82d996;
 
   --aside-bg: var(--m3-surface-container-lowest);
   --aside-icon-hover-bg: color-mix(in srgb, var(--m3-on-surface) 12%, transparent);

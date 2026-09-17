@@ -2,7 +2,6 @@
 import type { LogFields } from '@shared/logger'
 import type { Aria2EngineOptions } from '@shared/types'
 import type { HeaderSanitizeDiagnostics } from './headerSanitize'
-import { isMotrixNewTaskLink, parseMotrixDeepLink } from './motrixDeepLink'
 
 let traceSequence = 0
 
@@ -35,40 +34,12 @@ function summarizeRemoteUrl(value: string): string {
 
 /** Returns a privacy-preserving summary that never includes query values or cookies. */
 export function summarizeExternalInput(value: string): string {
-  try {
-    const parsed = new URL(value)
-    const scheme = parsed.protocol.replace(':', '') || 'unknown'
-
-    if (scheme !== 'motrixnext') {
-      return summarizeRemoteUrl(value)
-    }
-
-    const deepLink = parseMotrixDeepLink(value)
-    return [
-      `scheme=motrixnext`,
-      `action=${deepLink.action}`,
-      `target=${deepLink.downloadUrl ? summarizeRemoteUrl(deepLink.downloadUrl) : 'none'}`,
-      `hasReferer=${deepLink.referer ? 'true' : 'false'}`,
-      `hasCookie=${deepLink.cookie ? 'true' : 'false'}`,
-      `hasFilename=${deepLink.filename ? 'true' : 'false'}`,
-      `length=${value.length}`,
-    ].join(' ')
-  } catch {
-    return summarizeRemoteUrl(value)
-  }
+  return summarizeRemoteUrl(value)
 }
 
 export function summarizeExternalInputBatch(urls: string[]): LogFields {
   return {
     count: urls.length,
-    hasNewTask: urls.some(isMotrixNewTaskLink),
-    hasCookie: urls.some((url) => {
-      try {
-        return new URL(url).searchParams.has('cookie')
-      } catch {
-        return false
-      }
-    }),
     first: urls[0] ? summarizeExternalInput(urls[0]) : 'none',
   }
 }

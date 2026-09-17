@@ -7,6 +7,7 @@
  *
  * Every scope sorts the same task model, including terminal snapshots.
  */
+import { mediaPercent } from '@shared/utils/media'
 import { getTaskName, getTaskCompletedLength } from '@shared/utils/task'
 import type { Aria2Task } from '@shared/types'
 
@@ -94,6 +95,7 @@ function taskSortValue(
     case 'size':
       return Number(task.totalLength) || 0
     case 'progress': {
+      if (task.media) return (mediaPercent(task) ?? -1) / 100
       const total = Number(task.totalLength) || 0
       return total > 0 ? getTaskCompletedLength(task) / total : 0
     }

@@ -11,5 +11,7 @@
   "notification.download-start-title": "Descărcare începută",
   "notification.ed2k-complete-body": "Se distribuie: %{task_name}",
   "notification.ed2k-complete-title": "Descărcare ED2K finalizată",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "Se așteaptă selectarea conținutului",
+  "notification.selection-body": "%{task_name}"
 }

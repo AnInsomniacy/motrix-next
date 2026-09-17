@@ -2,24 +2,12 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, WebviewWindowBuilder,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    AppHandle, Manager, WebviewWindowBuilder,
 };
 
-/// Embedded tray icon bytes.
-///
-/// On macOS: a white-on-transparent template image (@2x, 88×88 px).
-/// The system auto-inverts for light/dark menu bar — white silhouette
-/// is the standard macOS convention.
-///
-/// On Windows/Linux: the full-colour app icon (64×64 px) for the
-/// system tray.  Must be clearly visible on both light and dark
-/// taskbar themes — a white silhouette would be invisible on a light
-/// taskbar.
-#[cfg(target_os = "macos")]
-pub const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/tray-icon@2x.png");
-#[cfg(not(target_os = "macos"))]
-pub const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/tray-icon-color.png");
+/// AppKit uses this alpha channel as a template; other platforms show its original color.
+pub const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/64x64.png");
 
 /// Whether the current platform expects the tray icon to be rendered as an
 /// AppKit template image.
@@ -40,7 +28,8 @@ pub fn tray_icon_image() -> tauri::image::Image<'static> {
 /// monochrome mask correctly on light, dark, and highlighted menu bar states.
 /// Any path that re-sets the icon must restore that flag immediately afterward,
 /// otherwise AppKit treats the bitmap as a normal white image.
-pub fn refresh_tray_icon(tray: &TrayIcon<tauri::Wry>) -> tauri::Result<()> {
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+pub fn refresh_tray_icon(tray: &tauri::tray::TrayIcon<tauri::Wry>) -> tauri::Result<()> {
     let icon = tray_icon_image();
     tray.set_icon_with_as_template(Some(icon), TRAY_ICON_IS_TEMPLATE)
 }
@@ -152,7 +141,7 @@ pub fn activate_main_window(app: &AppHandle, source: &'static str) -> WindowActi
 pub fn setup_tray(app: &AppHandle) -> Result<TrayMenuState, Box<dyn std::error::Error>> {
     // Create MenuItem references for TrayMenuState (used by update_tray_menu_labels).
     // All three platforms use the same native menu — no platform-specific branching.
-    let show_item = MenuItem::with_id(app, "show", "Show Motrix Next", true, None::<&str>)?;
+    let show_item = MenuItem::with_id(app, "show", "Show Rayburst", true, None::<&str>)?;
     let new_task_item = MenuItem::with_id(app, "tray-new-task", "New Task", true, None::<&str>)?;
     let resume_all_item =
         MenuItem::with_id(app, "tray-resume-all", "Resume All", true, None::<&str>)?;
@@ -182,10 +171,10 @@ pub fn setup_tray(app: &AppHandle) -> Result<TrayMenuState, Box<dyn std::error::
         ],
     )?;
 
-    let _tray = TrayIconBuilder::with_id("motrix-next")
+    let _tray = TrayIconBuilder::with_id("rayburst")
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .tooltip("Motrix Next")
+        .tooltip("Rayburst")
         .icon(tray_icon_image())
         .icon_as_template(TRAY_ICON_IS_TEMPLATE)
         .on_tray_icon_event(|tray, event| {
@@ -214,7 +203,9 @@ pub fn setup_tray(app: &AppHandle) -> Result<TrayMenuState, Box<dyn std::error::
                     log::info!("tray:pause-all — calling aria2 directly");
                     let app = app.clone();
                     tauri::async_runtime::spawn(async move {
-                        if let Some(aria2) = app.try_state::<crate::aria2::client::Aria2State>() {
+                        if let Some(aria2) =
+                            app.try_state::<crate::services::tasks::TaskServiceState>()
+                        {
                             if let Err(e) = aria2.0.force_pause_all().await {
                                 log::warn!("tray:pause-all failed: {e}");
                             }
@@ -225,7 +216,9 @@ pub fn setup_tray(app: &AppHandle) -> Result<TrayMenuState, Box<dyn std::error::
                     log::info!("tray:resume-all — calling aria2 directly");
                     let app = app.clone();
                     tauri::async_runtime::spawn(async move {
-                        if let Some(aria2) = app.try_state::<crate::aria2::client::Aria2State>() {
+                        if let Some(aria2) =
+                            app.try_state::<crate::services::tasks::TaskServiceState>()
+                        {
                             match aria2.0.resume_eligible().await {
                                 Ok(result) => log::info!(
                                     "tray:resume-all resumed={} blocked={}",
@@ -255,11 +248,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<TrayMenuState, Box<dyn std::error::
                         "tray-new-task",
                     );
                 }
-                _ => {
-                    if let Some(action) = resolve_tray_action(id) {
-                        let _ = app.emit("tray-menu-action", action);
-                    }
-                }
+                _ => {}
             }
         })
         .build(app)?;
@@ -292,7 +281,7 @@ pub fn setup_tray(app: &AppHandle) -> Result<TrayMenuState, Box<dyn std::error::
         let app_handle = app.clone();
         tauri::async_runtime::spawn(async move {
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            if let Some(tray) = app_handle.tray_by_id("motrix-next") {
+            if let Some(tray) = app_handle.tray_by_id("rayburst") {
                 let _ = refresh_tray_icon(&tray);
                 log::info!(
                     "tray:linux-deferred-icon-refresh — re-set icon after 3 s startup delay"
@@ -306,66 +295,9 @@ pub fn setup_tray(app: &AppHandle) -> Result<TrayMenuState, Box<dyn std::error::
     })
 }
 
-/// Maps a tray menu event ID to the action string emitted to the frontend.
-///
-/// Returns `None` for actions handled natively in `on_menu_event`
-/// (show, pause-all, resume-all, quit, new-task) and for unknown IDs.
-///
-/// All tray actions are now handled directly in Rust to work correctly
-/// when the WebView is destroyed in lightweight mode (issue #194).
-/// This function remains as a fallback for future extensibility.
-pub fn resolve_tray_action(menu_id: &str) -> Option<&str> {
-    // All known tray actions are handled natively in on_menu_event:
-    //   "show", "tray-pause-all", "tray-resume-all" — direct aria2/window ops
-    //   "tray-quit" — app.exit(0)
-    //   "tray-new-task" — get_or_create_main_window + emit
-    // No action is forwarded to the frontend.
-    let _ = menu_id;
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn resolve_quit_handled_natively() {
-        // tray-quit is handled directly by app.exit(0) in on_menu_event,
-        // not routed through resolve_tray_action → emit to frontend.
-        // This ensures quit works even when the WebView is destroyed
-        // (lightweight mode). See issue #194.
-        assert_eq!(resolve_tray_action("tray-quit"), None);
-    }
-
-    #[test]
-    fn resolve_new_task_handled_natively() {
-        // tray-new-task is handled directly in on_menu_event:
-        // get_or_create_main_window() + emit. Not routed through
-        // resolve_tray_action. Ensures window is recreated in
-        // lightweight mode before the event is emitted.
-        assert_eq!(resolve_tray_action("tray-new-task"), None);
-    }
-
-    #[test]
-    fn resolve_pause_all_handled_natively() {
-        assert_eq!(resolve_tray_action("tray-pause-all"), None);
-    }
-
-    #[test]
-    fn resolve_resume_all_handled_natively() {
-        assert_eq!(resolve_tray_action("tray-resume-all"), None);
-    }
-
-    #[test]
-    fn resolve_show_returns_none() {
-        // "show" is handled natively, not emitted to frontend
-        assert_eq!(resolve_tray_action("show"), None);
-    }
-
-    #[test]
-    fn resolve_unknown_returns_none() {
-        assert_eq!(resolve_tray_action("nonexistent"), None);
-    }
 
     /// Verify the embedded tray icon bytes are a valid PNG with correct header.
     #[test]

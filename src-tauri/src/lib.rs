@@ -1,12 +1,14 @@
 rust_i18n::i18n!("locales", fallback = "en-US");
 
+pub(crate) const APP_ID: &str = env!("RAYBURST_APP_ID");
+
 mod aria2;
 mod commands;
+mod database;
 mod diagnostics;
 mod engine;
 mod error;
 mod gpu_guard;
-mod history;
 mod i18n;
 mod log_policy;
 #[cfg(target_os = "macos")]
@@ -40,7 +42,7 @@ use upnp::UpnpState;
 /// has been persisted yet.
 pub(crate) fn read_log_level() -> log::LevelFilter {
     (|| -> Option<log::LevelFilter> {
-        let data_dir = dirs::data_dir()?.join("com.motrix.next");
+        let data_dir = dirs::data_dir()?.join(APP_ID);
         let store_path = data_dir.join("config.json");
         let content = std::fs::read_to_string(store_path).ok()?;
         let json: serde_json::Value = serde_json::from_str(&content).ok()?;
@@ -103,16 +105,19 @@ impl AppLifecycleState {
     }
 }
 
+/// Persist geometry only; platform config owns decorations and startup owns visibility.
 fn window_state_flags() -> tauri_plugin_window_state::StateFlags {
     use tauri_plugin_window_state::StateFlags;
 
+    let flags = StateFlags::SIZE | StateFlags::POSITION | StateFlags::FULLSCREEN;
+    // Preserve the macOS maximization workaround (tauri-apps/tauri#5812).
     #[cfg(target_os = "macos")]
     {
-        StateFlags::all() & !StateFlags::MAXIMIZED & !StateFlags::VISIBLE
+        flags
     }
     #[cfg(not(target_os = "macos"))]
     {
-        StateFlags::all() & !StateFlags::VISIBLE
+        flags | StateFlags::MAXIMIZED
     }
 }
 
@@ -244,9 +249,9 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(tray_state);
 
     // Aria2 JSON-RPC client — starts with default credentials, updated
-    // after engine start via Aria2Client::update_credentials().
-    let aria2_state = aria2::client::Aria2State(std::sync::Arc::new(
-        aria2::client::Aria2Client::new(DEFAULT_RPC_PORT, String::new()),
+    // after engine start via TaskService::update_credentials().
+    let aria2_state = services::tasks::TaskServiceState(std::sync::Arc::new(
+        services::tasks::TaskService::new(DEFAULT_RPC_PORT, String::new()),
     ));
     app.manage(aria2_state);
 
@@ -262,6 +267,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(services::bt_blocklist::BtPeerBlocklistServiceState::new());
     app.manage(commands::bt_blocklist::BtPeerBlocklistUpdateState::new());
     app.manage(services::http_api::HttpApiState::new());
+    app.manage(services::downloads::SubmissionGate::default());
     #[cfg(target_os = "linux")]
     app.manage(services::notification::LinuxNotificationRegistry::new());
     app.manage(services::deep_link::PendingDeepLinkState::new());
@@ -273,9 +279,19 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(AppLifecycleState::new());
 
     // Database failures must not prevent the window from opening.
-    app.manage(history::HistoryDbState(std::sync::Arc::new(
-        history::HistoryDb::unavailable(),
+    app.manage(database::DatabaseState(std::sync::Arc::new(
+        database::Database::unavailable(),
     )));
+    let database_app = app.handle().clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = commands::database_initialize(database_app.clone()).await {
+            log::error!("database: initialization failed: {error}");
+            return;
+        }
+        if let Err(error) = services::downloads::restore_pending(&database_app).await {
+            log::error!("downloads: pending confirmations could not be restored: {error}");
+        }
+    });
 
     #[cfg(target_os = "macos")]
     app.on_menu_event(|app, event| match event.id().as_ref() {
@@ -553,7 +569,7 @@ pub fn run() {
     let log_filter = log_control.clone();
     let log_targets = vec![tauri_plugin_log::Target::new(
         tauri_plugin_log::TargetKind::LogDir {
-            file_name: Some("motrix-next".into()),
+            file_name: Some("rayburst".into()),
         },
     )];
     #[cfg(debug_assertions)]
@@ -578,7 +594,10 @@ pub fn run() {
                 .clear_targets()
                 .targets(log_targets)
                 .format(|out, message, record| {
-                    out.finish(format_args!("{}", log_policy::format_record(message, record)))
+                    out.finish(format_args!(
+                        "{}",
+                        log_policy::format_record(message, record)
+                    ))
                 })
                 .max_file_size(log_policy::MAX_LOG_FILE_SIZE.into())
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(
@@ -586,7 +605,6 @@ pub fn run() {
                 ))
                 .level(log::LevelFilter::Debug)
                 .level_for("maxminddb", log::LevelFilter::Warn)
-                .level_for("sqlx", log::LevelFilter::Warn)
                 .level_for("zbus", log::LevelFilter::Warn)
                 .level_for("hyper_util", log::LevelFilter::Warn)
                 .level_for("reqwest", log::LevelFilter::Warn)
@@ -596,33 +614,6 @@ pub fn run() {
         .manage(log_control)
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(
-            tauri_plugin_sql::Builder::default()
-                .add_migrations(
-                    "sqlite:history.db",
-                    vec![
-                        tauri_plugin_sql::Migration {
-                            version: 1,
-                            description: "create download_history table",
-                            sql: include_str!("../migrations/001_download_history.sql"),
-                            kind: tauri_plugin_sql::MigrationKind::Up,
-                        },
-                        tauri_plugin_sql::Migration {
-                            version: 2,
-                            description: "add added_at column and task_birth table for position-stable ordering",
-                            sql: include_str!("../migrations/002_add_added_at.sql"),
-                            kind: tauri_plugin_sql::MigrationKind::Up,
-                        },
-                        tauri_plugin_sql::Migration {
-                            version: 3,
-                            description: "add HTTP auth credentials table",
-                            sql: include_str!("../migrations/003_http_auth_credentials.sql"),
-                            kind: tauri_plugin_sql::MigrationKind::Up,
-                        },
-                    ],
-                )
-                .build(),
-        )
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -661,40 +652,16 @@ pub fn run() {
     }
 
     builder = builder.plugin(tauri_plugin_deep_link::init());
-    // Window-state plugin: saves/restores window position and size.
-    //
-    // VISIBLE is permanently excluded from the plugin's state flags.
-    // Window visibility is managed entirely by the autostart-silent-mode
-    // guard in setup_app() and the frontend's MainLayout.vue.  Allowing
-    // the plugin to save/restore VISIBLE would cause the window to flash
-    // on autostart before the silent-mode check can hide it (#109).
-    //
-    // macOS: Also exclude StateFlags::MAXIMIZED to avoid a known bug in
-    // tao where isMaximized() triggers a new resize event, creating an
-    // infinite loop (tauri-apps/tauri#5812).  The frontend also skips
-    // isMaximized() tracking on macOS (see MainLayout.vue).
-    builder = builder.plugin({
-        use tauri_plugin_window_state::StateFlags;
-
-        let flags = {
-            #[cfg(target_os = "macos")]
-            {
-                StateFlags::all() & !StateFlags::MAXIMIZED & !StateFlags::VISIBLE
-            }
-            #[cfg(not(target_os = "macos"))]
-            {
-                StateFlags::all() & !StateFlags::VISIBLE
-            }
-        };
-
+    builder = builder.plugin(
         tauri_plugin_window_state::Builder::new()
             .skip_initial_state("main")
-            .with_state_flags(flags)
-            .build()
-    });
+            .with_state_flags(window_state_flags())
+            .build(),
+    );
 
     builder
         .manage(EngineState::new())
+        .manage(services::media::MediaState::new())
         .manage(engine::supervisor::EngineSupervisor::new())
         .manage(UpnpState::new())
         .manage(std::sync::Arc::new(UpdateCancelState::new()))
@@ -712,7 +679,6 @@ pub fn run() {
             commands::engine_recover_runtime_state,
             commands::resolve_bt_listen_port,
             commands::factory_reset,
-            commands::database_prepare,
             commands::database_initialize,
             commands::database_reset,
             commands::update_tray_title,
@@ -754,7 +720,6 @@ pub fn run() {
             commands::is_default_protocol_client,
             commands::set_default_protocol_client,
             commands::remove_as_default_protocol_client,
-            commands::resolve_filename,
             commands::fetch_remote_bytes,
             commands::get_system_proxy,
             commands::lookup_peer_ips,
@@ -765,6 +730,13 @@ pub fn run() {
             commands::take_pending_deep_links,
             commands::take_pending_external_inputs,
             commands::take_pending_frontend_actions,
+            commands::history_get_record,
+            commands::history_get_page,
+            commands::history_remove_births,
+            commands::database_schema_version,
+            commands::http_auth_save,
+            commands::http_auth_find,
+            commands::http_auth_mark_used,
             commands::history_add_record,
             commands::history_get_records,
             commands::history_remove_record,
@@ -784,12 +756,17 @@ pub fn run() {
             commands::aria2_replace_bt_web_seeds,
             commands::aria2_add_bt_peers,
             commands::aria2_get_version,
+            commands::aria2_finish_media,
+            commands::aria2_confirm_media,
+            commands::aria2_batch_finish_media,
+            commands::aria2_retry_media,
             commands::aria2_get_global_stat,
             commands::aria2_change_global_option,
             commands::aria2_get_option,
             commands::aria2_change_option,
             commands::aria2_get_files,
             commands::aria2_add_uri,
+            commands::cancel_download_request,
             commands::aria2_add_torrent,
             commands::aria2_inspect_torrent,
             commands::aria2_ed2k_search,
@@ -880,7 +857,20 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::AppLifecycleState;
+    use super::{window_state_flags, AppLifecycleState};
+
+    #[test]
+    fn window_state_restores_only_geometry() {
+        use tauri_plugin_window_state::StateFlags;
+
+        let flags = window_state_flags();
+        assert!(flags.contains(StateFlags::SIZE | StateFlags::POSITION | StateFlags::FULLSCREEN));
+        assert!(!flags.intersects(StateFlags::DECORATIONS | StateFlags::VISIBLE));
+        assert_eq!(
+            flags.contains(StateFlags::MAXIMIZED),
+            !cfg!(target_os = "macos")
+        );
+    }
 
     #[test]
     fn app_lifecycle_starts_cold() {

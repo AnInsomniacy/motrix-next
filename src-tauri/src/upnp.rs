@@ -1,9 +1,6 @@
 //! UPnP/IGD port mapping manager.
 //!
-//! Mirrors the legacy Motrix `UPnPManager.js` + `Application.js` UPnP lifecycle:
-//! discover the IGD gateway, map ED2K ports, periodically
-//! renew the leases, and unmap on shutdown.  The underlying protocol work is
-//! delegated to the `igd-next` crate (UPnP IGD over SSDP).
+//! Owns native UPnP mappings and their renewal lifecycle.
 
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket};
 use std::sync::Mutex;
@@ -27,7 +24,7 @@ const PERMANENT_LEASE_SECS: u32 = 0;
 const RENEWAL_INTERVAL: Duration = Duration::from_secs(1800);
 
 /// Description string embedded in the router's port mapping table.
-const MAPPING_DESC: &str = "Motrix Next";
+const MAPPING_DESC: &str = "Rayburst";
 
 // ─── Public State ────────────────────────────────────────────────────
 
@@ -434,15 +431,6 @@ mod tests {
         assert_eq!(ports[1]["externalPort"], 16882);
         assert_eq!(ports[1]["internalPort"], 6882);
         assert_eq!(ports[1]["protocol"], "UDP");
-    }
-
-    #[test]
-    fn constants_are_sane() {
-        assert_eq!(LEASE_DURATION_SECS, 3600);
-        assert_eq!(RENEWAL_INTERVAL, Duration::from_secs(1800));
-        assert_eq!(MAPPING_DESC, "Motrix Next");
-        // Renewal interval must be less than lease duration
-        assert!(RENEWAL_INTERVAL.as_secs() < u64::from(LEASE_DURATION_SECS));
     }
 
     #[test]

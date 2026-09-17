@@ -11,5 +11,7 @@
   "notification.download-start-title": "Unduhan dimulai",
   "notification.ed2k-complete-body": "Berbagi: %{task_name}",
   "notification.ed2k-complete-title": "Unduhan ED2K selesai",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "Menunggu pemilihan konten",
+  "notification.selection-body": "%{task_name}"
 }

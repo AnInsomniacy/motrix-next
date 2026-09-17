@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const brandLogo = '/logo.svg'
 /** @fileoverview Sidebar navigation component. */
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -28,32 +29,8 @@ function showAddTask() {
   <aside class="aside" data-tauri-drag-region>
     <div class="aside-inner" data-tauri-drag-region>
       <h1 class="logo-mini">
-        <span class="logo-mark" aria-label="Motrix Next">
-          <svg xmlns="http://www.w3.org/2000/svg" width="40" height="18" viewBox="0 0 40 18" aria-hidden="true">
-            <rect
-              x="0.5"
-              y="0.5"
-              width="39"
-              height="17"
-              rx="4"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1"
-              opacity="0.5"
-            />
-            <text
-              x="20"
-              y="13"
-              fill="currentColor"
-              font-family="Arial, Helvetica, sans-serif"
-              font-weight="900"
-              font-size="10"
-              text-anchor="middle"
-              letter-spacing="1"
-            >
-              NEXT
-            </text>
-          </svg>
+        <span class="logo-mark" aria-label="Rayburst">
+          <img :src="brandLogo" width="34" height="34" alt="" />
         </span>
       </h1>
       <ul class="menu top-menu" data-tauri-drag-region>

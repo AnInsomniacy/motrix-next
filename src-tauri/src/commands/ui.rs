@@ -14,7 +14,7 @@ use tauri::Manager;
 /// - **Windows**: no-op (Windows system tray has no title API)
 #[tauri::command]
 pub fn update_tray_title(app: AppHandle, title: String) -> Result<(), AppError> {
-    if let Some(tray) = app.tray_by_id("motrix-next") {
+    if let Some(tray) = app.tray_by_id("rayburst") {
         tray.set_title(Some(&title))
             .map_err(|e| AppError::Io(e.to_string()))?;
         // Re-apply the dedicated tray icon after set_title so macOS keeps the

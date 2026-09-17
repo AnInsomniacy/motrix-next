@@ -9,7 +9,7 @@ function deps(overrides: Partial<UserVisibleDirectoryDeps> = {}): UserVisibleDir
   return {
     downloadDir: vi.fn(async () => '/home/parallels/'),
     homeDir: vi.fn(async () => '/home/parallels'),
-    appDataDir: vi.fn(async () => '/home/parallels/.local/share/com.motrix.next'),
+    appDataDir: vi.fn(async () => '/home/parallels/.local/share/dev.aninsomniacy.rayburst'),
     pathExists: vi.fn(async (path: string) => path === '/home/parallels/Downloads'),
     join: vi.fn(async (...parts: string[]) => parts.join('/').replace(/\/+/g, '/')),
     ...overrides,
@@ -98,7 +98,7 @@ describe('resolveUserVisibleDownloadDir', () => {
     const result = await resolveUserVisibleDownloadDir({ deps: d })
 
     expect(result).toEqual({
-      path: '/home/parallels/.local/share/com.motrix.next',
+      path: '/home/parallels/.local/share/dev.aninsomniacy.rayburst',
       source: 'app-data',
       usedFallback: true,
     })
@@ -123,7 +123,11 @@ describe('resolveUserVisibleDownloadDir', () => {
       false,
     )
     expect(
-      shouldPersistResolvedDownloadDir({ path: '/tmp/com.motrix.next', source: 'app-data', usedFallback: true }),
+      shouldPersistResolvedDownloadDir({
+        path: '/tmp/dev.aninsomniacy.rayburst',
+        source: 'app-data',
+        usedFallback: true,
+      }),
     ).toBe(false)
   })
 })

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { invoke } from '@tauri-apps/api/core'
 /** @fileoverview Add task dialog: dual-tab layout (URI / Torrent) with AutoAnimate list transitions. */
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -10,7 +11,12 @@ import { usePreferenceNumericValidation } from '@/composables/usePreferenceNumer
 import { useHttpAuthStore } from '@/stores/httpAuth'
 import { ADD_TASK_TYPE } from '@shared/constants'
 import { detectResource } from '@shared/utils'
-import { mergeRawUriLines, normalizeUriLines, extractMagnetDisplayName } from '@shared/utils/batchHelpers'
+import {
+  mergeRawUriLines,
+  normalizeUriLines,
+  extractDecodedFilename,
+  extractMagnetDisplayName,
+} from '@shared/utils/batchHelpers'
 import { resolveDownloadCategory, resolveFileSetCategory } from '@shared/utils/fileCategory'
 import { buildOuts } from '@shared/utils/rename'
 import {
@@ -61,6 +67,7 @@ import { useAppMessage } from '@/composables/useAppMessage'
 import type { BatchItem, BatchItemKind, BtFileSelectionItem, UserAgentProfile } from '@shared/types'
 import { FolderOpenOutline, CloudUploadOutline } from '@vicons/ionicons5'
 import { vMotionAutoAnimate } from '@/directives/motionAutoAnimate'
+import { defaultMediaOptions, mediaOutputHint } from '@shared/utils/media'
 import AdvancedOptions from './addtask/AdvancedOptions.vue'
 import DirectoryPopover from '@/components/common/DirectoryPopover.vue'
 import BtFileSelector from '@/components/task/BtFileSelector.vue'
@@ -74,7 +81,7 @@ const props = withDefaults(
     showMask: true,
   },
 )
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; afterLeave: [] }>()
 
 const { t } = useI18n()
 const router = useRouter()
@@ -133,13 +140,14 @@ function syncDefaultTaskProxy() {
 function syncPendingExternalMetadata() {
   form.value.referer = appStore.pendingReferer
   form.value.cookie = appStore.pendingCookie
-  form.value.out = appStore.pendingFilename
+  form.value.out = ''
   form.value.userAgent = appStore.pendingUserAgent
   form.value.requestHeaders = appStore.pendingRequestHeaders
   applyResolvedUserAgent()
 }
 
 const form = ref<AddTaskForm>({
+  media: defaultMediaOptions(preferenceStore.config),
   uris: '',
   out: '',
   dir: preferenceStore.config.dir || '',
@@ -237,6 +245,7 @@ watch(
   () => props.show,
   (visible) => {
     if (visible) {
+      form.value.media = defaultMediaOptions(preferenceStore.config)
       // When classification is enabled, clear the dir so user sees it's optional;
       // otherwise sync from preferences as usual.
       if (preferenceStore.config.fileCategoryEnabled) {
@@ -276,8 +285,6 @@ watch(
   { deep: true },
 )
 
-const submitLabel = computed(() => t('app.submit'))
-
 /** Whether file classification is currently enabled in preferences. */
 const categoryEnabled = computed(() => preferenceStore.config.fileCategoryEnabled)
 
@@ -292,7 +299,12 @@ function resolveCategoryMatches(): Map<string, { label: string; directory: strin
   for (const [index, uri] of uris.entries()) {
     const context = form.value.uriRequestContexts?.[uri]
     const category = resolveDownloadCategory(
-      outs[index] || form.value.out || uri,
+      mediaOutputHint(
+        uri,
+        outs[index] || form.value.out || extractDecodedFilename(uri),
+        form.value.media?.mode,
+        form.value.media?.format,
+      ),
       preferenceStore.config.fileCategories,
       {
         urls: [uri, context?.finalUrl ?? '', context?.url ?? '', context?.referer ?? ''],
@@ -542,14 +554,33 @@ function selectUserAgentProfile(profile: UserAgentProfile) {
   preferenceStore.recordRecentUserAgentProfile(profile.id)
 }
 
-function removeBatchItem(item: BatchItem) {
+async function removeBatchItem(item: BatchItem) {
+  if (submitting.value) return
+  try {
+    if (item.browserContext?.requestId) await invoke('cancel_download_request', { id: item.browserContext.requestId })
+  } catch (error) {
+    message.error(getErrorMessage(error))
+    return
+  }
   appStore.pendingBatch = batch.value.filter((i) => i !== item)
   selectedBatchIndex.value = Math.min(selectedBatchIndex.value, Math.max(0, fileItems.value.length - 1))
 }
 
 // ── Submit ───────────────────────────────────────────────────────────
 
-function handleClose() {
+async function handleClose(userDismiss = true) {
+  if (submitting.value && userDismiss) return
+  {
+    const ids = new Set(
+      batch.value.flatMap((item) => (item.browserContext?.requestId ? [item.browserContext.requestId] : [])),
+    )
+    try {
+      await Promise.all([...ids].map((id) => invoke('cancel_download_request', { id })))
+    } catch (error) {
+      message.error(getErrorMessage(error))
+      return
+    }
+  }
   emit('close')
   Object.assign(form.value, {
     uris: '',
@@ -607,12 +638,7 @@ async function handleSubmit() {
       await submitBatchItems(batch.value, options, taskStore, fileCategory)
     }
     if (form.value.uris.trim()) {
-      manualResult = await submitManualUris(
-        effectiveForm,
-        taskStore,
-        fileCategory,
-        getDownloadProxy(preferenceStore.config.proxy),
-      )
+      manualResult = await submitManualUris(effectiveForm, taskStore, fileCategory)
     }
 
     const failedCount = batch.value.filter((i) => i.status === 'failed').length + manualResult.magnetFailures.length
@@ -650,7 +676,7 @@ async function handleSubmit() {
         }
       }
 
-      handleClose()
+      await handleClose(false)
 
       // ── Record directory for the recent-folders popover ────────
       const effectiveDir = form.value.dir.trim() || preferenceStore.config.dir
@@ -693,10 +719,10 @@ async function handleSubmit() {
     :show="props.show"
     :show-mask="props.showMask"
     :mask-closable="false"
-    :close-on-esc="true"
+    :close-on-esc="!submitting"
     :auto-focus="false"
     transform-origin="center"
-    :transition="{ name: 'fade-scale' }"
+    @after-leave="emit('afterLeave')"
     @update:show="
       (v: boolean) => {
         if (!v) handleClose()
@@ -718,7 +744,7 @@ async function handleSubmit() {
       }"
       :content-style="{ flex: '1', minHeight: '0', overflowY: 'auto', overflowX: 'hidden' }"
       :segmented="{ footer: true }"
-      @close="handleClose"
+      @close="() => handleClose()"
     >
       <NForm label-placement="left" label-width="110px">
         <NTabs ref="tabsRef" :value="activeTab" type="line" animated @update:value="activateTab">
@@ -864,6 +890,12 @@ async function handleSubmit() {
             :user-agent-profiles="preferenceStore.config.userAgentProfiles"
             :user-agent-rules="preferenceStore.config.userAgentRules"
             :recent-user-agent-profile-ids="preferenceStore.config.recentUserAgentProfileIds"
+            :media-mode="activeTab === ADD_TASK_TYPE.URI ? form.media?.mode : undefined"
+            @update:media-mode="
+              (mode) => {
+                if (form.media) form.media.mode = mode
+              }
+            "
             @update:user-agent="onUserAgentInput"
             @select-user-agent-profile="selectUserAgentProfile"
           />
@@ -871,7 +903,7 @@ async function handleSubmit() {
       </NForm>
       <template #footer>
         <NSpace justify="end">
-          <NButton @click="handleClose">{{ t('app.cancel') }}</NButton>
+          <NButton @click="() => handleClose()">{{ t('app.cancel') }}</NButton>
           <NButton
             data-testid="submit-button"
             type="primary"
@@ -879,7 +911,7 @@ async function handleSubmit() {
             :disabled="!canSubmit"
             @click="handleSubmit"
           >
-            {{ submitLabel }}
+            {{ t('task.create') }}
           </NButton>
         </NSpace>
       </template>

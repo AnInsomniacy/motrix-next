@@ -11,5 +11,7 @@
   "notification.download-start-title": "Nedlasting startet",
   "notification.ed2k-complete-body": "Deler: %{task_name}",
   "notification.ed2k-complete-title": "ED2K-nedlasting fullført",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "Venter på valg av innhold",
+  "notification.selection-body": "%{task_name}"
 }

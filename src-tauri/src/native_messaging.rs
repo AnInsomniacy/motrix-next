@@ -5,7 +5,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use motrix_next_browser_launcher::{
+use rayburst_browser_launcher::{
     chromium_manifest_json, firefox_manifest_json, HOST_NAME, LAUNCHER_FILE_STEM,
 };
 use serde::Serialize;
@@ -32,7 +32,7 @@ impl ManifestDestination {
         #[cfg(windows)]
         let launcher = {
             let _ = launcher;
-            Path::new(r"..\..\motrix-next-browser-launcher.exe")
+            Path::new(r"..\..\rayburst-browser-launcher.exe")
         };
         let content = match self.kind {
             ManifestKind::Chromium => chromium_manifest_json(launcher),
@@ -690,7 +690,7 @@ mod tests {
     fn manifest_repair_is_idempotent() {
         let directory = tempfile::tempdir().expect("temporary directory");
         let manifest = directory.path().join("nested").join("manifest.json");
-        let content = br#"{"name":"com.motrix.next.browser"}"#;
+        let content = br#"{"name":"dev.aninsomniacy.rayburst.browser"}"#;
 
         assert!(write_if_changed(&manifest, content).expect("initial manifest write"));
         assert!(!write_if_changed(&manifest, content).expect("idempotent manifest check"));
@@ -726,7 +726,7 @@ mod tests {
 
     #[test]
     fn windows_resource_manifests_match_the_shared_contract() {
-        let relative_launcher = Path::new(r"..\..\motrix-next-browser-launcher.exe");
+        let relative_launcher = Path::new(r"..\..\rayburst-browser-launcher.exe");
         let expected_chromium: serde_json::Value = serde_json::from_slice(
             &chromium_manifest_json(relative_launcher).expect("Chromium contract"),
         )
@@ -767,9 +767,9 @@ mod tests {
         let failure = report.targets[0].error.as_ref().expect("contextual error");
         assert_eq!(failure.stage, "read_file");
         assert!(failure.os_code.is_some());
-        assert!(failure
-            .path
-            .ends_with("Google/Chrome/NativeMessagingHosts/com.motrix.next.browser.json"));
+        assert!(failure.path.ends_with(
+            "Google/Chrome/NativeMessagingHosts/dev.aninsomniacy.rayburst.browser.json"
+        ));
         for target in &report.targets[1..] {
             assert!(matches!(target.status, RegistrationStatus::Repaired));
         }

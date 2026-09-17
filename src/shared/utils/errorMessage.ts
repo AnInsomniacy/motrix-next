@@ -1,6 +1,8 @@
 /** @fileoverview User-facing error message normalization for unknown thrown values. */
 
 const TAURI_ERROR_LABELS: Record<string, string> = {
+  InvalidInput: 'Invalid input',
+  Conflict: 'Conflict',
   Store: 'Store error',
   Engine: 'Engine error',
   Io: 'IO error',
@@ -89,6 +91,10 @@ function normalizeMessage(value: unknown, options: ErrorMessageOptions): string 
     }
     const nested = normalizeMessage(nestedError, options)
     if (nested) return nested
+  }
+
+  if (isRecord(value.Rpc) && typeof value.Rpc.message === 'string') {
+    return `Aria2 Next error [${value.Rpc.code}]: ${value.Rpc.message}`
   }
 
   const torrentInspection = value.TorrentInspection

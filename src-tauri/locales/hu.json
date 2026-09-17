@@ -11,5 +11,7 @@
   "notification.download-start-title": "Letöltés elindult",
   "notification.ed2k-complete-body": "Megosztás: %{task_name}",
   "notification.ed2k-complete-title": "ED2K letöltés befejezve",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "Tartalomválasztásra vár",
+  "notification.selection-body": "%{task_name}"
 }

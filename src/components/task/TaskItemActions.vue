@@ -2,6 +2,7 @@
 /** @fileoverview Action buttons for individual task items. */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { canFinishMedia } from '@shared/utils/media'
 import { TASK_STATUS } from '@shared/constants'
 import { NIcon } from 'naive-ui'
 import MTooltip from '@/components/common/MTooltip.vue'
@@ -33,6 +34,7 @@ const emit = defineEmits<{
   retry: []
   redownload: []
   'finish-sharing': []
+  'finish-media': []
   delete: []
   'delete-record': []
   'copy-link': []
@@ -57,7 +59,12 @@ const actions = computed(() => {
   const lifecycle = getBtLifecycleState(props.task)
   const sharing = getTaskSharingState(props.task)
   let primary: ActionDef[]
-  if (lifecycle === 'selection') {
+  if (props.task.media?.state === 'awaiting-selection') {
+    primary = [
+      { key: 'select-content', icon: ListOutline, label: t('media.select-tracks'), event: 'resume', emphasis: true },
+      { key: 'delete', icon: CloseOutline, label: t('task.delete-task'), event: 'delete' },
+    ]
+  } else if (lifecycle === 'selection') {
     primary = [
       {
         key: 'select-files',
@@ -135,11 +142,15 @@ const actions = computed(() => {
     }
     primary = actionsMap[props.task.status] || []
   }
+  if (canFinishMedia(props.task))
+    primary.unshift({ key: 'finish-media', icon: StopCircleOutline, label: t('media.finish'), event: 'finish-media' })
   const primaryKeys = new Set(primary.map((a) => a.key))
 
   // Destructive actions (trash, delete) always go to the far right
   const destructiveKeys = new Set(['trash', 'delete'])
-  const leading = primary.filter((a) => !destructiveKeys.has(a.key))
+  const leading = primary.filter(
+    (a) => !destructiveKeys.has(a.key) && !(a.key === 'open' && props.task.media && props.task.status !== 'complete'),
+  )
   const trailing = primary.filter((a) => destructiveKeys.has(a.key))
 
   const common: ActionDef[] = [
@@ -168,6 +179,9 @@ function onAction(event: string) {
       break
     case 'redownload':
       emit('redownload')
+      break
+    case 'finish-media':
+      emit('finish-media')
       break
     case 'finish-sharing':
       emit('finish-sharing')
@@ -204,7 +218,7 @@ function onAction(event: string) {
     class="task-item-actions"
     :class="{ 'task-item-actions--compact': props.density === 'compact' }"
   >
-    <li v-for="(action, index) in actions" :key="index" class="task-item-action-slot">
+    <li v-for="action in actions" :key="action.key" class="task-item-action-slot">
       <MTooltip>
         <template #trigger>
           <button

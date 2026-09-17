@@ -42,7 +42,13 @@ function assertModeMatchesTask(task: Aria2Task, mode: TaskResubmissionMode): voi
 }
 
 async function readResubmissionOptions(task: Aria2Task, api: TaskResubmissionApi): Promise<Record<string, string>> {
-  const options: Record<string, string> = {}
+  const options: Record<string, string> = task.mediaOptions
+    ? Object.fromEntries(
+        Object.entries(changeKeysToCamelCase(task.mediaOptions)).filter(
+          (entry): entry is [string, string] => typeof entry[1] === 'string',
+        ),
+      )
+    : {}
   try {
     const original = await api.getOption({ gid: task.gid })
     for (const [key, value] of Object.entries(original)) {
@@ -123,6 +129,21 @@ export async function resubmitTask(
   const isBt = checkTaskIsBT(task)
   const options = await readResubmissionOptions(task, api)
   applyModeOptions(options, mode, isBt, magnetFileSelectionPolicy)
+  if (task.media) {
+    if (mode !== 'redownload') throw new Error('Media retries require the native retry operation')
+    const format = options.mediaFormat === 'mkv' ? 'mkv' : 'mp4'
+    const name =
+      task.files[0]?.path
+        .split(/[\\/]/)
+        .pop()
+        ?.replace(/\.[^.]*$/, '') || 'media'
+    options.out = `${name}.${format}`
+    options.mediaPauseAfterProbe = 'true'
+    // Representation IDs belong to one manifest inspection, never another task.
+    for (const key of ['mediaVideo', 'mediaAudio', 'mediaSubtitles']) {
+      if (task.media.tracks.some((track) => track.id === options[key])) options[key] = 'best'
+    }
+  }
 
   const createdGids: string[] = []
   try {

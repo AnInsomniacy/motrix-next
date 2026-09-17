@@ -1,13 +1,13 @@
 //! Native Aria2 Next WebSocket lifecycle integration.
 
 use super::monitor::{self, events};
-use crate::aria2::client::Aria2Client;
 use crate::error::AppError;
+use crate::services::tasks::TaskService;
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tokio::sync::watch;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
@@ -92,7 +92,7 @@ impl Aria2EventState {
 
 pub fn spawn_aria2_event_listener(
     app: tauri::AppHandle,
-    aria2: Arc<Aria2Client>,
+    aria2: Arc<TaskService>,
 ) -> Aria2EventHandle {
     let (stop_tx, stop_rx) = watch::channel(false);
     tokio::spawn(async move {
@@ -103,7 +103,7 @@ pub fn spawn_aria2_event_listener(
 
 async fn event_loop(
     app: tauri::AppHandle,
-    aria2: Arc<Aria2Client>,
+    aria2: Arc<TaskService>,
     mut stop_rx: watch::Receiver<bool>,
 ) {
     loop {
@@ -159,7 +159,7 @@ async fn event_loop(
 
 async fn receive_events(
     app: &tauri::AppHandle,
-    aria2: &Aria2Client,
+    aria2: &TaskService,
     socket: &mut WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>,
     stop_rx: &mut watch::Receiver<bool>,
 ) -> bool {
@@ -189,12 +189,62 @@ async fn receive_events(
 
 async fn handle_native_event(
     app: &tauri::AppHandle,
-    aria2: &Aria2Client,
+    aria2: &TaskService,
     event: NativeEvent,
 ) -> Result<(), AppError> {
+    if aria2.tasks.is_internal(&event.gid).await {
+        if let Some(name) = event.kind.lifecycle_event() {
+            if let Some(state) = app.try_state::<super::media::MediaState>() {
+                if let Some(service) = state.0.get() {
+                    service
+                        .defer_event(name, aria2.tell_status(&event.gid).await?)
+                        .await;
+                }
+            }
+        }
+        return Ok(());
+    }
+    if event.kind == NativeEventKind::DownloadPause && aria2.tasks.is_automatic(&event.gid).await {
+        return Ok(());
+    }
     if event.kind == NativeEventKind::DownloadPause {
-        if let Err(error) = app.emit(DOWNLOAD_PAUSE, DownloadPauseEvent { gid: event.gid }) {
+        if let Err(error) = app.emit(
+            DOWNLOAD_PAUSE,
+            DownloadPauseEvent {
+                gid: event.gid.clone(),
+            },
+        ) {
             log::warn!("aria2_events: failed to emit download pause: {error}");
+        }
+        let foreground = app
+            .get_webview_window("main")
+            .is_some_and(|window| window.is_focused().unwrap_or(false));
+        if !foreground {
+            let task = aria2.tell_status(&event.gid).await?;
+            if task
+                .media
+                .as_ref()
+                .is_some_and(|media| media.state == "awaiting-selection")
+            {
+                let config = match app.try_state::<super::config::RuntimeConfigState>() {
+                    Some(state) => state.snapshot().await,
+                    None => super::config::RuntimeConfig::default(),
+                };
+                if config.task_notification {
+                    let locale = crate::i18n::resolve_preferred_locale(&config.locale);
+                    let name = monitor::TaskEvent::from_aria2(&task).name;
+                    super::notification::send_app_notification(
+                        app,
+                        &rust_i18n::t!("notification.selection-title", locale = &locale),
+                        &rust_i18n::t!(
+                            "notification.selection-body",
+                            locale = &locale,
+                            task_name = name
+                        ),
+                    )
+                    .await?;
+                }
+            }
         }
         return Ok(());
     }
@@ -217,7 +267,7 @@ async fn authorize_socket(
     };
     let request = serde_json::json!({
         "jsonrpc": "2.0",
-        "id": "motrix-next-events-auth",
+        "id": "rayburst-events-auth",
         "method": "aria2.getVersion",
         "params": params,
     });
@@ -317,7 +367,7 @@ mod tests {
         );
         assert_eq!(
             native_event_from_text(
-                r#"{"jsonrpc":"2.0","id":"motrix-next-events-auth","result":{"version":"2.6.1"}}"#
+                r#"{"jsonrpc":"2.0","id":"rayburst-events-auth","result":{"version":"2.6.1"}}"#
             ),
             None
         );

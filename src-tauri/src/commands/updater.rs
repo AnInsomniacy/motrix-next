@@ -9,9 +9,9 @@ use tauri_plugin_updater::UpdaterExt;
 use tokio::sync::{Mutex, Notify};
 use url::Url;
 
-/// Base URL for update JSON files on the fixed `updater` GitHub Release tag.
+/// Base URL for update JSON files on the fixed `rayburst-updater` GitHub Release tag.
 const UPDATER_BASE_URL: &str =
-    "https://github.com/AnInsomniacy/motrix-next/releases/download/updater";
+    "https://github.com/AnInsomniacy/rayburst/releases/download/rayburst-updater";
 
 /// Serializable update metadata returned to the frontend.
 #[derive(Debug, Clone, Serialize)]
@@ -285,6 +285,19 @@ fn build_updater(
     channel: ReleaseChannel,
     proxy: &Option<String>,
 ) -> Result<tauri_plugin_updater::Updater, AppError> {
+    if app
+        .config()
+        .plugins
+        .0
+        .get("updater")
+        .and_then(|config| config.get("pubkey"))
+        .and_then(serde_json::Value::as_str)
+        .is_none_or(str::is_empty)
+    {
+        return Err(AppError::Updater(
+            "Rayburst update signing is not configured".into(),
+        ));
+    }
     let endpoint =
         Url::parse(&endpoint_for_channel(channel)).map_err(|e| AppError::Updater(e.to_string()))?;
 

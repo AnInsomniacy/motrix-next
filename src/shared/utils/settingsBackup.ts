@@ -1,7 +1,7 @@
 import { hydrateAppConfig } from '@shared/utils/configHydration'
 import type { AppConfig } from '@shared/types'
 
-export const SETTINGS_BACKUP_FORMAT = 'motrix-next-settings'
+export const SETTINGS_BACKUP_FORMAT = 'rayburst-settings'
 export const SETTINGS_BACKUP_VERSION = 1
 
 export interface SettingsBackupFile {

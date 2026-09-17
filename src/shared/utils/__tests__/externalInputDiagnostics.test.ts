@@ -8,34 +8,13 @@ import {
 } from '../externalInputDiagnostics'
 
 describe('externalInputDiagnostics', () => {
-  it('summarizes motrixnext deep-links without leaking cookie or query values', () => {
-    const summary = summarizeExternalInput(
-      'motrixnext://new?url=https%3A%2F%2Fexample.com%2Fdownload%2Ffile.zip%3Ftoken%3Dsecret-token&cookie=session%3Dsecret-cookie&filename=file.zip',
-    )
-
-    expect(summary).toContain('scheme=motrixnext')
-    expect(summary).toContain('target=scheme=https host=example.com ext=zip hasQuery=true')
-    expect(summary).toContain('hasCookie=true')
-    expect(summary).not.toContain('secret-token')
-    expect(summary).not.toContain('secret-cookie')
-  })
-
-  it('summarizes batches with counts and first-input metadata only', () => {
-    const fields = summarizeExternalInputBatch([
-      'motrixnext://new?url=https%3A%2F%2Fexample.com%2Ffile.zip&cookie=session%3Dsecret-cookie',
-    ])
-
-    expect(fields.count).toBe(1)
-    expect(fields.hasNewTask).toBe(true)
-    expect(fields.hasCookie).toBe(true)
-    expect(String(fields.first)).not.toContain('secret-cookie')
-  })
-
-  it('uses the same new-task detection for single-slash Motrix deep links', () => {
-    const fields = summarizeExternalInputBatch(['motrixnext:/new?url=https%3A%2F%2Fexample.com%2Ffile.zip'])
-
-    expect(fields.hasNewTask).toBe(true)
-    expect(String(fields.first)).toContain('action=new')
+  it('summarizes URLs without disclosing query credentials', () => {
+    const summary = summarizeExternalInput('https://example.com/file.zip?token=private-token')
+    expect(summary).toContain('scheme=https host=example.com ext=zip hasQuery=true')
+    expect(summary).not.toContain('private-token')
+    const batch = summarizeExternalInputBatch(['https://example.com/file.zip?cookie=private-cookie'])
+    expect(batch.count).toBe(1)
+    expect(String(batch.first)).not.toContain('private-cookie')
   })
 
   it('summarizes forwarded browser headers without logging values', () => {

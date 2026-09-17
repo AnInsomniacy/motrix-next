@@ -1,5 +1,5 @@
 /**
- * @fileoverview Lightweight i18n engine for the Motrix Next website.
+ * @fileoverview Locale loading and DOM translations for the Rayburst website.
  *
  * Architecture:
  *   1. Detect language: URL hash (#lang=xx) > localStorage > navigator.languages > en-US
@@ -8,7 +8,7 @@
  *   4. Handle interpolation: {variable} placeholders
  *   5. RTL support for Arabic and Persian
  *
- * Zero dependencies. ~90 lines.
+ * Zero dependencies.
  */
 
 const SUPPORTED_LOCALES = [
@@ -74,7 +74,7 @@ const LOCALE_NAMES = {
 
 const RTL_LOCALES = ['ar', 'fa']
 const FALLBACK = 'en-US'
-const STORAGE_KEY = 'motrix-website-lang'
+const STORAGE_KEY = 'rayburst-website-lang'
 
 let currentLocale = FALLBACK
 let detectedSystemLocale = null
@@ -108,7 +108,12 @@ function detectLocale() {
     if (resolved) return resolved
   }
   // 2. localStorage
-  const stored = localStorage.getItem(STORAGE_KEY)
+  let stored
+  try {
+    stored = localStorage.getItem(STORAGE_KEY)
+  } catch {
+    // Language detection does not require persistent storage.
+  }
   if (stored && SUPPORTED_LOCALES.includes(stored)) return stored
   // 3. navigator.languages (preferred over navigator.language)
   //    On Windows + Chromium, navigator.language returns the *browser UI*
@@ -125,11 +130,15 @@ function detectLocale() {
 }
 
 /** Fetch a locale JSON file. Returns parsed object or empty on failure. */
-async function fetchLocale(locale) {
+async function fetchLocale(locale, signal = AbortSignal.timeout(8000)) {
   try {
-    const res = await fetch(new URL(`locales/${locale}.json`, document.baseURI))
+    const res = await fetch(new URL(`locales/${locale}.json`, document.baseURI), {
+      signal,
+    })
     if (!res.ok) return {}
-    return await res.json()
+    const data = await res.json()
+    if (!data || Array.isArray(data) || typeof data !== 'object') return {}
+    return Object.fromEntries(Object.entries(data).filter(([, value]) => typeof value === 'string'))
   } catch {
     return {}
   }
@@ -151,21 +160,22 @@ function t(key, vars) {
 function applyTranslations() {
   document.querySelectorAll('[data-i18n]').forEach((el) => {
     const key = el.getAttribute('data-i18n')
-    if (key) el.textContent = t(key)
+    if (key && (key in messages || key in fallbackMessages)) el.textContent = t(key)
   })
   // HTML interpolation variables — keeps locale files free of markup
   const HTML_VARS = {
-    link: '<a href="https://github.com/agalwood/Motrix" target="_blank" rel="noopener">Motrix</a>',
     aria2Next: '<a href="https://github.com/AnInsomniacy/aria2-next" target="_blank" rel="noopener">Aria2 Next</a>',
   }
   document.querySelectorAll('[data-i18n-html]').forEach((el) => {
     const key = el.getAttribute('data-i18n-html')
-    if (key) el.innerHTML = t(key, HTML_VARS)
+    if (key && (key in messages || key in fallbackMessages)) el.innerHTML = t(key, HTML_VARS)
   })
-  document.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
-    const key = el.getAttribute('data-i18n-placeholder')
-    if (key) el.placeholder = t(key)
-  })
+  for (const attribute of ['alt', 'aria-label']) {
+    document.querySelectorAll(`[data-i18n-${attribute}]`).forEach((el) => {
+      const key = el.getAttribute(`data-i18n-${attribute}`)
+      if (key && (key in messages || key in fallbackMessages)) el.setAttribute(attribute, t(key))
+    })
+  }
 
   // Update HTML lang and dir attributes
   document.documentElement.lang = currentLocale
@@ -184,7 +194,7 @@ function applyTranslations() {
   const sysHint = document.getElementById('lang-system-hint')
   if (sysHint && detectedSystemLocale) {
     const sysName = LOCALE_NAMES[detectedSystemLocale] || detectedSystemLocale
-    sysHint.textContent = 'System: ' + sysName
+    sysHint.textContent = `${t('theme.system')}: ${sysName}`
     sysHint.dataset.lang = detectedSystemLocale
     sysHint.style.display = ''
     const sysSep = document.getElementById('lang-system-sep')
@@ -238,19 +248,26 @@ function onLocaleChange(cb) {
 
 /** Initialize i18n: detect language, load messages, render. */
 async function initI18n() {
-  // Detect and remember the system locale (before checking localStorage/hash)
-  detectedSystemLocale = resolveLocale(navigator.language) || FALLBACK
-  currentLocale = detectLocale()
-  // Always load fallback for missing keys
-  fallbackMessages = await fetchLocale(FALLBACK)
-  if (currentLocale !== FALLBACK) {
-    messages = await fetchLocale(currentLocale)
-  } else {
-    messages = fallbackMessages
+  const boot = window.localeBoot
+  try {
+    detectedSystemLocale = resolveLocale(navigator.language) || FALLBACK
+    const locale = detectLocale()
+    const fallback = fetchLocale(FALLBACK, boot.signal)
+    const selected = locale === FALLBACK ? fallback : fetchLocale(locale, boot.signal)
+    const [english, localized] = await Promise.all([fallback, selected])
+    // A timed-out page has already revealed its static English content.
+    if (boot.finished) return
+    fallbackMessages = english
+    messages = localized
+    currentLocale = Object.keys(localized).length ? locale : FALLBACK
+    applyTranslations()
+    for (const cb of localeChangeCallbacks) cb()
+  } finally {
+    boot.finish()
   }
-  applyTranslations()
-  for (const cb of localeChangeCallbacks) cb()
 }
 
 // Expose globally for inline usage
 window.i18n = { t, setLocale, onLocaleChange, currentLocale: () => currentLocale, SUPPORTED_LOCALES }
+// Locale readiness owns first paint; GitHub requests and other UI code never gate it.
+window.i18n.ready = initI18n()

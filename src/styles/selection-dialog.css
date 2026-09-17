@@ -1,0 +1,48 @@
+/* Stable geometry across asynchronous loading, selection and error states. */
+.selection-dialog {
+  width: min(640px, calc(100vw - 32px));
+  height: min(520px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+}
+.selection-dialog--media {
+  width: min(560px, calc(100vw - 32px));
+}
+.selection-summary {
+  min-height: 52px;
+  margin-bottom: 16px;
+}
+.selection-name {
+  min-height: 22px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.selection-meta {
+  min-height: 18px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--m3-on-surface-variant);
+}
+.selection-loading {
+  min-height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--m3-on-surface-variant);
+}
+.selection-error {
+  margin-bottom: 16px;
+}
+.selection-content-enter-active {
+  transition: opacity var(--task-motion-enter) var(--task-motion-ease);
+}
+.selection-content-leave-active {
+  transition: opacity var(--task-motion-leave) var(--task-motion-ease);
+}
+.selection-content-enter-from,
+.selection-content-leave-to {
+  opacity: 0;
+}

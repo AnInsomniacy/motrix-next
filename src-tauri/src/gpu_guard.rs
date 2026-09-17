@@ -1,7 +1,7 @@
 //! Linux WebKitGTK GPU rendering guard.
 //!
 //! WebKitGTK hardware rendering can crash on some GPU, driver, and Wayland
-//! compositor combinations. Motrix Next defaults Linux to software compositing
+//! compositor combinations. Rayburst defaults Linux to software compositing
 //! for stability and lets users opt into hardware rendering from Advanced
 //! preferences.
 
@@ -9,7 +9,7 @@
 use std::io::Write;
 
 #[cfg(any(target_os = "linux", test))]
-const SELF_SET_MARKER: &str = "_MOTRIX_WEBKIT_RENDERING_SELF_SET";
+const SELF_SET_MARKER: &str = "_RAYBURST_WEBKIT_RENDERING_SELF_SET";
 
 pub const WEBKIT_DISABLE_DMABUF_RENDERER: &str = "WEBKIT_DISABLE_DMABUF_RENDERER";
 
@@ -17,16 +17,16 @@ pub const WEBKIT_DISABLE_COMPOSITING_MODE: &str = "WEBKIT_DISABLE_COMPOSITING_MO
 
 #[cfg(any(target_os = "linux", test))]
 fn data_dir() -> Option<std::path::PathBuf> {
-    dirs::data_dir().map(|d| d.join("com.motrix.next"))
+    dirs::data_dir().map(|d| d.join(crate::APP_ID))
 }
 
 #[cfg(target_os = "linux")]
 fn guard_log(message: &str) {
-    eprintln!("[motrix-next] {message}");
+    eprintln!("[rayburst] {message}");
     if let Some(dir) = data_dir() {
         let log_dir = dir.join("logs");
         let _ = std::fs::create_dir_all(&log_dir);
-        let log_path = log_dir.join("motrix-next.log");
+        let log_path = log_dir.join("rayburst.log");
         let timestamp = chrono::Local::now().format("%Y-%m-%d][%H:%M:%S");
         if let Ok(mut file) = std::fs::OpenOptions::new()
             .create(true)
@@ -137,7 +137,7 @@ mod tests {
 
     fn test_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir()
-            .join("motrix-gpu-guard-tests")
+            .join("rayburst-gpu-guard-tests")
             .join(name);
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).expect("create test dir");
@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn self_set_marker_is_stable_value() {
-        assert_eq!(SELF_SET_MARKER, "_MOTRIX_WEBKIT_RENDERING_SELF_SET");
+        assert_eq!(SELF_SET_MARKER, "_RAYBURST_WEBKIT_RENDERING_SELF_SET");
     }
 
     #[test]
@@ -235,8 +235,8 @@ mod tests {
     fn data_dir_ends_with_app_identifier() {
         let dir = data_dir().expect("data_dir must resolve");
         assert!(
-            dir.ends_with("com.motrix.next"),
-            "data_dir must end with com.motrix.next, got: {:?}",
+            dir.ends_with("dev.aninsomniacy.rayburst"),
+            "data_dir must end with dev.aninsomniacy.rayburst, got: {:?}",
             dir
         );
     }

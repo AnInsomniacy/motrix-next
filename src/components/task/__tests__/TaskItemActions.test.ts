@@ -47,6 +47,51 @@ function mountActions(task: Aria2Task) {
 }
 
 describe('TaskItemActions', () => {
+  it('opens native media selection instead of resuming unresolved tracks', async () => {
+    const wrapper = mountActions(
+      makeTask('paused', {
+        media: {
+          state: 'awaiting-selection',
+          protocol: 'hls',
+          live: 'true',
+          duration: '0',
+          completedDuration: '0',
+          downloadedLength: '0',
+          lengthKnown: 'false',
+          error: '',
+          tracks: [],
+        },
+      }),
+    )
+    await wrapper.find('[aria-label="media.select-tracks"]').trigger('click')
+    expect(wrapper.emitted('resume')).toBeTruthy()
+    expect(wrapper.emitted('show-info')).toBeFalsy()
+    expect(wrapper.find('[aria-label="media.select-tracks"]').text()).toBe('')
+    expect(wrapper.find('[aria-label="task.resume-task"]').exists()).toBe(false)
+  })
+
+  it('resumes a paused recording directly and does not offer missing output on failure', async () => {
+    const media = {
+      state: 'paused' as const,
+      protocol: 'hls' as const,
+      live: 'true' as const,
+      duration: '0',
+      completedDuration: '12000',
+      downloadedLength: '1024',
+      lengthKnown: 'false' as const,
+      error: '',
+      tracks: [],
+    }
+    const paused = mountActions(makeTask('paused', { media }))
+    await paused.find('[aria-label="task.resume-task"]').trigger('click')
+    expect(paused.emitted('resume')).toBeTruthy()
+    await paused.find('[aria-label="media.finish"]').trigger('click')
+    expect(paused.emitted('finish-media')).toBeTruthy()
+    const failed = mountActions(makeTask('error', { media: { ...media, state: 'error' } }))
+    expect(failed.find('[aria-label="task.open-file"]').exists()).toBe(false)
+    expect(failed.find('[aria-label="task.retry-task"]').exists()).toBe(true)
+  })
+
   it('renders standard pause and resume actions', async () => {
     const active = mountActions(makeTask('active'))
     await active.find('[aria-label="task.pause-task"]').trigger('click')

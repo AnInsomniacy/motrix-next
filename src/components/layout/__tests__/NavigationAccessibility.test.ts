@@ -97,8 +97,9 @@ describe('keyboard-accessible navigation', () => {
     const wrapper = mount(AsideBar)
 
     expect(wrapper.find('.logo-mini a').exists()).toBe(false)
-    expect(wrapper.find('.logo-mini').text()).toContain('NEXT')
-    expect(wrapper.html()).not.toContain('github.com/AnInsomniacy/motrix-next')
+    expect(wrapper.find('.logo-mark').attributes('aria-label')).toBe('Rayburst')
+    expect(wrapper.find('.logo-mini img').attributes('src')).toBe('/logo.svg')
+    expect(wrapper.html()).not.toContain('github.com/AnInsomniacy/rayburst')
   })
 
   it('renders TaskSubnav routes as buttons and marks the active route', async () => {

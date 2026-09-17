@@ -22,11 +22,15 @@ vi.mock('@shared/logger', () => ({
   },
 }))
 
-vi.mock('naive-ui', () => ({
-  NProgress: { template: '<div class="progress-stub" />' },
-  NIcon: { template: '<span><slot /></span>' },
-  NTooltip: { template: '<span><slot name="trigger" /><slot /></span>' },
-}))
+vi.mock('naive-ui', async (importOriginal) => {
+  const { NEllipsis } = await importOriginal<typeof import('naive-ui')>()
+  return {
+    NEllipsis,
+    NProgress: { template: '<div class="progress-stub" />' },
+    NIcon: { template: '<span><slot /></span>' },
+    NTooltip: { template: '<span><slot name="trigger" /><slot /></span>' },
+  }
+})
 
 vi.mock('@vicons/ionicons5', () => ({
   ArrowUpOutline: { template: '<i />' },
@@ -192,7 +196,50 @@ describe('TaskItem', () => {
     const compact = mount(TaskCompactItem, { props: { task } })
 
     expect(full.find('.progress-left').text()).toContain('25%')
-    expect(compact.find('.compact-meta').text()).toContain('25%')
+    expect(compact.get('.compact-percent').text()).toBe('25%')
+  })
+
+  it('keeps compact progress mounted while transfer metadata changes', async () => {
+    const task = {
+      ...createTask('/downloads/active.bin'),
+      status: 'active',
+      totalLength: '104857600',
+      completedLength: '1048576',
+      downloadSpeed: '1048576',
+      bittorrent: undefined,
+    } satisfies Aria2Task
+    const wrapper = mount(TaskCompactItem, { props: { task } })
+    const progress = wrapper.get('.compact-progress').element
+    const surface = wrapper.get('.task-compact-item').element
+    // Layout styles must survive the real ellipsis/tooltip rendering boundary.
+    for (const scope of surface.getAttributeNames().filter((name) => name.startsWith('data-v-'))) {
+      expect(wrapper.get('.compact-meta').element.hasAttribute(scope)).toBe(true)
+    }
+
+    expect(wrapper.get('.compact-meta').text()).toContain('1.00 MB / 100.00 MB')
+    expect(wrapper.findAll('.compact-speed')).toHaveLength(1)
+    expect(wrapper.get('.compact-percent').element.previousElementSibling).toBe(progress)
+    expect(wrapper.get('.compact-meta').text()).not.toContain('%')
+
+    await wrapper.setProps({
+      task: {
+        ...task,
+        completedLength: '104857600',
+        downloadSpeed: '0',
+        uploadSpeed: '10485760',
+        seeder: 'true',
+        bittorrent: { state: 'seeding', info: { name: 'archive.zip' } },
+      },
+    })
+
+    expect(wrapper.get('.compact-progress').element).toBe(progress)
+    expect(wrapper.get('.compact-progress').attributes('percentage')).toBe('100')
+    expect(wrapper.get('.compact-percent').text()).toBe('100%')
+    expect(wrapper.get('.compact-meta').text()).toContain('100.00 MB / 100.00 MB')
+    expect(wrapper.get('.compact-status').text()).toBe('task.seeding')
+    expect(wrapper.findAll('.compact-speed')).toHaveLength(2)
+    expect(wrapper.get('.compact-meta').text()).toContain('10.0 MB/s')
+    wrapper.unmount()
   })
 
   it('does not show a status tag for paused tasks', () => {

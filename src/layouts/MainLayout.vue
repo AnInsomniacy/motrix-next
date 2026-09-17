@@ -13,20 +13,14 @@ import { isMetadataTask, updateHistoryFilePath } from '@/composables/useTaskLife
 import { setArchivedPath, resolveTaskFilePath, requestFileRecheck } from '@/composables/useArchivedPaths'
 import { handleTaskComplete, handleP2pDownloadComplete, handleTaskError } from '@/composables/useTaskNotifyHandlers'
 import { shouldDeleteTorrent, trashTorrentFile } from '@/composables/useDownloadCleanup'
-import { getTaskDisplayName, resolveOpenTarget, checkTaskIsSharing, getTaskSharingKind } from '@shared/utils'
+import { getTaskName, resolveOpenTarget, checkTaskIsSharing, getTaskSharingKind } from '@shared/utils'
 import type { TaskSharingKind } from '@shared/utils/task'
-import type { Aria2Task, BtFileSelectionItem } from '@shared/types'
+import type { Aria2Task } from '@shared/types'
 import { ARIA2_ERROR_CODES } from '@shared/aria2ErrorCodes'
 import { useHistoryStore } from '@/stores/history'
 import { useDatabaseStore } from '@/stores/database'
 import { useDatabaseReset } from '@/composables/useDatabaseReset'
-import { buildSelectFileOption, isPendingMagnetSelectionTask } from '@/composables/useMagnetFlow'
-import type { MagnetSelectionSubmission } from '@/composables/useMagnetFlow'
-import {
-  createMagnetMetadataResolver,
-  listenForAria2DownloadPause,
-  type MagnetMetadataState,
-} from '@/composables/useMagnetMetadataEvents'
+import { useBtSelection } from '@/composables/useBtSelection'
 import aria2Api from '@/api/aria2'
 import { usePlatform } from '@/composables/usePlatform'
 import { throttledResizeHandler, cancelPendingResize } from '@/layouts/resizeThrottle'
@@ -39,7 +33,7 @@ import EngineRecoveryDialog from '@/components/layout/EngineRecoveryDialog.vue'
 import AboutPanel from '@/components/about/AboutPanel.vue'
 import AddTask from '@/components/task/AddTask.vue'
 import UpdateDialog from '@/components/preference/UpdateDialog.vue'
-import MagnetFileSelect from '@/components/task/MagnetFileSelect.vue'
+import TaskSelectionHost from '@/components/task/TaskSelectionHost.vue'
 import { useTaskStore } from '@/stores/task'
 import { usePreferenceStore } from '@/stores/preference'
 import { useAppMessage } from '@/composables/useAppMessage'
@@ -47,18 +41,14 @@ import { NModal, NButton, NCheckbox, NProgress, NPagination, useDialog } from 'n
 
 import { useAppEvents } from '@/composables/useAppEvents'
 import { loadAddedAtFromRecords } from '@/composables/useTaskOrder'
-import { normalizeSep, resolveArchiveAction } from '@shared/utils/autoArchive'
-import { resolveFileSetCategory } from '@shared/utils/fileCategory'
-
-interface MagnetSelectionSession {
-  gid: string
-}
+import { resolveArchiveAction } from '@shared/utils/autoArchive'
 
 const { t } = useI18n()
 const route = useRoute()
 const appStore = useAppStore()
 const engineStore = useEngineStore()
 const taskStore = useTaskStore()
+const btSelection = useBtSelection()
 const preferenceStore = usePreferenceStore()
 const navDialog = useDialog()
 const message = useAppMessage()
@@ -82,7 +72,7 @@ const isExiting = ref(false)
 const rememberChoice = ref(false)
 const pendingTrayHide = ref(false)
 const isMaximized = ref(false)
-const { platform: currentPlatform, isMac, isWindows } = usePlatform()
+const { platform: currentPlatform, isMac } = usePlatform()
 const taskPaginationTab = computed(() => taskStore.currentList)
 const taskPaginationPage = computed(() => taskStore.taskPagination[taskPaginationTab.value].page)
 const taskPaginationPageSize = computed(() => taskStore.taskPagination.pageSize)
@@ -132,7 +122,6 @@ let unlistenExitDialog: (() => void) | null = null
 let unlistenStat: (() => void) | null = null
 let unlistenTaskMonitor: Array<() => void> = []
 let unlistenAria2DownloadPause: (() => void) | null = null
-let stopAutomaticMagnetPromptWatch: (() => void) | null = null
 let unlistenFocusRecheck: (() => void) | null = null
 let unlistenAppToast: (() => void) | null = null
 
@@ -207,14 +196,13 @@ async function showInFolderFromNotification(task: Aria2Task) {
   }
 }
 
-// ── Magnet file selection state (app-level) ─────────────────────────
-const magnetSelectVisible = ref(false)
-const magnetSelectFiles = ref<BtFileSelectionItem[]>([])
-const magnetSelectionSession = ref<MagnetSelectionSession | null>(null)
-const magnetSelectName = ref('')
-const magnetSelectSubmission = ref<MagnetSelectionSubmission>(null)
-const magnetSelectClosing = ref(false)
-const deferredMagnetGids = ref<string[]>([])
+const addTaskClosing = ref(false)
+watch(
+  () => appStore.addTaskVisible,
+  (visible, previous) => {
+    if (!visible && previous) addTaskClosing.value = true
+  },
+)
 
 const { setupListeners } = useAppEvents({
   t,
@@ -249,46 +237,6 @@ function stopAppToastListener() {
   unlistenAppToast = null
 }
 
-// ── Config migration toast ──────────────────────────────────────────
-watch(
-  () => preferenceStore.migrationResult,
-  (result) => {
-    if (!result?.migrated) return
-    const v = `v${result.targetVersion}`
-    if (result.errors.length === 0) {
-      message.success(t('app.migration-success', { version: v }))
-    } else {
-      message.warning(t('app.migration-incomplete', { version: v }))
-    }
-    preferenceStore.migrationResult = null
-  },
-  { immediate: true },
-)
-
-// ── DB schema migration toast ───────────────────────────────────────
-// Uses the same reactive pattern as config migration toast above.
-// loadPreference() sets dbUpgradeVersion only for saved preferences.
-// Fresh installs use CURRENT_DB_SCHEMA_VERSION from DEFAULT_APP_CONFIG,
-// so their first persisted config does not trigger a false upgrade toast.
-watch(
-  () => preferenceStore.dbUpgradeVersion,
-  async (savedDbVersion) => {
-    if (savedDbVersion === null) return
-    try {
-      const historyStore = useHistoryStore()
-      const currentDbVersion = await historyStore.getSchemaVersion()
-      if (savedDbVersion < currentDbVersion) {
-        message.info(t('app.db-upgraded', { version: `v${currentDbVersion}` }))
-        await preferenceStore.updateAndSave({ dbSchemaVersion: currentDbVersion })
-      }
-    } catch (e) {
-      logger.debug('DbMigration.toast', e)
-    }
-    preferenceStore.dbUpgradeVersion = null
-  },
-  { immediate: true },
-)
-
 // ── Stat listener — passive subscription to Rust stat_service events ──
 // Replaces the old frontend polling loop. Rust is the sole poller of aria2;
 // the frontend simply listens for `stat:update` and updates reactive state.
@@ -303,190 +251,30 @@ function stopStatListener() {
   unlistenStat = null
 }
 
-// ── Magnet metadata monitoring (app-level) ──────────────────────────
-
-const magnetMetadataResolver = createMagnetMetadataResolver(magnetMetadataDeps)
-
+// Native pause events refresh the same snapshot used by the selection queue.
 async function startAria2DownloadPauseListener() {
   stopAria2DownloadPauseListener()
-  unlistenAria2DownloadPause = await listenForAria2DownloadPause(async (gid) => {
-    if (await applyAutomaticMagnetClassification(gid)) return
-    if (appStore.automaticMagnetPromptGids.includes(gid)) return magnetMetadataResolver.request(gid)
+  unlistenAria2DownloadPause = await listen<{ gid: string }>('aria2-event:download-pause', async ({ payload }) => {
+    try {
+      await btSelection.classifyPending(payload.gid)
+    } catch (error) {
+      logger.error('BtSelection.classify', error)
+      message.error(t('task.magnet-select-fail'))
+    }
+    await taskStore.fetchList()
   })
 }
-
 function stopAria2DownloadPauseListener() {
   unlistenAria2DownloadPause?.()
   unlistenAria2DownloadPause = null
 }
 
-function magnetMetadataDeps() {
-  const state: MagnetMetadataState = {
-    get pendingGids() {
-      return appStore.pendingMagnetGids
-    },
-    set pendingGids(value) {
-      appStore.replacePendingMagnetSelections(value)
-    },
-    get deferredGids() {
-      return deferredMagnetGids.value
-    },
-    set deferredGids(value) {
-      deferredMagnetGids.value = value
-    },
-    get visible() {
-      return magnetSelectVisible.value
-    },
-    set visible(value) {
-      magnetSelectVisible.value = value
-    },
-    get files() {
-      return magnetSelectFiles.value
-    },
-    set files(value) {
-      magnetSelectFiles.value = value
-    },
-    get session() {
-      return magnetSelectionSession.value
-    },
-    set session(value) {
-      magnetSelectionSession.value = value
-    },
-    get name() {
-      return magnetSelectName.value
-    },
-    set name(value) {
-      magnetSelectName.value = value
-    },
-  }
-  return {
-    state,
-    fetchTaskStatus: taskStore.fetchTaskStatus,
-    fetchPendingTasks: () => aria2Api.fetchTaskList({ type: 'active' }),
-    getFiles: taskStore.getFiles,
-    fallbackName: () => t('task.magnet-task'),
-  }
-}
-
-function clearPendingMagnetSelection(gid: string) {
-  appStore.clearMagnetSelections([gid])
-  deferredMagnetGids.value = deferredMagnetGids.value.filter((candidate) => candidate !== gid)
-}
-
-function resolveMagnetCategoryDirectory(
-  task: Aria2Task,
-  files: readonly { path: string; length: number }[],
-): string | undefined {
-  const config = preferenceStore.config
-  if (!config.fileCategoryEnabled || config.fileCategories.length === 0) return undefined
-  const normalizeDirectory = (directory: string) => {
-    const normalized = normalizeSep(directory).replace(/\/+$/, '')
-    return isWindows.value ? normalized.toLowerCase() : normalized
-  }
-  if (normalizeDirectory(task.dir) !== normalizeDirectory(config.dir)) return undefined
-
-  return resolveFileSetCategory(
-    files.filter((file) => file.length > 0).map((file) => ({ path: file.path })),
-    config.fileCategories,
-    { urls: [task.bittorrent?.magnetLink ?? ''] },
-  )?.directory
-}
-
-async function applyAutomaticMagnetClassification(gid: string): Promise<boolean> {
-  const config = preferenceStore.config
-  if (config.magnetFileSelectionPolicy !== 'download-all' || !config.fileCategoryEnabled) return false
-
-  try {
-    const task = await taskStore.fetchTaskStatus(gid)
-    if (!isPendingMagnetSelectionTask(task)) return false
-
-    const files = await taskStore.getFiles(gid)
-    const selectedFiles = files
-      .filter((file) => Number(file.length) > 0)
-      .map((file) => ({ index: Number(file.index), path: file.path, length: Number(file.length) }))
-    if (selectedFiles.length === 0) return false
-
-    const selectFile = buildSelectFileOption(selectedFiles.map((file) => file.index))
-    const targetDir = resolveMagnetCategoryDirectory(task, selectedFiles)
-    await taskStore.applyMagnetFileSelection(task, selectFile, targetDir)
-    clearPendingMagnetSelection(gid)
-    logger.info('MagnetCategory.apply', `gid=${gid} classified=${Boolean(targetDir)}`)
-    return true
-  } catch (error) {
-    logger.error('MagnetCategory.apply', error)
-    message.error(t('task.magnet-select-fail'))
-    return true
-  }
-}
-
-function openNextAutomaticMagnetSelection() {
-  if (magnetSelectVisible.value || magnetSelectClosing.value) return
-  const gid = appStore.automaticMagnetPromptGids.find(
-    (candidate) => appStore.pendingMagnetGids.includes(candidate) && !deferredMagnetGids.value.includes(candidate),
-  )
-  if (gid) void magnetMetadataResolver.request(gid)
-}
-
-async function handleMagnetConfirm(selectedIndices: number[]) {
-  if (magnetSelectSubmission.value !== null) return
-  const session = magnetSelectionSession.value
-  if (!session) return
-
-  magnetSelectSubmission.value = 'confirm'
-  try {
-    const selectFile = buildSelectFileOption(selectedIndices)
-    const task = await taskStore.fetchTaskStatus(session.gid)
-    const selected = new Set(selectedIndices)
-    const targetDir = resolveMagnetCategoryDirectory(
-      task,
-      magnetSelectFiles.value.filter((file) => selected.has(file.index)),
-    )
-    await taskStore.applyMagnetFileSelection(task, selectFile, targetDir)
-    clearPendingMagnetSelection(session.gid)
-    closeMagnetSelection()
-    message.success(t('task.magnet-files-selected') || 'Files selected, download starting')
-  } catch (e) {
-    logger.error('MainLayout.magnetConfirm', e)
-    message.error(t('task.magnet-select-fail') || 'Failed to configure download')
-  } finally {
-    magnetSelectSubmission.value = null
-  }
-}
-
-function closeMagnetSelection() {
-  magnetSelectClosing.value = true
-  magnetSelectVisible.value = false
-  magnetSelectionSession.value = null
-  magnetSelectFiles.value = []
-  magnetSelectName.value = ''
-}
-
-function handleMagnetDismiss() {
-  if (magnetSelectSubmission.value !== null) return
-  const gid = magnetSelectionSession.value?.gid
-  if (!gid) return
-  if (!deferredMagnetGids.value.includes(gid)) {
-    deferredMagnetGids.value = [...deferredMagnetGids.value, gid]
-  }
-  appStore.disableAutomaticMagnetPrompt(gid)
-  closeMagnetSelection()
-}
-
-function handleMagnetSelectAfterLeave() {
-  if (!magnetSelectClosing.value) return
-  magnetSelectClosing.value = false
-  openNextAutomaticMagnetSelection()
-}
-
 watch(
-  () => appStore.requestedMagnetSelectionGid,
-  (gid) => {
-    if (!gid) return
-    appStore.requestedMagnetSelectionGid = ''
-    deferredMagnetGids.value = deferredMagnetGids.value.filter((candidate) => candidate !== gid)
-    appStore.queueMagnetSelection(gid, false)
-    void magnetMetadataResolver.request(gid)
+  () => engineStore.isReady,
+  (ready) => {
+    if (ready) void taskStore.fetchList()
   },
+  { immediate: true },
 )
 
 /**
@@ -838,7 +626,7 @@ onMounted(async () => {
     if (sourcePath) {
       const ok = await trashTorrentFile(sourcePath)
       if (ok) {
-        const taskName = getTaskDisplayName(task)
+        const taskName = getTaskName(task)
         message.success(t('task.torrent-trashed', { taskName }))
       }
     }
@@ -869,12 +657,10 @@ onMounted(async () => {
   // file, the focus event bumps recheckTrigger so visible TaskItems
   // re-run check_path_exists.  Zero polling overhead.
   unlistenFocusRecheck = await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-    if (focused) requestFileRecheck()
-  })
-
-  // New prompt tasks are queued with their captured creation-time policy.
-  stopAutomaticMagnetPromptWatch = watch(() => appStore.automaticMagnetPromptGids, openNextAutomaticMagnetSelection, {
-    immediate: true,
+    if (focused) {
+      requestFileRecheck()
+      void taskStore.fetchList()
+    }
   })
 
   // Track maximize state for WindowControls icon toggle (maximize ↔ restore).
@@ -968,10 +754,10 @@ onMounted(async () => {
         Copy: t('app.menu-copy'),
         Paste: t('app.menu-paste'),
         'Select All': t('app.menu-select-all'),
-        'Hide MotrixNext': t('app.hide'),
+        'Hide Rayburst': t('app.hide'),
         'Hide Others': t('app.hide-others'),
         'Show All': t('app.unhide'),
-        'Quit MotrixNext': t('app.quit'),
+        'Quit Rayburst': t('app.quit'),
       },
     })
   } catch (e) {
@@ -982,8 +768,6 @@ onMounted(async () => {
 onUnmounted(() => {
   stopStatListener()
   stopAria2DownloadPauseListener()
-  stopAutomaticMagnetPromptWatch?.()
-  stopAutomaticMagnetPromptWatch = null
   unlistenTaskMonitor.forEach((fn) => fn())
   unlistenTaskMonitor = []
   if (unlistenFocusRecheck) unlistenFocusRecheck()
@@ -1047,17 +831,23 @@ onUnmounted(() => {
       </div>
     </Transition>
     <AboutPanel :show="showAbout" @close="showAbout = false" />
-    <AddTask :show="appStore.addTaskVisible" @close="appStore.hideAddTaskDialog()" />
+    <AddTask
+      :show="appStore.addTaskVisible"
+      @close="appStore.hideAddTaskDialog()"
+      @after-leave="addTaskClosing = false"
+    />
     <UpdateDialog ref="updateDialogRef" />
     <EngineRecoveryDialog />
-    <MagnetFileSelect
-      :show="magnetSelectVisible"
-      :files="magnetSelectFiles"
-      :task-name="magnetSelectName"
-      :submission="magnetSelectSubmission"
-      @confirm="handleMagnetConfirm"
-      @dismiss="handleMagnetDismiss"
-      @after-leave="handleMagnetSelectAfterLeave"
+    <TaskSelectionHost
+      :blocked="
+        appStore.addTaskVisible ||
+        addTaskClosing ||
+        taskStore.taskDetailVisible ||
+        taskStore.taskDetailClosing ||
+        showAbout ||
+        showExitDialog ||
+        engineStore.isBusy
+      "
     />
 
     <!-- Close action dialog: minimize-to-tray / quit / cancel -->

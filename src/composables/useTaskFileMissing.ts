@@ -14,6 +14,7 @@ export function useTaskFileMissing(task: ComputedRef<Aria2Task>) {
 
   const fileCheckTargetPath = computed(() => {
     const status = task.value.status
+    if (task.value.media && status !== TASK_STATUS.COMPLETE) return null
     if (status === TASK_STATUS.ACTIVE || status === TASK_STATUS.WAITING || status === TASK_STATUS.PAUSED) {
       return null
     }

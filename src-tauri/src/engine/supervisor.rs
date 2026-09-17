@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::{watch, Mutex as AsyncMutex};
 
-use crate::aria2::client::Aria2State;
 use crate::aria2::types::Aria2Task;
+use crate::database::DatabaseState;
 use crate::error::AppError;
-use crate::history::HistoryDbState;
+use crate::services::tasks::TaskServiceState;
 use crate::services::{self, port_guard};
 
 use super::{
@@ -723,8 +723,8 @@ async fn prepare_app_exit(
     let mut removed = 0;
     if engine_running {
         let aria2 = app
-            .try_state::<Aria2State>()
-            .ok_or_else(|| AppError::Engine("Aria2State is not managed".into()))?;
+            .try_state::<TaskServiceState>()
+            .ok_or_else(|| AppError::Engine("TaskServiceState is not managed".into()))?;
         if clear_completed {
             let completed_gids = completed_result_gids(aria2.0.tell_all_stopped().await?);
             aria2.0.remove_download_results(&completed_gids).await?;
@@ -734,7 +734,7 @@ async fn prepare_app_exit(
     }
 
     if clear_completed {
-        let history = app.try_state::<HistoryDbState>().ok_or_else(|| {
+        let history = app.try_state::<DatabaseState>().ok_or_else(|| {
             AppError::Store("History database is unavailable during app exit".into())
         })?;
         if history.0.is_ready().await {
@@ -759,7 +759,7 @@ fn completed_result_gids(tasks: Vec<Aria2Task>) -> Vec<String> {
 }
 
 async fn request_graceful_shutdown(app: &AppHandle) {
-    let Some(state) = app.try_state::<Aria2State>() else {
+    let Some(state) = app.try_state::<TaskServiceState>() else {
         return;
     };
     let client = state.0.clone();
@@ -779,8 +779,8 @@ async fn probe_engine(
 ) -> Result<(), AppError> {
     let (port, secret) = services::read_engine_credentials_from_app(app)?;
     let aria2 = app
-        .try_state::<Aria2State>()
-        .ok_or_else(|| AppError::Engine("Aria2State is not managed".into()))?;
+        .try_state::<TaskServiceState>()
+        .ok_or_else(|| AppError::Engine("TaskServiceState is not managed".into()))?;
     aria2.0.update_credentials(port, secret).await;
 
     let mut last_error = None;
@@ -801,8 +801,12 @@ async fn probe_engine(
     Err(last_error.unwrap_or_else(|| AppError::Engine("Engine probe failed".into())))
 }
 
-async fn probe_engine_contract(client: &crate::aria2::client::Aria2Client) -> Result<(), AppError> {
+async fn probe_engine_contract(
+    client: &crate::services::tasks::TaskService,
+) -> Result<(), AppError> {
     const REQUIRED_METHODS: &[&str] = &[
+        "aria2.finishMedia",
+        "aria2.retryMedia",
         "aria2.addBtPeers",
         "aria2.ed2kSearch",
         "aria2.forceBtRecheck",
@@ -853,8 +857,8 @@ async fn confirm_engine_stability(
         .try_state::<EngineState>()
         .ok_or_else(|| AppError::Engine("EngineState is not managed".into()))?;
     let aria2 = app
-        .try_state::<Aria2State>()
-        .ok_or_else(|| AppError::Engine("Aria2State is not managed".into()))?;
+        .try_state::<TaskServiceState>()
+        .ok_or_else(|| AppError::Engine("TaskServiceState is not managed".into()))?;
 
     for index in 0..STABILITY_CHECKS {
         ensure_not_cancelled(cancelled)?;

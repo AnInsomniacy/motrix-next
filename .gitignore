@@ -48,10 +48,6 @@ Thumbs.db
 # Lock files (use pnpm-lock.yaml only)
 package-lock.json
 
-# Legacy reference codebases
-motrix-legacy/
-motrix-very-legacy/
-
 # Tauri generated files
 src-tauri/gen/
 
@@ -66,3 +62,6 @@ src-tauri/gen/
 *.seed
 *.pid.lock
 .omx/
+
+# Release-only public configuration
+src-tauri/tauri.release.local.json

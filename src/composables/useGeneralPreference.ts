@@ -9,8 +9,8 @@ export interface GeneralForm {
   colorScheme: string
   customColorScheme: string
   taskCardMode: AppConfig['taskCardMode']
+  showLogoWhenEmpty: boolean
   reduceMotion: boolean
-  taskListWatermark: boolean
   sidebarTaskCounts: boolean
   autoCheckUpdate: boolean
   autoCheckUpdateInterval: number
@@ -39,8 +39,8 @@ export function buildGeneralForm(config: AppConfig): GeneralForm {
     colorScheme: config.colorScheme,
     customColorScheme: config.customColorScheme,
     taskCardMode: config.taskCardMode,
+    showLogoWhenEmpty: config.showLogoWhenEmpty,
     reduceMotion: config.reduceMotion,
-    taskListWatermark: config.taskListWatermark,
     sidebarTaskCounts: config.sidebarTaskCounts,
     autoCheckUpdate: config.autoCheckUpdate,
     autoCheckUpdateInterval: config.autoCheckUpdateInterval,

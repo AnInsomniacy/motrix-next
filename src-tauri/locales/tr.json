@@ -11,5 +11,7 @@
   "notification.download-start-title": "İndirme başladı",
   "notification.ed2k-complete-body": "Paylaşılıyor: %{task_name}",
   "notification.ed2k-complete-title": "ED2K indirmesi tamamlandı",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "İçerik seçimi bekleniyor",
+  "notification.selection-body": "%{task_name}"
 }

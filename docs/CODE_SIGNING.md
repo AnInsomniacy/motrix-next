@@ -1,20 +1,12 @@
-# Code Signing Policy
+# Code signing
 
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+Local builds are unsigned unless a signing identity is explicitly configured.
+A renamed product does not inherit a certificate or signing-service approval.
 
-## Team Roles
+Rayburst's updater requires its own public signing key. The checked-in configuration
+leaves that key empty, so local builds report that updates are not configured and do
+not contact an update server. Release builds inject the public key through Tauri's
+configuration merge. Private keys belong in release secrets, never in source control.
 
-- **Committers and reviewers:** [AnInsomniacy](https://github.com/AnInsomniacy)
-- **Approvers:** [AnInsomniacy](https://github.com/AnInsomniacy)
-
-## Signing Scope
-
-Only artifacts built from this repository's official CI pipeline ([GitHub Actions](https://github.com/AnInsomniacy/motrix-next/actions)) are submitted for signing. We do not sign third-party binaries.
-
-## Upstream Dependencies
-
-The bundled [Aria2 Next](https://github.com/AnInsomniacy/aria2-next) sidecar binary is a maintained aria2-compatible engine built by the project maintainer using public GitHub Actions workflows.
-
-## Privacy Policy
-
-See [PRIVACY.md](PRIVACY.md).
+The Windows signing workflow is opt-in and requires Rayburst-specific SignPath
+configuration. See [Release configuration](RELEASING.md).

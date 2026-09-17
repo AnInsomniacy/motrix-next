@@ -3,40 +3,40 @@
 //! These commands serve as the invoke() transport layer. Each command maps
 //! to one or more aria2 RPC methods.
 
-use crate::aria2::client::{Aria2Client, Aria2State};
 use crate::aria2::types::{
     Aria2BtPeerAddResult, Aria2BtTrackerConfig, Aria2File, Aria2Task, Aria2TorrentInspection,
 };
-use crate::commands::net::decode_filename_encoding;
+use crate::database::{Database, DatabaseState};
 use crate::error::AppError;
-use crate::history::{HistoryDb, HistoryDbState};
+use crate::services::tasks::{TaskService, TaskServiceState};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_store::StoreExt;
 
-const ED2K_SEARCH_TEMP_PREFIX: &str = "motrix-next-ed2k-search-";
+const ED2K_SEARCH_TEMP_PREFIX: &str = "rayburst-ed2k-search-";
 
 /// Fetch task list by type.
 #[tauri::command]
 pub async fn aria2_fetch_task_list(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     r#type: String,
     limit: Option<i64>,
 ) -> Result<Vec<Aria2Task>, AppError> {
-    match r#type.as_str() {
+    let tasks = match r#type.as_str() {
         "all" => state.0.tell_task_snapshot(true).await,
         "active" => state.0.tell_task_snapshot(false).await,
         "waiting" => state.0.tell_waiting(0, limit.unwrap_or(1000)).await,
         _ => state.0.tell_stopped(0, limit.unwrap_or(1000)).await,
-    }
+    }?;
+    Ok(state.0.tasks.visible_tasks(tasks).await)
 }
 
 /// Fetch only active tasks (no waiting).
 #[tauri::command]
 pub async fn aria2_fetch_active_task_list(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
 ) -> Result<Vec<Aria2Task>, AppError> {
     state.0.tell_active().await
 }
@@ -44,7 +44,7 @@ pub async fn aria2_fetch_active_task_list(
 /// Fetch a single task's full status by GID.
 #[tauri::command]
 pub async fn aria2_fetch_task_item(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     gid: String,
 ) -> Result<Aria2Task, AppError> {
     state.0.tell_status(&gid).await
@@ -53,7 +53,7 @@ pub async fn aria2_fetch_task_item(
 /// Fetch task status with peer list (for BT tasks).
 #[tauri::command]
 pub async fn aria2_fetch_task_item_with_peers(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     gid: String,
 ) -> Result<serde_json::Value, AppError> {
     let task = state.0.tell_status(&gid).await?;
@@ -71,7 +71,7 @@ pub async fn aria2_fetch_task_item_with_peers(
 /// Get aria2 engine version and enabled features.
 #[tauri::command]
 pub async fn aria2_get_version(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
 ) -> Result<serde_json::Value, AppError> {
     state.0.get_version().await
 }
@@ -79,7 +79,7 @@ pub async fn aria2_get_version(
 /// Get global download/upload statistics.
 #[tauri::command]
 pub async fn aria2_get_global_stat(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
 ) -> Result<serde_json::Value, AppError> {
     let stat = state.0.get_global_stat().await?;
     serde_json::to_value(&stat).map_err(|e| AppError::Aria2(format!("serialize stat: {e}")))
@@ -88,7 +88,7 @@ pub async fn aria2_get_global_stat(
 /// Change global aria2 options at runtime.
 #[tauri::command]
 pub async fn aria2_change_global_option(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     options: serde_json::Map<String, serde_json::Value>,
 ) -> Result<String, AppError> {
     let endpoint_changed = options.contains_key("listen-port")
@@ -113,7 +113,7 @@ pub async fn aria2_change_global_option(
 /// Get per-task options.
 #[tauri::command]
 pub async fn aria2_get_option(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     gid: String,
 ) -> Result<serde_json::Value, AppError> {
     state.0.get_option(&gid).await
@@ -122,17 +122,30 @@ pub async fn aria2_get_option(
 /// Change per-task options.
 #[tauri::command]
 pub async fn aria2_change_option(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     gid: String,
     options: serde_json::Value,
 ) -> Result<String, AppError> {
+    let changes_media = options.as_object().is_some_and(|values| {
+        values
+            .keys()
+            .any(|key| key == "media" || key.starts_with("media-"))
+    });
+    if changes_media {
+        let task = state.0.tell_status(&gid).await?;
+        if task.media.is_some() && task.status != "paused" {
+            return Err(AppError::Aria2(
+                "Pause media before changing its selection".into(),
+            ));
+        }
+    }
     state.0.change_option(&gid, options).await
 }
 
 /// Get file list for a task.
 #[tauri::command]
 pub async fn aria2_get_files(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     gid: String,
 ) -> Result<Vec<Aria2File>, AppError> {
     state.0.get_files(&gid).await
@@ -140,7 +153,7 @@ pub async fn aria2_get_files(
 
 #[tauri::command]
 pub async fn aria2_get_bt_trackers(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     gid: String,
 ) -> Result<serde_json::Value, AppError> {
     let trackers = state.0.get_bt_trackers(&gid).await?;
@@ -149,7 +162,7 @@ pub async fn aria2_get_bt_trackers(
 
 #[tauri::command]
 pub async fn aria2_force_bt_recheck(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     gid: String,
 ) -> Result<String, AppError> {
     state.0.force_bt_recheck(&gid).await
@@ -157,7 +170,7 @@ pub async fn aria2_force_bt_recheck(
 
 #[tauri::command]
 pub async fn aria2_replace_bt_trackers(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     gid: String,
     trackers: Vec<Aria2BtTrackerConfig>,
 ) -> Result<String, AppError> {
@@ -166,7 +179,7 @@ pub async fn aria2_replace_bt_trackers(
 
 #[tauri::command]
 pub async fn aria2_replace_bt_web_seeds(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     gid: String,
     web_seeds: Vec<String>,
 ) -> Result<String, AppError> {
@@ -175,67 +188,11 @@ pub async fn aria2_replace_bt_web_seeds(
 
 #[tauri::command]
 pub async fn aria2_add_bt_peers(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     gid: String,
     peers: Vec<String>,
 ) -> Result<Aria2BtPeerAddResult, AppError> {
     state.0.add_bt_peers(&gid, peers).await
-}
-
-// ── `out` option sanitization ────────────────────────────────────────
-
-/// Sanitizes an `out` option value into a safe, platform-valid filename.
-///
-/// aria2's `out` option must be a plain filename relative to `dir`.  aria2
-/// itself performs **no** filename sanitization — it passes the value
-/// directly to the OS `open()` call.  This function is the authoritative
-/// safety boundary.
-///
-/// Three-step pipeline:
-///   1. **Basename extraction** — strips path separators (including Windows
-///      drive letters, UNC prefixes, and Unix absolute paths).
-///   2. **NUL rejection** — NUL bytes truncate C strings inside aria2.
-///   3. **Industry-standard sanitization** via the `sanitize-filename` crate
-///      (same character set as Chrome `filename_util.cc` and Node.js
-///      `sanitize-filename`):
-///      - Replaces `/ \ : * ? " < > |` with `_`
-///      - Removes ASCII control chars (0x00–0x1F, 0x7F) and C1 (0x80–0x9F)
-///      - Rejects Windows reserved names (CON, NUL, COM1, LPT1, etc.)
-///      - Strips trailing dots and spaces (Windows rejects these)
-///      - Truncates to 255 bytes (filesystem limit)
-///
-/// Returns `None` for values that reduce to empty after sanitization.
-fn sanitize_out_option(raw: &str) -> Option<String> {
-    if raw.is_empty() {
-        return None;
-    }
-    // 1. Basename extraction — split on both separators for cross-platform.
-    let basename = raw.rsplit(['/', '\\']).next().unwrap_or(raw);
-    if basename.is_empty() || basename == "." || basename == ".." {
-        return None;
-    }
-    // 2. Reject NUL bytes early (truncate C strings inside aria2).
-    if basename.contains('\0') {
-        return None;
-    }
-    // 3. Industry-standard sanitization (Chrome / sanitize-filename char set).
-    //    Always use Windows rules (most restrictive) regardless of build target
-    //    to ensure filenames are safe when the Rust backend runs on any platform
-    //    but may serve files destined for Windows clients.
-    let decoded = decode_filename_encoding(basename);
-    let sanitized = sanitize_filename::sanitize_with_options(
-        decoded.as_str(),
-        sanitize_filename::Options {
-            windows: true,
-            truncate: true,
-            replacement: "_",
-        },
-    );
-    let result = sanitized.trim().to_string();
-    if result.is_empty() {
-        return None;
-    }
-    Some(result)
 }
 
 /// Add URI download(s). Each URI gets its own aria2 task with optional
@@ -243,53 +200,40 @@ fn sanitize_out_option(raw: &str) -> Option<String> {
 #[tauri::command]
 pub async fn aria2_add_uri(
     app: AppHandle,
-    state: State<'_, Aria2State>,
     uris: Vec<String>,
-    mut options: serde_json::Value,
+    options: serde_json::Value,
+    request_id: Option<String>,
 ) -> Result<String, AppError> {
-    // Enforce out = safe-filename invariant before forwarding to aria2.
-    // Prevents path traversal (#261) and illegal-character crashes (#264).
-    if let Some(opts) = options.as_object_mut() {
-        if let Some(out_val) = opts.get("out").and_then(|v| v.as_str()).map(String::from) {
-            match sanitize_out_option(&out_val) {
-                Some(ref clean) if *clean != out_val => {
-                    log::warn!("aria2:add-uri sanitized out: {:?} → {:?}", out_val, clean);
-                    opts.insert("out".to_string(), serde_json::Value::String(clean.clone()));
-                }
-                None => {
-                    log::warn!("aria2:add-uri removed invalid out option");
-                    opts.remove("out");
-                }
-                _ => {} // already a clean filename — no action needed
-            }
-        }
-    }
-    if uris.iter().any(|uri| {
-        uri.trim_start()
-            .to_ascii_lowercase()
-            .starts_with("ed2k://|file|")
-    }) {
-        crate::commands::ed2k::inject_managed_ed2k_bootstrap_options(&app, &mut options)?;
-    }
-    log::debug!("aria2:add-uri count={}", uris.len());
-    state.0.add_uri(uris, options).await
+    crate::services::downloads::submit(
+        &app,
+        crate::services::downloads::TaskInput::Uris(uris),
+        options,
+        request_id.as_deref(),
+    )
+    .await
 }
 
 /// Add a torrent download from base64-encoded content.
 #[tauri::command]
 pub async fn aria2_add_torrent(
-    state: State<'_, Aria2State>,
+    app: AppHandle,
     torrent: String,
     options: serde_json::Value,
+    request_id: Option<String>,
 ) -> Result<String, AppError> {
-    log::info!("aria2:add-torrent");
-    state.0.add_torrent(&torrent, options).await
+    crate::services::downloads::submit(
+        &app,
+        crate::services::downloads::TaskInput::Torrent(torrent),
+        options,
+        request_id.as_deref(),
+    )
+    .await
 }
 
 /// Inspect torrent metainfo without creating a task or writing engine state.
 #[tauri::command]
 pub async fn aria2_inspect_torrent(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     torrent: String,
 ) -> Result<Aria2TorrentInspection, AppError> {
     state.0.inspect_torrent(&torrent).await
@@ -299,7 +243,7 @@ pub async fn aria2_inspect_torrent(
 #[tauri::command]
 pub async fn aria2_ed2k_search(
     app: AppHandle,
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     keyword: String,
     mut options: serde_json::Value,
 ) -> Result<String, AppError> {
@@ -329,7 +273,7 @@ pub async fn aria2_ed2k_search(
 /// Return ED2K search results by search GID.
 #[tauri::command]
 pub async fn aria2_get_ed2k_search_results(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     gid: String,
 ) -> Result<serde_json::Value, AppError> {
     state.0.get_ed2k_search_results(&gid).await
@@ -339,7 +283,7 @@ pub async fn aria2_get_ed2k_search_results(
 #[tauri::command]
 pub async fn aria2_cleanup_ed2k_search(
     app: AppHandle,
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     gid: String,
 ) -> Result<(), AppError> {
     state.0.cleanup_ed2k_search(&gid).await?;
@@ -457,67 +401,43 @@ fn take_ed2k_search_dir(_app: &AppHandle, gid: &str) -> Option<PathBuf> {
 /// Forcefully remove a task by GID.
 #[tauri::command]
 pub async fn aria2_force_remove(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     gid: String,
 ) -> Result<String, AppError> {
     log::info!("aria2:remove gid={gid}");
     state.0.force_remove(&gid).await
 }
 
-fn is_missing_download(error: &AppError) -> bool {
-    let message = error.to_string().to_ascii_lowercase();
-    message.contains("not found") || message.contains("no such download")
-}
-
 fn is_terminal_download_status(status: &str) -> bool {
     matches!(status, "complete" | "error" | "removed")
 }
 
-fn is_download_result_transitioning(error: &AppError) -> bool {
-    error
-        .to_string()
-        .to_ascii_lowercase()
-        .contains("could not remove download result")
-}
-
-async fn remove_engine_task(client: &Aria2Client, gid: &str) -> Result<(), AppError> {
-    const RESULT_ATTEMPTS: usize = 100;
-    const RESULT_DELAY: std::time::Duration = std::time::Duration::from_millis(50);
-
-    let force_result = client.force_remove(gid).await;
-    let mut result_removed = false;
-
-    for _ in 0..RESULT_ATTEMPTS {
-        match client.tell_status(gid).await {
-            Err(error) if is_missing_download(&error) => break,
-            Err(error) => return Err(error),
-            Ok(task) if is_terminal_download_status(&task.status) => {
+async fn remove_engine_task(client: &TaskService, gid: &str) -> Result<(), AppError> {
+    let operation = async {
+        let mut removal_requested = false;
+        loop {
+            let tasks = client.tell_task_snapshot(true).await?;
+            let Some(task) = tasks.iter().find(|task| task.gid == gid) else {
+                return Ok(());
+            };
+            if is_terminal_download_status(&task.status) {
                 match client.remove_download_result(gid).await {
-                    Ok(_) => {
-                        result_removed = true;
-                        break;
-                    }
-                    Err(error) if is_missing_download(&error) => break,
-                    Err(error) if is_download_result_transitioning(&error) => {}
+                    Ok(_) => return Ok(()),
+                    // Native result publication can trail a terminal snapshot.
+                    // Re-read state on application faults; transport failures stay visible.
+                    Err(AppError::Rpc { code: 1, .. }) => {}
                     Err(error) => return Err(error),
                 }
+            } else if !removal_requested {
+                client.force_remove(gid).await?;
+                removal_requested = true;
             }
-            Ok(_) => {}
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         }
-        tokio::time::sleep(RESULT_DELAY).await;
-    }
-
-    if result_removed {
-        return Ok(());
-    }
-
-    match client.tell_status(gid).await {
-        Err(error) if is_missing_download(&error) => Ok(()),
-        Err(error) => Err(error),
-        Ok(_) => Err(force_result.err().unwrap_or_else(|| {
-            AppError::Aria2(format!("GID {gid} did not reach the removed state"))
-        })),
-    }
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(5), operation)
+        .await
+        .map_err(|_| AppError::Aria2(format!("Task {gid} did not finish removal")))?
 }
 
 fn is_p2p_sharing_task(task: &Aria2Task) -> bool {
@@ -563,8 +483,8 @@ impl BatchTaskOperationResult {
 }
 
 async fn delete_task(
-    client: &Aria2Client,
-    history: &HistoryDb,
+    client: &TaskService,
+    history: &Database,
     gid: &str,
     info_hash: Option<&str>,
 ) -> Result<(), AppError> {
@@ -574,8 +494,8 @@ async fn delete_task(
 }
 
 async fn finish_sharing_task(
-    client: &Aria2Client,
-    history: &HistoryDb,
+    client: &TaskService,
+    history: &Database,
     gid: &str,
 ) -> Result<(), AppError> {
     let task = client.tell_status(gid).await?;
@@ -600,8 +520,8 @@ async fn finish_sharing_task(
 /// Delete a task regardless of whether it is live, transitioning, or stopped.
 #[tauri::command]
 pub async fn aria2_delete_task(
-    state: State<'_, Aria2State>,
-    history: State<'_, HistoryDbState>,
+    state: State<'_, TaskServiceState>,
+    history: State<'_, DatabaseState>,
     gid: String,
     info_hash: Option<String>,
 ) -> Result<(), AppError> {
@@ -611,8 +531,8 @@ pub async fn aria2_delete_task(
 /// Delete multiple tasks while preserving per-task history cleanup semantics.
 #[tauri::command]
 pub async fn aria2_batch_delete_tasks(
-    state: State<'_, Aria2State>,
-    history: State<'_, HistoryDbState>,
+    state: State<'_, TaskServiceState>,
+    history: State<'_, DatabaseState>,
     tasks: Vec<BatchDeleteTaskTarget>,
 ) -> Result<BatchTaskOperationResult, AppError> {
     let mut result = BatchTaskOperationResult::default();
@@ -637,8 +557,8 @@ pub async fn aria2_batch_delete_tasks(
 /// End P2P sharing while preserving downloaded files and the completed history record.
 #[tauri::command]
 pub async fn aria2_finish_sharing(
-    state: State<'_, Aria2State>,
-    history: State<'_, HistoryDbState>,
+    state: State<'_, TaskServiceState>,
+    history: State<'_, DatabaseState>,
     gid: String,
 ) -> Result<(), AppError> {
     finish_sharing_task(&state.0, &history.0, &gid).await
@@ -647,8 +567,8 @@ pub async fn aria2_finish_sharing(
 /// End multiple P2P sharing tasks while preserving files and completed history.
 #[tauri::command]
 pub async fn aria2_batch_finish_sharing(
-    state: State<'_, Aria2State>,
-    history: State<'_, HistoryDbState>,
+    state: State<'_, TaskServiceState>,
+    history: State<'_, DatabaseState>,
     gids: Vec<String>,
 ) -> Result<BatchTaskOperationResult, AppError> {
     let mut result = BatchTaskOperationResult::default();
@@ -667,7 +587,7 @@ pub async fn aria2_batch_finish_sharing(
 /// Forcefully pause a task by GID.
 #[tauri::command]
 pub async fn aria2_force_pause(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     gid: String,
 ) -> Result<String, AppError> {
     log::debug!("aria2:force-pause gid={gid}");
@@ -676,28 +596,34 @@ pub async fn aria2_force_pause(
 
 /// Gracefully pause a task.
 #[tauri::command]
-pub async fn aria2_pause(state: State<'_, Aria2State>, gid: String) -> Result<String, AppError> {
+pub async fn aria2_pause(
+    state: State<'_, TaskServiceState>,
+    gid: String,
+) -> Result<String, AppError> {
     log::debug!("aria2:pause gid={gid}");
     state.0.pause(&gid).await
 }
 
 /// Resume a paused task.
 #[tauri::command]
-pub async fn aria2_unpause(state: State<'_, Aria2State>, gid: String) -> Result<String, AppError> {
+pub async fn aria2_unpause(
+    state: State<'_, TaskServiceState>,
+    gid: String,
+) -> Result<String, AppError> {
     log::debug!("aria2:resume gid={gid}");
     state.0.unpause(&gid).await
 }
 
 /// Save the current aria2 session to disk.
 #[tauri::command]
-pub async fn aria2_save_session(state: State<'_, Aria2State>) -> Result<String, AppError> {
+pub async fn aria2_save_session(state: State<'_, TaskServiceState>) -> Result<String, AppError> {
     state.0.save_session().await
 }
 
 /// Remove a completed/errored task record from aria2's download list.
 #[tauri::command]
 pub async fn aria2_remove_download_result(
-    state: State<'_, Aria2State>,
+    state: State<'_, TaskServiceState>,
     gid: String,
 ) -> Result<String, AppError> {
     state.0.remove_download_result(&gid).await
@@ -706,8 +632,8 @@ pub async fn aria2_remove_download_result(
 /// Clear application history and purge completed engine results.
 #[tauri::command]
 pub async fn aria2_purge_task_records(
-    state: State<'_, Aria2State>,
-    history: State<'_, HistoryDbState>,
+    state: State<'_, TaskServiceState>,
+    history: State<'_, DatabaseState>,
 ) -> Result<(), AppError> {
     log::info!("aria2:purge-results");
     history.0.clear_records(None).await?;
@@ -719,7 +645,7 @@ pub async fn aria2_purge_task_records(
 
 /// Forcefully pause every active engine task through the native RPC.
 #[tauri::command]
-pub async fn aria2_force_pause_all(state: State<'_, Aria2State>) -> Result<String, AppError> {
+pub async fn aria2_force_pause_all(state: State<'_, TaskServiceState>) -> Result<String, AppError> {
     const SETTLE_ATTEMPTS: usize = 100;
     const SETTLE_DELAY: std::time::Duration = std::time::Duration::from_millis(50);
 
@@ -753,8 +679,8 @@ pub async fn aria2_force_pause_all(state: State<'_, Aria2State>) -> Result<Strin
 /// Resume paused tasks while keeping unresolved magnet selections paused.
 #[tauri::command]
 pub async fn aria2_resume_eligible(
-    state: State<'_, Aria2State>,
-) -> Result<crate::aria2::client::ResumeEligibleResult, AppError> {
+    state: State<'_, TaskServiceState>,
+) -> Result<crate::services::tasks::ResumeEligibleResult, AppError> {
     let result = state.0.resume_eligible().await?;
     log::info!(
         "aria2:resume-eligible resumed={} blocked={}",
@@ -766,252 +692,72 @@ pub async fn aria2_resume_eligible(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        is_download_result_transitioning, is_missing_download, is_p2p_sharing_task,
-        is_terminal_download_status, sanitize_out_option, AppError,
-    };
+    use super::{is_p2p_sharing_task, is_terminal_download_status};
     use crate::aria2::types::{Aria2BtInfo, Aria2Ed2kInfo, Aria2Task};
 
-    #[test]
-    fn bare_filename_passes_through() {
-        assert_eq!(sanitize_out_option("file.zip").as_deref(), Some("file.zip"));
-    }
-
-    #[test]
-    fn windows_backslash_absolute_extracts_basename() {
-        assert_eq!(
-            sanitize_out_option("C:\\Users\\u\\Downloads\\file.zip").as_deref(),
-            Some("file.zip")
+    #[tokio::test]
+    async fn deletion_removes_the_visible_native_task_before_its_history() {
+        use axum::{extract::State, routing::post, Json, Router};
+        use serde_json::{json, Value};
+        use std::sync::{
+            atomic::{AtomicU8, Ordering},
+            Arc,
+        };
+        async fn rpc(
+            State(state): State<Arc<AtomicU8>>,
+            Json(request): Json<Value>,
+        ) -> Json<Value> {
+            let result = match request["method"].as_str().unwrap() {
+                "system.multicall" => {
+                    let phase = state.load(Ordering::Relaxed);
+                    let tasks = if phase == 2 {
+                        vec![]
+                    } else {
+                        vec![Aria2Task {
+                            gid: "task".into(),
+                            status: if phase == 0 { "active" } else { "removed" }.into(),
+                            ..Default::default()
+                        }]
+                    };
+                    json!([[tasks], [[]], [[]]])
+                }
+                "aria2.forceRemove" => {
+                    state.store(1, Ordering::Relaxed);
+                    json!("task")
+                }
+                "aria2.removeDownloadResult" => {
+                    state.store(2, Ordering::Relaxed);
+                    json!("OK")
+                }
+                method => panic!("Unexpected operation: {method}"),
+            };
+            Json(json!({"jsonrpc":"2.0","id":request["id"],"result":result}))
+        }
+        let state = Arc::new(AtomicU8::new(0));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let client = crate::services::tasks::TaskService::new(
+            listener.local_addr().unwrap().port(),
+            String::new(),
         );
-    }
-
-    #[test]
-    fn forward_slash_absolute_extracts_basename() {
-        assert_eq!(
-            sanitize_out_option("C:/Users/u/Downloads/file.zip").as_deref(),
-            Some("file.zip")
-        );
-    }
-
-    #[test]
-    fn unc_path_extracts_basename() {
-        assert_eq!(
-            sanitize_out_option("\\\\server\\share\\file.zip").as_deref(),
-            Some("file.zip")
-        );
-    }
-
-    #[test]
-    fn parent_traversal_extracts_basename() {
-        assert_eq!(
-            sanitize_out_option("../evil.exe").as_deref(),
-            Some("evil.exe")
-        );
-    }
-
-    #[test]
-    fn dotdot_only_rejected() {
-        assert_eq!(sanitize_out_option(".."), None);
-    }
-
-    #[test]
-    fn dot_only_rejected() {
-        assert_eq!(sanitize_out_option("."), None);
-    }
-
-    #[test]
-    fn empty_rejected() {
-        assert_eq!(sanitize_out_option(""), None);
-    }
-
-    #[test]
-    fn nul_byte_rejected() {
-        assert_eq!(sanitize_out_option("file\0.zip"), None);
-    }
-
-    #[test]
-    fn accented_filename_preserved() {
-        assert_eq!(
-            sanitize_out_option("C:/Downloads/résumé.zip").as_deref(),
-            Some("résumé.zip")
-        );
-    }
-
-    #[test]
-    fn trailing_separator_rejected() {
-        assert_eq!(sanitize_out_option("path/to/"), None);
-    }
-
-    #[test]
-    fn issue_261_regression() {
-        assert_eq!(
-            sanitize_out_option("C:/Users/37472/Downloads/sysdiag-all-x64.exe").as_deref(),
-            Some("sysdiag-all-x64.exe")
-        );
-    }
-
-    // ── #264: illegal character sanitization ────────────────────────
-
-    #[test]
-    fn issue_264_twitter_cdn_filename() {
-        // Extension sends "G9v9wWdasAYNqt9?format=jpg&name=large" as filename.
-        // `?` is replaced with `_` by the crate; `&` and `=` are legal filename
-        // chars and pass through unchanged.
-        assert_eq!(
-            sanitize_out_option("G9v9wWdasAYNqt9?format=jpg&name=large").as_deref(),
-            Some("G9v9wWdasAYNqt9_format=jpg&name=large")
-        );
-    }
-
-    #[test]
-    fn replaces_windows_illegal_chars() {
-        assert_eq!(
-            sanitize_out_option("a<b>c:d*e.jpg").as_deref(),
-            Some("a_b_c_d_e.jpg")
-        );
-    }
-
-    #[test]
-    fn replaces_pipe_and_quotes() {
-        assert_eq!(
-            sanitize_out_option("file\"|pipe.txt").as_deref(),
-            Some("file__pipe.txt")
-        );
-    }
-
-    #[test]
-    fn question_mark_in_filename_replaced() {
-        // "what?.jpg" → "what_.jpg" (not truncated to "what")
-        assert_eq!(
-            sanitize_out_option("what?.jpg").as_deref(),
-            Some("what_.jpg")
-        );
-    }
-
-    #[test]
-    fn percent_encoded_rfc2047_out_decodes_before_sanitize() {
-        assert_eq!(
-            sanitize_out_option("=%3FUTF-8%3FB%3F0JjQotCe0JPQmCDQm9CU0KMgMjAyNi54bHN4%3F=")
-                .as_deref(),
-            Some("ИТОГИ ЛДУ 2026.xlsx")
-        );
-    }
-
-    #[test]
-    fn percent_encoded_utf8_out_decodes_before_sanitize() {
-        assert_eq!(
-            sanitize_out_option("K430006866701%20%20%20%20%2020251022%20%20%20ASKO%20%20%20%20CW5937GCN%20%20%20%20%20CW51237GCN%E8%AF%B4%E6%98%8E%E4%B9%A6%28%E6%96%B0%E5%9B%BD%E6%A0%87%29.pdf").as_deref(),
-            Some("K430006866701     20251022   ASKO    CW5937GCN     CW51237GCN说明书(新国标).pdf")
-        );
-    }
-
-    #[test]
-    fn percent_encoded_slash_out_stays_single_safe_filename() {
-        assert_eq!(
-            sanitize_out_option("safe%2Fevil.pdf").as_deref(),
-            Some("safe_evil.pdf")
-        );
-    }
-
-    #[test]
-    fn rfc2047_out_decodes_before_sanitize() {
-        assert_eq!(
-            sanitize_out_option("=?UTF-8?B?0JjQotCe0JPQmCDQm9CU0KMgMjAyNi54bHN4?=").as_deref(),
-            Some("ИТОГИ ЛДУ 2026.xlsx")
-        );
-    }
-
-    // ── Windows reserved names ──────────────────────────────────────
-    // The crate replaces reserved names with the replacement string "_".
-    // Our wrapper then trims and rejects empty — but "_" is non-empty,
-    // so reserved names become "_".  This is safe: "_" is a valid
-    // filename on all platforms.
-
-    #[test]
-    fn windows_reserved_con_becomes_underscore() {
-        assert_eq!(sanitize_out_option("CON").as_deref(), Some("_"));
-    }
-
-    #[test]
-    fn windows_reserved_nul_txt_becomes_underscore() {
-        assert_eq!(sanitize_out_option("NUL.txt").as_deref(), Some("_"));
-    }
-
-    #[test]
-    fn windows_reserved_com1_becomes_underscore() {
-        assert_eq!(sanitize_out_option("com1").as_deref(), Some("_"));
-    }
-
-    #[test]
-    fn windows_reserved_lpt3_becomes_underscore() {
-        assert_eq!(sanitize_out_option("LPT3").as_deref(), Some("_"));
-    }
-
-    // ── Trailing dots and spaces ────────────────────────────────────
-
-    #[test]
-    fn trailing_dots_stripped() {
-        // The crate replaces trailing dots/spaces with replacement "_";
-        // our wrapper calls .trim() which handles trailing whitespace.
-        // "file.jpg..." → crate → "file.jpg_" → trim → "file.jpg_"
-        let result = sanitize_out_option("file.jpg...");
-        assert!(result.is_some());
-        assert!(result.as_deref().unwrap_or("").starts_with("file.jpg"));
-    }
-
-    #[test]
-    fn trailing_spaces_stripped() {
-        // "file.jpg   " → crate → "file.jpg_" → trim → "file.jpg_"
-        // Or our .trim() may catch it. Either way, starts with "file.jpg".
-        let result = sanitize_out_option("file.jpg   ");
-        assert!(result.is_some());
-        assert!(result.as_deref().unwrap_or("").starts_with("file.jpg"));
-    }
-
-    // ── Control characters ──────────────────────────────────────────
-
-    #[test]
-    fn control_chars_removed() {
-        // The crate removes control characters (0x00-0x1F, 0x80-0x9F)
-        let result = sanitize_out_option("\x01\x02file.jpg");
-        assert!(result.is_some());
-        assert!(result.as_deref().unwrap_or("").contains("file.jpg"));
-    }
-
-    // ── Normal filenames unmodified ─────────────────────────────────
-
-    #[test]
-    fn normal_filename_with_spaces() {
-        assert_eq!(
-            sanitize_out_option("My Document.pdf").as_deref(),
-            Some("My Document.pdf")
-        );
-    }
-
-    #[test]
-    fn extensionless_filename_preserved() {
-        assert_eq!(sanitize_out_option("README").as_deref(), Some("README"));
-    }
-
-    #[test]
-    fn dotfile_preserved() {
-        assert_eq!(
-            sanitize_out_option(".gitignore").as_deref(),
-            Some(".gitignore")
-        );
-    }
-
-    #[test]
-    fn deletion_recognizes_missing_download_errors() {
-        assert!(is_missing_download(&AppError::Aria2(
-            "GID abc is not found".to_string()
-        )));
-        assert!(is_missing_download(&AppError::Aria2(
-            "No such download for GID abc".to_string()
-        )));
-        assert!(!is_missing_download(&AppError::Aria2(
-            "connection reset".to_string()
-        )));
+        let router = Router::new()
+            .route("/jsonrpc", post(rpc))
+            .with_state(state.clone());
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router).await.unwrap();
+        });
+        let db = crate::database::Database::open_in_memory().unwrap();
+        db.add_record(
+            &serde_json::from_value(json!({"gid":"task","name":"file","status":"complete"}))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+        super::delete_task(&client, &db, "task", None)
+            .await
+            .unwrap();
+        assert_eq!(state.load(Ordering::Relaxed), 2);
+        assert!(db.get_record("task").await.unwrap().is_none());
+        server.abort();
     }
 
     #[test]
@@ -1022,16 +768,6 @@ mod tests {
         assert!(!is_terminal_download_status("active"));
         assert!(!is_terminal_download_status("waiting"));
         assert!(!is_terminal_download_status("paused"));
-    }
-
-    #[test]
-    fn deletion_retries_only_during_result_transition() {
-        assert!(is_download_result_transitioning(&AppError::Aria2(
-            "Could not remove download result of GID#abc".to_string()
-        )));
-        assert!(!is_download_result_transitioning(&AppError::Aria2(
-            "connection reset".to_string()
-        )));
     }
 
     #[test]
@@ -1058,4 +794,59 @@ mod tests {
             ..Aria2Task::default()
         }));
     }
+}
+
+/// Confirm media selection or retry a failed media task with the same GID.
+#[tauri::command]
+pub async fn aria2_confirm_media(
+    state: State<'_, TaskServiceState>,
+    gid: String,
+    options: serde_json::Value,
+) -> Result<String, AppError> {
+    let task = state.0.tell_status(&gid).await?;
+    crate::services::media::native::start(
+        &state.0,
+        &task,
+        options,
+        crate::services::media::native::StartMode::User,
+    )
+    .await
+}
+
+/// Finalize committed live media without deleting its output or recovery state.
+#[tauri::command]
+pub async fn aria2_finish_media(
+    state: State<'_, TaskServiceState>,
+    gid: String,
+) -> Result<String, AppError> {
+    state.0.finish_media(&gid).await
+}
+
+/// Retry a failed presentation in its native recovery identity.
+#[tauri::command]
+pub async fn aria2_retry_media(
+    state: State<'_, TaskServiceState>,
+    gid: String,
+    options: serde_json::Value,
+) -> Result<String, AppError> {
+    state.0.retry_media(&gid, options).await
+}
+
+/// Request publication for each selected recording and retain per-task failures.
+#[tauri::command]
+pub async fn aria2_batch_finish_media(
+    state: State<'_, TaskServiceState>,
+    gids: Vec<String>,
+) -> Result<BatchTaskOperationResult, AppError> {
+    let mut result = BatchTaskOperationResult::default();
+    for gid in gids {
+        let operation = state.0.finish_media(&gid).await.map(|_| ());
+        result.record(gid, operation);
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn cancel_download_request(app: AppHandle, id: String) -> Result<(), AppError> {
+    crate::services::downloads::cancel(&app, &id).await
 }

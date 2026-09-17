@@ -11,5 +11,7 @@
   "notification.download-start-title": "بدء التنزيل",
   "notification.ed2k-complete-body": "جارٍ المشاركة: %{task_name}",
   "notification.ed2k-complete-title": "اكتمل تنزيل ED2K",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "بانتظار اختيار المحتوى",
+  "notification.selection-body": "%{task_name}"
 }

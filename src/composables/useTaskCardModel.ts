@@ -1,13 +1,14 @@
 /** @fileoverview Shared task-card display model for full and compact task rows. */
 import { computed, ref, watch, type ComputedRef } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { mediaPercent, mediaDuration, mediaStateLabel } from '@shared/utils/media'
 import { TASK_STATUS } from '@shared/constants'
 import {
   bytesToSize,
   calcProgress,
   checkTaskIsSharing,
   getTaskCompletedLength,
-  getTaskDisplayName,
+  getTaskName,
   getSharingStatusLabelKey,
   getTaskSharingState,
   isBtMetadataTask,
@@ -34,6 +35,7 @@ interface TaskCardModel {
   taskStatus: ComputedRef<string>
   isActive: ComputedRef<boolean>
   completedLengthValue: ComputedRef<number>
+  indeterminate: ComputedRef<boolean>
   percent: ComputedRef<number>
   completedSize: ComputedRef<string>
   totalSize: ComputedRef<string>
@@ -48,9 +50,7 @@ interface TaskCardModel {
 export function useTaskCardModel(task: ComputedRef<Aria2Task>): TaskCardModel {
   const { t } = useI18n()
 
-  const taskFullName = computed(() =>
-    getTaskDisplayName(task.value, { defaultName: t('task.get-task-name') || 'Unknown' }),
-  )
+  const taskFullName = computed(() => getTaskName(task.value, { defaultName: t('task.get-task-name') || 'Unknown' }))
   const btLifecycle = computed(() => getBtLifecycleState(task.value))
   const stableProgress = ref({
     gid: task.value.gid,
@@ -78,6 +78,14 @@ export function useTaskCardModel(task: ComputedRef<Aria2Task>): TaskCardModel {
   const isMetadataFetching = computed(() => isBtMetadataTask(task.value))
   const taskStatus = computed(() => (isSharing.value ? TASK_STATUS.SHARING : task.value.status))
   const statusBadge = computed<TaskCardStatusBadge | null>(() => {
+    if (task.value.media) {
+      const media = task.value.media
+      return {
+        key: media.state,
+        label: t(mediaStateLabel[media.state]),
+        tone: task.value.status === 'error' ? 'error' : task.value.status === 'complete' ? 'success' : 'waiting',
+      }
+    }
     if (btLifecycle.value === 'selection') {
       return {
         key: 'bt-file-selection',
@@ -136,15 +144,34 @@ export function useTaskCardModel(task: ComputedRef<Aria2Task>): TaskCardModel {
   const isActive = computed(() => task.value.status === TASK_STATUS.ACTIVE)
   const displayedTotalLength = computed(() => stableProgress.value.total)
   const completedLengthValue = computed(() => stableProgress.value.completed)
-  const percent = computed(() => calcProgress(displayedTotalLength.value, completedLengthValue.value))
-  const completedSize = computed(() => bytesToSize(completedLengthValue.value, 2))
-  const totalSize = computed(() => bytesToSize(displayedTotalLength.value, 2))
-  const hasSizeInfo = computed(() => completedLengthValue.value > 0 || displayedTotalLength.value > 0)
+  const indeterminate = computed(() => Boolean(task.value.media) && mediaPercent(task.value) === null)
+  const percent = computed(() =>
+    task.value.media
+      ? (mediaPercent(task.value) ?? 0)
+      : calcProgress(displayedTotalLength.value, completedLengthValue.value),
+  )
+  const completedSize = computed(() =>
+    task.value.media && task.value.status !== 'complete'
+      ? mediaDuration(task.value.media.completedDuration)
+      : bytesToSize(completedLengthValue.value, 2),
+  )
+  const totalSize = computed(() =>
+    task.value.media && task.value.status !== 'complete'
+      ? task.value.media.live === 'true'
+        ? t('media.live')
+        : mediaDuration(task.value.media.duration)
+      : bytesToSize(displayedTotalLength.value, 2),
+  )
+  const hasSizeInfo = computed(() =>
+    task.value.media
+      ? !['waiting', 'probing', 'awaiting-selection'].includes(task.value.media.state)
+      : completedLengthValue.value > 0 || displayedTotalLength.value > 0,
+  )
   const downloadSpeed = computed(() => bytesToSize(task.value.downloadSpeed))
   const uploadSpeed = computed(() => bytesToSize(task.value.uploadSpeed))
   const transferSummary = computed(() => buildTaskTransferSummary(task.value))
   const remaining = computed(() => {
-    if (!isActive.value) return 0
+    if (!isActive.value || task.value.media) return 0
     return timeRemaining(displayedTotalLength.value, completedLengthValue.value, Number(task.value.downloadSpeed))
   })
   const remainingText = computed(() => {
@@ -170,6 +197,7 @@ export function useTaskCardModel(task: ComputedRef<Aria2Task>): TaskCardModel {
     taskStatus,
     isActive,
     completedLengthValue,
+    indeterminate,
     percent,
     completedSize,
     totalSize,

@@ -1,5 +1,5 @@
 name: ✨ Feature Request
-description: Suggest an idea for Motrix Next
+description: Suggest an idea for Rayburst
 title: '[feat]: '
 labels: ['enhancement']
 body:
@@ -7,8 +7,8 @@ body:
     attributes:
       value: |
         Thanks for suggesting an improvement!
-        Please check [existing issues](https://github.com/AnInsomniacy/motrix-next/issues) and [discussions](https://github.com/AnInsomniacy/motrix-next/discussions) before submitting.
-        Please make sure this request belongs to the Motrix Next desktop app. Browser-extension-only requests belong in [motrix-next-extension](https://github.com/AnInsomniacy/motrix-next-extension), engine-only requests belong in [aria2-next](https://github.com/AnInsomniacy/aria2-next), and usage questions belong in [GitHub Discussions](https://github.com/AnInsomniacy/motrix-next/discussions).
+        Please check [existing issues](https://github.com/AnInsomniacy/rayburst/issues) and [discussions](https://github.com/AnInsomniacy/rayburst/discussions) before submitting.
+        Please make sure this request belongs to the Rayburst desktop app. Browser-extension-only requests belong in [rayburst-connect](https://github.com/AnInsomniacy/rayburst-connect), engine-only requests belong in [aria2-next](https://github.com/AnInsomniacy/aria2-next), and usage questions belong in [GitHub Discussions](https://github.com/AnInsomniacy/rayburst/discussions).
 
   - type: textarea
     id: problem
@@ -45,9 +45,9 @@ body:
     attributes:
       label: Validations
       options:
-        - label: I have searched the [existing issues](https://github.com/AnInsomniacy/motrix-next/issues) and this feature has not been requested before.
+        - label: I have searched the [existing issues](https://github.com/AnInsomniacy/rayburst/issues) and this feature has not been requested before.
           required: true
-        - label: I have read the [Contributing Guide](https://github.com/AnInsomniacy/motrix-next/blob/main/docs/CONTRIBUTING.md) and understand that new features require an approved issue before a PR is submitted.
+        - label: I have read the [Contributing Guide](https://github.com/AnInsomniacy/rayburst/blob/main/docs/CONTRIBUTING.md) and understand that new features require an approved issue before a PR is submitted.
           required: true
-        - label: This request belongs to the Motrix Next desktop app, not the browser extension, download engine, or a usage question.
+        - label: This request belongs to the Rayburst desktop app, not the browser extension, download engine, or a usage question.
           required: true

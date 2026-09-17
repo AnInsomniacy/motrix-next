@@ -218,12 +218,12 @@ describe('filterHotReloadableKeys', () => {
       'rpc-listen-port': '29100',
       'bt-tracker': 'udp://t.example.org:6969',
       'rpc-secret': 'secret',
-      'user-agent': 'Motrix/3.4.1',
+      'user-agent': 'Rayburst/3.4.1',
     }
     expect(filterHotReloadableKeys(config)).toEqual({
       'max-concurrent-downloads': '8',
       'bt-tracker': 'udp://t.example.org:6969',
-      'user-agent': 'Motrix/3.4.1',
+      'user-agent': 'Rayburst/3.4.1',
     })
   })
 })

@@ -1,5 +1,7 @@
 import {
   CorePalette,
+  Hct,
+  Contrast,
   Scheme,
   argbFromHex,
   customColor,
@@ -10,7 +12,12 @@ import {
   type Theme,
   type TonalPalette,
 } from '@material/material-color-utilities'
-import { COLOR_SCHEMES, CUSTOM_COLOR_SCHEME_ID, type ColorSchemeDefinition } from '@shared/constants'
+import {
+  COLOR_SCHEMES,
+  DEFAULT_COLOR_SCHEME_ID,
+  CUSTOM_COLOR_SCHEME_ID,
+  type ColorSchemeDefinition,
+} from '@shared/constants'
 import { normalizeCustomColorScheme } from '@shared/utils/colorSchemeConfig'
 
 const LOW_SATURATION_THRESHOLD = 12
@@ -83,18 +90,6 @@ const SURFACE_TONES = {
   },
 } as const
 
-function saturationPercent(hex: string): number {
-  const r = parseInt(hex.slice(1, 3), 16) / 255
-  const g = parseInt(hex.slice(3, 5), 16) / 255
-  const b = parseInt(hex.slice(5, 7), 16) / 255
-  const max = Math.max(r, g, b)
-  const min = Math.min(r, g, b)
-  const lightness = (max + min) / 2
-  const delta = max - min
-  if (delta === 0) return 0
-  return (lightness > 0.5 ? delta / (2 - max - min) : delta / (max + min)) * 100
-}
-
 function buildContentTheme(source: number): Theme {
   const palette = CorePalette.contentOf(source)
   const extendedColors = buildExtendedColors()
@@ -122,7 +117,7 @@ export function buildColorSchemeTheme(scheme: ColorSchemeDefinition): Theme {
   const extendedColors = buildExtendedColors()
   const usesContentPalette =
     scheme.variant === 'content' ||
-    (scheme.id === CUSTOM_COLOR_SCHEME_ID && saturationPercent(seed) <= LOW_SATURATION_THRESHOLD)
+    (scheme.id === CUSTOM_COLOR_SCHEME_ID && Hct.fromInt(source).chroma <= LOW_SATURATION_THRESHOLD)
   return usesContentPalette ? buildContentTheme(source) : themeFromSourceColor(source, extendedColors)
 }
 
@@ -134,7 +129,7 @@ function getExtendedColor(theme: Theme, name: SemanticColorName): CustomColorGro
 
 function interactionTones(palette: TonalPalette, dark: boolean): Pick<StatefulColorRole, 'hover' | 'pressed'> {
   return {
-    hover: hexFromArgb(palette.tone(dark ? 70 : 50)),
+    hover: hexFromArgb(palette.tone(dark ? 70 : Contrast.darker(100, 4.6))),
     pressed: hexFromArgb(palette.tone(dark ? 90 : 30)),
   }
 }
@@ -233,5 +228,8 @@ export function resolveColorScheme(id: string | undefined, customColor: string |
       seed: normalizeCustomColorScheme(customColor),
     }
   }
-  return COLOR_SCHEMES.find((scheme) => scheme.id === id) || COLOR_SCHEMES[0]
+  return (
+    COLOR_SCHEMES.find((scheme) => scheme.id === id) ||
+    COLOR_SCHEMES.find((scheme) => scheme.id === DEFAULT_COLOR_SCHEME_ID)!
+  )
 }

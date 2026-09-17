@@ -8,7 +8,7 @@
 
 use super::config::RuntimeConfigState;
 use super::power::{PowerGuard, RETRY_DELAY as POWER_RETRY_DELAY};
-use crate::aria2::client::Aria2Client;
+use crate::services::tasks::TaskService;
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::Emitter;
@@ -84,6 +84,46 @@ fn completed_length(task: &crate::aria2::types::Aria2Task) -> u64 {
     parse_length(Some(&task.completed_length))
 }
 
+/// Use task fractions for mixed media/file work; their raw units cannot be summed.
+#[cfg(any(target_os = "macos", target_os = "windows", test))]
+fn task_progress(tasks: &[crate::aria2::types::Aria2Task]) -> Option<u64> {
+    let tasks: Vec<_> = tasks
+        .iter()
+        .filter(|task| task.seeder.as_deref() != Some("true"))
+        .collect();
+    if tasks.is_empty() {
+        return None;
+    }
+    if tasks.iter().any(|task| task.media.is_some()) {
+        let mut sum = 0.0;
+        for task in &tasks {
+            let fraction = if let Some(media) = &task.media {
+                if media.live == "true" || media.state == "finalizing" {
+                    return None;
+                }
+                media.progress.as_deref()?.parse::<f64>().ok()?
+            } else {
+                let total = parse_length(Some(&task.total_length));
+                if total == 0 {
+                    return None;
+                }
+                completed_length(task) as f64 / total as f64
+            };
+            if !fraction.is_finite() {
+                return None;
+            }
+            sum += fraction.clamp(0.0, 1.0);
+        }
+        return Some((sum / tasks.len() as f64 * 100.0) as u64);
+    }
+    let total: u64 = tasks
+        .iter()
+        .map(|task| parse_length(Some(&task.total_length)))
+        .sum();
+    let completed: u64 = tasks.iter().map(|task| completed_length(task)).sum();
+    (total > 0).then(|| ((completed as f64 / total as f64).clamp(0.0, 1.0) * 100.0) as u64)
+}
+
 /// Sets the macOS Dock badge label using `NSApp().dockTile().setBadgeLabel()`.
 ///
 /// This is an **app-level** API that accesses `NSApplication.sharedApplication()`
@@ -131,7 +171,7 @@ pub(crate) fn set_dock_badge(label: Option<&str>) {
 /// capture a bitmap snapshot, but `NSProgressIndicator`'s `drawRect:` relies on
 /// the window compositor's CALayer tree which doesn't exist for dock tiles.
 ///
-/// The fix: register a custom `NSProgressIndicator` subclass (`MotrixProgressIndicator`)
+/// The fix: register a custom `NSProgressIndicator` subclass (`RayburstProgressIndicator`)
 /// with a `drawRect:` override that manually paints using `NSBezierPath`.  This is
 /// the same approach used by tao's `TaoProgressIndicator` — the industry-standard
 /// workaround for dock tile progress rendering.
@@ -176,7 +216,7 @@ pub(crate) fn set_dock_progress(progress: Option<u64>) {
 }
 
 /// Finds an existing `NSProgressIndicator` subclass in the dock tile's content view,
-/// or creates a new `MotrixProgressIndicator` (custom subclass with `drawRect:` override).
+/// or creates a new `RayburstProgressIndicator` (custom subclass with `drawRect:` override).
 ///
 /// A plain `NSProgressIndicator` is invisible in dock tiles because `NSDockTile.display()`
 /// captures a bitmap by calling `drawRect:` on the content view hierarchy, and the stock
@@ -230,7 +270,7 @@ unsafe fn get_or_create_progress_indicator(
     indicator
 }
 
-/// Registers the `MotrixProgressIndicator` ObjC class (once) — a custom
+/// Registers the `RayburstProgressIndicator` ObjC class (once) — a custom
 /// `NSProgressIndicator` subclass with a `drawRect:` override for dock tile rendering.
 ///
 /// The class draws a rounded progress bar using `NSBezierPath`:
@@ -248,8 +288,8 @@ fn register_progress_indicator_class() -> *const objc2::runtime::AnyClass {
 
     INIT.call_once(|| unsafe {
         let superclass = objc2::class!(NSProgressIndicator);
-        let mut decl = ClassBuilder::new(c"MotrixProgressIndicator", superclass)
-            .expect("Failed to create MotrixProgressIndicator class");
+        let mut decl = ClassBuilder::new(c"RayburstProgressIndicator", superclass)
+            .expect("Failed to create RayburstProgressIndicator class");
 
         // Register the custom drawRect: method.
         // Uses raw pointer (*mut AnyObject) to satisfy the HRTB lifetime
@@ -347,7 +387,7 @@ impl StatServiceHandle {
 }
 
 /// Spawns the global stat service as a background tokio task.
-pub fn spawn_stat_service(app: tauri::AppHandle, aria2: Arc<Aria2Client>) -> StatServiceHandle {
+pub fn spawn_stat_service(app: tauri::AppHandle, aria2: Arc<TaskService>) -> StatServiceHandle {
     let (stop_tx, stop_rx) = watch::channel(false);
 
     let join_handle = tokio::spawn(async move {
@@ -391,7 +431,7 @@ impl IntervalState {
 
 async fn stat_loop(
     app: tauri::AppHandle,
-    aria2: Arc<Aria2Client>,
+    aria2: Arc<TaskService>,
     mut stop_rx: watch::Receiver<bool>,
 ) {
     let mut interval_state = IntervalState::new();
@@ -501,7 +541,7 @@ async fn stat_loop(
             }
 
             // ── Tray title (macOS menu bar / Linux appindicator label) ──
-            if let Some(tray) = app.tray_by_id("motrix-next") {
+            if let Some(tray) = app.tray_by_id("rayburst") {
                 let next_title =
                     tray_title_for_speed(cfg.tray_speedometer, download_speed, upload_speed);
                 if tray_title_needs_update(&last_tray_title, &next_title) {
@@ -549,16 +589,7 @@ async fn stat_loop(
                 if cfg.show_progress_bar && num_active > 0 {
                     match aria2.tell_active().await {
                         Ok(tasks) => {
-                            let total: u64 = tasks
-                                .iter()
-                                .filter_map(|t| t.total_length.parse::<u64>().ok())
-                                .sum();
-                            let completed: u64 = tasks.iter().map(completed_length).sum();
-                            let pct = if total > 0 {
-                                Some((completed as f64 / total as f64 * 100.0) as u64)
-                            } else {
-                                Some(0)
-                            };
+                            let pct = task_progress(&tasks);
                             let _ = app.run_on_main_thread(move || {
                                 set_dock_progress(pct);
                             });
@@ -580,19 +611,14 @@ async fn stat_loop(
                 if cfg.show_progress_bar && num_active > 0 {
                     match aria2.tell_active().await {
                         Ok(tasks) => {
-                            let total: u64 = tasks
-                                .iter()
-                                .filter_map(|t| t.total_length.parse::<u64>().ok())
-                                .sum();
-                            let completed: u64 = tasks.iter().map(completed_length).sum();
-                            let progress = if total > 0 {
-                                completed as f64 / total as f64
-                            } else {
-                                0.0
-                            };
+                            let progress = task_progress(&tasks);
                             let _ = window.set_progress_bar(tauri::window::ProgressBarState {
-                                status: Some(tauri::window::ProgressBarStatus::Normal),
-                                progress: Some((progress * 100.0) as u64),
+                                status: Some(if progress.is_some() {
+                                    tauri::window::ProgressBarStatus::Normal
+                                } else {
+                                    tauri::window::ProgressBarStatus::Indeterminate
+                                }),
+                                progress,
                             });
                         }
                         Err(e) => {
@@ -753,18 +779,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn constants_match_frontend_timing_ts() {
-        // These constants MUST match src/shared/timing.ts exactly.
-        // If timing.ts changes and these tests fail, update the Rust
-        // constants to stay in sync.
-        assert_eq!(STAT_BASE_INTERVAL_MS, 500, "BASE must match timing.ts");
-        assert_eq!(STAT_PER_TASK_INTERVAL_MS, 100, "PER_TASK must match");
-        assert_eq!(STAT_MIN_INTERVAL_MS, 500, "MIN must match timing.ts");
-        assert_eq!(STAT_MAX_INTERVAL_MS, 6000, "MAX must match timing.ts");
-        assert_eq!(STAT_IDLE_INCREMENT_MS, 100, "IDLE_INCREMENT must match");
-    }
-
     // ── StatUpdate serialization ────────────────────────────────────
 
     #[test]
@@ -792,5 +806,25 @@ mod tests {
         task.completed_length = "200".to_string();
 
         assert_eq!(completed_length(&task), 200);
+    }
+    #[test]
+    fn media_progress_uses_duration_and_keeps_live_or_finalizing_indeterminate() {
+        let mut task = crate::aria2::types::Aria2Task {
+            total_length: "0".into(),
+            completed_length: "0".into(),
+            media: Some(crate::aria2::types::Aria2Media {
+                live: "false".into(),
+                state: "downloading".into(),
+                progress: Some("0.5".into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert_eq!(task_progress(&[task.clone()]), Some(50));
+        task.media.as_mut().unwrap().live = "true".into();
+        assert_eq!(task_progress(&[task.clone()]), None);
+        task.media.as_mut().unwrap().live = "false".into();
+        task.media.as_mut().unwrap().state = "finalizing".into();
+        assert_eq!(task_progress(&[task]), None);
     }
 }

@@ -11,5 +11,7 @@
   "notification.download-start-title": "Завантаження розпочато",
   "notification.ed2k-complete-body": "Роздача: %{task_name}",
   "notification.ed2k-complete-title": "ED2K-завантаження завершено",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "Очікування вибору вмісту",
+  "notification.selection-body": "%{task_name}"
 }

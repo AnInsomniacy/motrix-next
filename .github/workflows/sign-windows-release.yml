@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   resolve-releases:
+    if: vars.RAYBURST_SIGNPATH_ENABLED == 'true'
     name: Resolve releases
     runs-on: ubuntu-latest
     outputs:
@@ -79,7 +80,7 @@ jobs:
 
           foreach ($release in $releases) {
             foreach ($installer in $installers) {
-              $asset = "MotrixNext_$($release.version)_$($installer.Suffix)"
+              $asset = "Rayburst_$($release.version)_$($installer.Suffix)"
               $targetDir = Join-Path "unsigned" "$($release.channel)-$($installer.Arch)"
               New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 
@@ -138,11 +139,11 @@ jobs:
         timeout-minutes: 180
         uses: signpath/github-action-submit-signing-request@v2
         with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          api-token: ${{ secrets.RAYBURST_SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.RAYBURST_SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.RAYBURST_SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: release-signing
-          artifact-configuration-slug: ${{ vars.SIGNPATH_RELEASE_ARTIFACT_CONFIGURATION_SLUG }}
+          artifact-configuration-slug: ${{ vars.RAYBURST_SIGNPATH_RELEASE_ARTIFACT_CONFIGURATION_SLUG }}
           github-artifact-id: ${{ steps.unsigned-artifact.outputs.artifact-id }}
           wait-for-completion: true
           wait-for-completion-timeout-in-seconds: 10800
@@ -180,8 +181,8 @@ jobs:
       - name: Generate updater signatures
         shell: bash
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.RAYBURST_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.RAYBURST_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           jq -r '.[].asset' signing-manifest.json | while IFS= read -r asset; do

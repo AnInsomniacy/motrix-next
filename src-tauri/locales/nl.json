@@ -11,5 +11,7 @@
   "notification.download-start-title": "Download gestart",
   "notification.ed2k-complete-body": "Delen: %{task_name}",
   "notification.ed2k-complete-title": "ED2K-download voltooid",
-  "notification.error-unknown": "Unknown error"
+  "notification.error-unknown": "Unknown error",
+  "notification.selection-title": "Wachten op inhoudskeuze",
+  "notification.selection-body": "%{task_name}"
 }

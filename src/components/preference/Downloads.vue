@@ -272,6 +272,20 @@ onMounted(async () => {
   <div class="preference-form-wrapper">
     <div class="preference-form-scroll">
       <NForm label-placement="left" label-align="left" label-width="260px" size="small" class="form-preference">
+        <NDivider title-placement="left">{{ t('preferences.media-downloads') }}</NDivider>
+        <NFormItem :label="t('preferences.media-select-before-download')">
+          <NSwitch v-model:value="form.mediaSelectBeforeDownload" />
+        </NFormItem>
+        <NFormItem :label="t('preferences.media-default-format')">
+          <NSelect
+            v-model:value="form.mediaDefaultFormat"
+            :options="[
+              { label: 'MP4', value: 'mp4' },
+              { label: 'MKV', value: 'mkv' },
+            ]"
+            class="pref-control-auto"
+          />
+        </NFormItem>
         <NDivider title-placement="left">{{ t('preferences.download-concurrency') }}</NDivider>
         <NFormItem
           :label="t('preferences.max-concurrent-downloads')"

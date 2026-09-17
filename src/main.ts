@@ -22,7 +22,6 @@ import { resolveAppProxyUrl } from '@shared/utils/proxy'
 import { checkSyncDue } from '@shared/utils/syncSchedule'
 import type { AppConfig, TauriUpdate } from '@shared/types'
 import App from './App.vue'
-import 'virtual:uno.css'
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/transitions.css'
@@ -316,10 +315,6 @@ if (import.meta.env.PROD) {
     await loadLocale(resolvedLocale)
     setI18nLocale(i18n, resolvedLocale)
 
-    // Flush deferred migration toasts now that i18n locale is active.
-    // loadPreference() buffers these signals to avoid showing English toasts.
-    preferenceStore.flushMigrationSignals()
-
     // Mount only after preference + locale hydration so root-level theme,
     // color-scheme, locale, and layout watchers see stable persisted values
     // on their first run. The native window is still hidden until
@@ -328,7 +323,7 @@ if (import.meta.env.PROD) {
       taskStore.setApi(aria2Api)
     }
     app.mount('#app')
-    // The UI remains usable if database inspection or migrations fail.
+    // The UI remains usable if database inspection fails.
     const database = useDatabaseStore()
     await database.init().catch(() => undefined)
     if (database.phase === 'resetting') return
