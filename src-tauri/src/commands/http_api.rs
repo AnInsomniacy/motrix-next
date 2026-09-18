@@ -28,9 +28,14 @@ pub fn take_pending_deep_links(
 
 #[tauri::command]
 pub fn take_pending_external_inputs(
+    window: tauri::WebviewWindow,
     state: tauri::State<'_, external_input::PendingExternalInputState>,
 ) -> external_input::PendingExternalInputsPayload {
-    external_input::take_pending_external_inputs(state.inner())
+    if window.label() == external_input::DOWNLOAD_CONFIRMATION_WINDOW_LABEL {
+        external_input::take_pending_confirmation_inputs(state.inner())
+    } else {
+        external_input::take_pending_external_inputs(state.inner())
+    }
 }
 
 #[tauri::command]

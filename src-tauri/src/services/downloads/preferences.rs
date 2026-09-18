@@ -13,6 +13,8 @@ pub(super) struct Preferences {
     pub auto_submit_from_extension: bool,
     #[serde(default = "enabled")]
     pub silent_auto_submit_from_extension: bool,
+    #[serde(default = "enabled")]
+    use_independent_download_window: bool,
     dir: String,
     file_category_enabled: bool,
     file_categories: Vec<Category>,
@@ -22,6 +24,16 @@ pub(super) struct Preferences {
 }
 fn enabled() -> bool {
     true
+}
+impl Preferences {
+    pub(super) fn confirmation_route(&self) -> crate::services::external_input::ExternalInputRoute {
+        use crate::services::external_input::ExternalInputRoute;
+        if !self.auto_submit_from_extension && self.use_independent_download_window {
+            ExternalInputRoute::DownloadConfirmation
+        } else {
+            ExternalInputRoute::MainWindow
+        }
+    }
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -191,6 +203,25 @@ pub(super) fn options(prefs: &Preferences, request: &AddRequest) -> Result<Value
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn confirmation_route_respects_independent_window_and_auto_submit_preferences() {
+        use crate::services::external_input::ExternalInputRoute;
+        for (auto_submit, independent, expected) in [
+            (false, None, ExternalInputRoute::DownloadConfirmation),
+            (false, Some(true), ExternalInputRoute::DownloadConfirmation),
+            (false, Some(false), ExternalInputRoute::MainWindow),
+            (true, Some(true), ExternalInputRoute::MainWindow),
+            (true, Some(false), ExternalInputRoute::MainWindow),
+        ] {
+            let mut saved = json!({ "autoSubmitFromExtension": auto_submit });
+            if let Some(enabled) = independent {
+                saved["useIndependentDownloadWindow"] = enabled.into();
+            }
+            let prefs: Preferences = serde_json::from_value(saved).unwrap();
+            assert_eq!(prefs.confirmation_route(), expected);
+        }
+    }
 
     #[test]
     fn browser_intent_uses_matching_preferences_and_one_value_per_header() {

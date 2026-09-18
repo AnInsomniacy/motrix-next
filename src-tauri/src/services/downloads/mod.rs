@@ -85,7 +85,7 @@ pub async fn dispatch(app: &AppHandle, request: AddRequest) -> Result<AddRespons
         .0
         .stage_confirmation(&request.id, &serde_json::to_string(&request)?)
         .await?;
-    show_confirmation(app, &request);
+    show_confirmation(app, &request, prefs.confirmation_route());
     Ok(AddResponse {
         id: request.id,
         action: "needs-confirmation",
@@ -192,12 +192,17 @@ async fn submit_reserved(
 pub async fn restore_pending(app: &AppHandle) -> Result<(), AppError> {
     for value in app.state::<DatabaseState>().0.pending_downloads().await? {
         let request: AddRequest = serde_json::from_str(&value)?;
-        show_confirmation(app, &request);
+        let prefs = preferences::load(app)?;
+        show_confirmation(app, &request, prefs.confirmation_route());
     }
     Ok(())
 }
 
-fn show_confirmation(app: &AppHandle, request: &AddRequest) {
+fn show_confirmation(
+    app: &AppHandle,
+    request: &AddRequest,
+    route: crate::services::external_input::ExternalInputRoute,
+) {
     let input = crate::services::external_input::ExternalDownloadInput {
         request_id: Some(request.id.clone()),
         filename_source: Some(request.filename_source),
@@ -210,7 +215,7 @@ fn show_confirmation(app: &AppHandle, request: &AddRequest) {
         request_headers: request.request_headers.clone(),
         source: Some("http-api".into()),
     };
-    crate::services::external_input::route_external_inputs(app, vec![input], "http-api", false);
+    crate::services::external_input::route_external_inputs(app, vec![input], "http-api", route);
 }
 
 pub async fn cancel(app: &AppHandle, id: &str) -> Result<(), AppError> {
