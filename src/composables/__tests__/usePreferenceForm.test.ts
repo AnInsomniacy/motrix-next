@@ -45,11 +45,17 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key }),
 }))
 
-// ── Mock aria2 API (changeGlobalOption + isEngineReady) ─────────────
+// ── Mock aria2 API ──────────────────────────────────────────────────
 const mockChangeGlobalOption = vi.fn().mockResolvedValue(undefined)
+const mockChangeOption = vi.fn().mockResolvedValue(undefined)
+const mockFetchTaskList = vi.fn().mockResolvedValue([])
+const mockSaveSession = vi.fn().mockResolvedValue('OK')
 const mockIsEngineReady = vi.fn().mockReturnValue(true)
 vi.mock('@/api/aria2', () => ({
   changeGlobalOption: (...args: unknown[]) => mockChangeGlobalOption(...args),
+  changeOption: (...args: unknown[]) => mockChangeOption(...args),
+  fetchTaskList: (...args: unknown[]) => mockFetchTaskList(...args),
+  saveSession: (...args: unknown[]) => mockSaveSession(...args),
   isEngineReady: () => mockIsEngineReady(),
 }))
 
@@ -68,6 +74,7 @@ function extractMessageText(value: unknown): string {
 interface TestForm extends Record<string, unknown> {
   dir: string
   maxConcurrentDownloads: number
+  streamMaxConnections?: number
   locale: string
 }
 
@@ -76,11 +83,13 @@ function makeOptions(overrides: Partial<Parameters<typeof usePreferenceForm<Test
     buildForm: () => ({
       dir: '/downloads',
       maxConcurrentDownloads: 6,
+      streamMaxConnections: 64,
       locale: 'en-US',
     }),
     buildSystemConfig: (f: TestForm) => ({
       dir: f.dir,
       'max-concurrent-downloads': String(f.maxConcurrentDownloads),
+      ...(f.streamMaxConnections !== undefined ? { 'stream-max-connections': String(f.streamMaxConnections) } : {}),
     }),
     ...overrides,
   }
@@ -113,6 +122,7 @@ describe('usePreferenceForm', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    mockIsEngineReady.mockReturnValue(true)
   })
 
   it('initialises form with buildForm values and isDirty=false', () => {
@@ -445,6 +455,78 @@ describe('usePreferenceForm', () => {
     await handleSave()
 
     expect(mockChangeGlobalOption).not.toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it('propagates stream-max-connections changes to active tasks and persists session', async () => {
+    const store = usePreferenceStore()
+    store.updateAndSave = vi.fn().mockResolvedValue(true)
+    mockFetchTaskList.mockResolvedValueOnce([{ gid: 'task-1' }, { gid: 'task-2' }])
+
+    const { result, unmount } = withSetup(() => usePreferenceForm(makeOptions()))
+    const { form, handleSave } = result
+
+    form.value.streamMaxConnections = 16
+    await handleSave()
+
+    expect(mockChangeGlobalOption).toHaveBeenCalledWith(expect.objectContaining({ 'stream-max-connections': '16' }))
+    expect(mockFetchTaskList).toHaveBeenCalledWith({ type: 'active' })
+    expect(mockChangeOption).toHaveBeenCalledTimes(2)
+    expect(mockChangeOption).toHaveBeenCalledWith({
+      gid: 'task-1',
+      options: { 'stream-max-connections': '16' },
+    })
+    expect(mockChangeOption).toHaveBeenCalledWith({
+      gid: 'task-2',
+      options: { 'stream-max-connections': '16' },
+    })
+    expect(mockSaveSession).toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it('does not fetch tasks or call changeOption when changed options are not task-propagatable', async () => {
+    const store = usePreferenceStore()
+    store.updateAndSave = vi.fn().mockResolvedValue(true)
+
+    const { result, unmount } = withSetup(() => usePreferenceForm(makeOptions()))
+    const { form, handleSave } = result
+
+    form.value.maxConcurrentDownloads = 8
+    await handleSave()
+
+    expect(mockChangeGlobalOption).toHaveBeenCalledWith({ 'max-concurrent-downloads': '8' })
+    expect(mockFetchTaskList).not.toHaveBeenCalled()
+    expect(mockChangeOption).not.toHaveBeenCalled()
+    expect(mockSaveSession).not.toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it('restores task options and session during rollback when save fails', async () => {
+    const store = usePreferenceStore()
+    store.config.streamMaxConnections = 64
+    store.updateAndSave = vi.fn().mockResolvedValue(true)
+    mockFetchTaskList.mockResolvedValue([{ gid: 'task-1' }])
+
+    const { result, unmount } = withSetup(() =>
+      usePreferenceForm(
+        makeOptions({
+          afterSave: () => Promise.reject(new Error('post-save failure')),
+        }),
+      ),
+    )
+
+    result.form.value.streamMaxConnections = 16
+    await expect(result.handleSave()).rejects.toThrow('post-save failure')
+
+    // During rollback, should revert active task options to 64
+    expect(mockChangeOption).toHaveBeenLastCalledWith({
+      gid: 'task-1',
+      options: { 'stream-max-connections': '64' },
+    })
+    expect(mockSaveSession).toHaveBeenCalled()
 
     unmount()
   })

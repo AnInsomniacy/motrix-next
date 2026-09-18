@@ -12,9 +12,9 @@ import { invoke } from '@tauri-apps/api/core'
 import { usePreferenceStore } from '@/stores/preference'
 import { useAppMessage } from '@/composables/useAppMessage'
 import { filterHotReloadableKeys } from '@shared/utils/config'
-import { changeGlobalOption, isEngineReady } from '@/api/aria2'
+import { changeGlobalOption, changeOption, fetchTaskList, isEngineReady, saveSession } from '@/api/aria2'
 import { logger } from '@shared/logger'
-import type { AppConfig } from '@shared/types'
+import type { AppConfig, Aria2EngineOptions } from '@shared/types'
 import { validateAppConfigCandidate } from '@shared/configConstraints'
 import { buildSystemConfigFromAppConfig } from '@shared/utils/systemConfig'
 
@@ -62,6 +62,31 @@ export interface UsePreferenceFormOptions<T extends Record<string, unknown>> {
    * `preferenceStore.updateAndSave`. Defaults to spreading the form as-is.
    */
   transformForStore?: (form: T) => Partial<AppConfig>
+}
+
+const TASK_PROPAGATABLE_KEYS = ['stream-max-connections', 'max-download-limit', 'max-upload-limit'] as const
+
+async function propagateOptionsToActiveTasks(options: Aria2EngineOptions): Promise<void> {
+  const taskOptionsToPropagate = Object.fromEntries(
+    Object.entries(options).filter(([key]) =>
+      TASK_PROPAGATABLE_KEYS.includes(key as (typeof TASK_PROPAGATABLE_KEYS)[number]),
+    ),
+  ) as Aria2EngineOptions
+
+  if (Object.keys(taskOptionsToPropagate).length === 0) return
+
+  const tasks = await fetchTaskList({ type: 'active' })
+  if (tasks.length > 0) {
+    await Promise.allSettled(
+      tasks.map((task) =>
+        changeOption({
+          gid: task.gid,
+          options: taskOptionsToPropagate,
+        }),
+      ),
+    )
+    await saveSession()
+  }
 }
 
 /**
@@ -143,6 +168,7 @@ export function usePreferenceForm<T extends Record<string, unknown>>(options: Us
       if (shouldHotReload) {
         hotReloadAttempted = true
         await changeGlobalOption(changedHotConfig as Partial<AppConfig>)
+        await propagateOptionsToActiveTasks(changedHotConfig as Aria2EngineOptions)
       }
 
       const saved = await preferenceStore.updateAndSave(storeData)
@@ -183,6 +209,7 @@ export function usePreferenceForm<T extends Record<string, unknown>>(options: Us
       if (hotReloadAttempted && Object.keys(rollbackHotConfig).length > 0) {
         try {
           await changeGlobalOption(rollbackHotConfig as Partial<AppConfig>)
+          await propagateOptionsToActiveTasks(rollbackHotConfig as Aria2EngineOptions)
         } catch (rollbackError) {
           rollbackFailed = true
           logger.error('PreferenceForm.rollback', rollbackError)
